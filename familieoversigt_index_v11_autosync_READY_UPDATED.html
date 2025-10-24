@@ -80,6 +80,22 @@
   @media (max-width:980px){ .grid{grid-template-columns: repeat(2, minmax(0,1fr))} .day{min-height:auto} }
   @media (max-width:640px){ .grid{grid-template-columns: 1fr} .form{grid-template-columns: 1 fr} }
 </style>
+
+<style id="wk-b-overrides">
+  .modal, .dialog, [role="dialog"] { z-index: 2000 !important; }
+  .modal .content, .dialog .content, [role="dialog"] .content,
+  .modal .body, .dialog .body, [role="dialog"] .body {
+    max-height: 90vh !important;
+    overflow: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+  body.modal-open { overflow: hidden !important; }
+  .google-fab, .sync-fab, .g-sync, .fab-sync { z-index: 900 !important; }
+  body.modal-open .google-fab,
+  body.modal-open .sync-fab,
+  body.modal-open .g-sync,
+  body.modal-open .fab-sync { display: none !important; }
+</style>
 </head>
 <body>
   <div class="wrap">
@@ -773,5 +789,23 @@
 
   grid.addEventListener('dblclick', (e)=>{ const day = e.target.closest('.day'); if(day){ openNew(day.getAttribute('data-date')); }});
 </script>
+
+<script>
+(function () {
+  const body = document.body;
+  function anyModalOpen() {
+    const m = document.querySelector('.modal, .dialog, [role="dialog"]');
+    if (!m) return false;
+    const style = getComputedStyle(m);
+    return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+  }
+  function tick() { body.classList.toggle('modal-open', anyModalOpen()); }
+  const mo = new MutationObserver(() => setTimeout(tick, 0));
+  mo.observe(document.documentElement, { subtree: true, childList: true, attributes: true });
+  ['click','keydown','load'].forEach(ev => addEventListener(ev, () => setTimeout(tick, 0)));
+  tick();
+})();
+</script>
 </body>
 </html>
+

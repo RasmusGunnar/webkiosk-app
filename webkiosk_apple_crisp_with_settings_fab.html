@@ -1,29 +1,5 @@
 <!DOCTYPE html>
 <html lang="da">
-<style id="wk-a-overrides">
-  /* Lag-orden: modaler/kalender-iframe øverst, tandhjul/fab under */
-  .wk-modal, .modal, .dialog, [role="dialog"] { z-index: 2000 !important; }
-  .calendar-overlay, #calendarOverlay, .overlay--calendar { z-index: 1900 !important; }
-
-  /* Typiske id/klasser for tandhjul/FAB – tilpas om nødvendigt */
-  #settingsFab, .settings-fab, .settings-btn { z-index: 900 !important; }
-
-  /* Skjul tandhjul og Google-FAB når kalender eller modal er åben */
-  .calendar-open #settingsFab,
-  .calendar-open .settings-fab,
-  .calendar-open .settings-btn,
-  .modal-open   #settingsFab,
-  .modal-open   .settings-fab,
-  .modal-open   .settings-btn,
-  .calendar-open .google-fab,
-  .modal-open   .google-fab { display: none !important; }
-
-  /* Sørg for at kalenderens iframe kan klikkes og fylder hele overlayet */
-  .calendar-overlay iframe, #calendarOverlay iframe {
-    width: 100% !important; height: 100% !important; border: 0;
-    pointer-events: auto !important;
-  }
-</style>
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -110,6 +86,24 @@
 
   .logoPreview{ width: 140px; height: 64px; display:flex; align-items:center; justify-content:center; border:1px dashed var(--border); border-radius:12px; background:#fafafa; }
   .logoPreview img{ max-width:100%; max-height:100%; object-fit:contain; display:block; }
+</style>
+
+<style id="wk-a-overrides">
+  .wk-modal, .modal, .dialog, [role="dialog"] { z-index: 2000 !important; }
+  .calendar-overlay, #calendarOverlay, .overlay--calendar { z-index: 1900 !important; }
+  #settingsFab, .settings-fab, .settings-btn { z-index: 900 !important; }
+  .calendar-open #settingsFab,
+  .calendar-open .settings-fab,
+  .calendar-open .settings-btn,
+  .modal-open   #settingsFab,
+  .modal-open   .settings-fab,
+  .modal-open   .settings-btn,
+  .calendar-open .google-fab,
+  .modal-open   .google-fab { display: none !important; }
+  .calendar-overlay iframe, #calendarOverlay iframe {
+    width: 100% !important; height: 100% !important; border: 0;
+    pointer-events: auto !important;
+  }
 </style>
 </head>
 <body>
@@ -403,6 +397,29 @@ document.getElementById('tileSonos').addEventListener('click', ()=>{
 
 // Init
 applyForm();
+</script>
+
+<script>
+(function () {
+  const body = document.body;
+  function isVisible(el) {
+    if (!el) return false;
+    const style = getComputedStyle(el);
+    return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+  }
+  function updateState() {
+    const calOverlay = document.querySelector(
+      '.calendar-overlay, #calendarOverlay, .overlay--calendar, iframe[src*="familieoversigt"]'
+    );
+    const anyModal = document.querySelector('.wk-modal, .modal, .dialog, [role="dialog"]');
+    body.classList.toggle('calendar-open', !!calOverlay && isVisible(calOverlay));
+    body.classList.toggle('modal-open', !!anyModal && isVisible(anyModal));
+  }
+  const mo = new MutationObserver(() => setTimeout(updateState, 0));
+  mo.observe(document.documentElement, { subtree: true, childList: true, attributes: true });
+  ['click','keydown','hashchange','load'].forEach(ev => addEventListener(ev, () => setTimeout(updateState, 0)));
+  updateState();
+})();
 </script>
 </body>
 </html>

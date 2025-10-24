@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Webkiosk – Apple Crisp + Settings</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --panel:#ffffff; --fg:#0f172a; --muted:#6b7280;
+    --border:#e6e8ec; --accent:#0f172a;
+    --radius:20px; --shadow:0 10px 30px rgba(2,6,23,.06);
+    --logoH: 64px; --logoBoxW: 42%; --logoMaxW: 280px;
+  }
+  @media (max-width: 1100px){ :root{ --logoBoxW: 45%; --logoH: 60px; } }
+  @media (max-width: 900px){  :root{ --logoBoxW: 50%; --logoH: 56px; } }
+
+  * { box-sizing: border-box; }
+  html, body { height:100%; }
+  body{ margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--fg); display:flex; align-items:stretch; justify-content:center; min-height:100vh; }
+  .wrap{ width:min(1200px, 100%); padding: clamp(12px, 2vw, 24px); margin:auto; }
+  .grid{ display:grid; gap:clamp(12px,2vw,18px); grid-template-columns: repeat(12, 1fr); }
+
+  .panel{ background: var(--panel); border:1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .widget{ padding: clamp(16px, 2.2vw, 24px); }
+  .widget h2{ margin:0 0 6px 0; font-size: clamp(15px,1.6vw,18px); color:var(--muted); font-weight:600; letter-spacing:.2px; }
+
+  .clock-time{ font-size: clamp(40px, 6vw, 56px); line-height:1; font-weight:750; }
+  .clock-date{ margin-top: 6px; font-size: clamp(14px, 1.8vw, 18px); color: var(--muted); }
+  .weather-main{ display:flex; align-items:center; gap:14px; }
+  .weather-temp{ font-size: clamp(40px, 6vw, 56px); font-weight:750; }
+  .weather-line{ font-size: clamp(14px, 1.8vw, 18px); color: var(--muted); }
+  .widget .icon{ width: clamp(34px,4.5vw,48px); height: clamp(34px,4.5vw,48px); color: var(--accent);} 
+
+  .tiles{ grid-column: 1 / -1; display:grid; gap:clamp(12px,2vw,18px); grid-template-columns: repeat(3, 1fr); }
+
+  .tile{
+    min-height: 140px; padding: clamp(16px, 2.4vw, 24px);
+    display:grid; grid-template-columns: 1fr minmax(160px, min(var(--logoMaxW), var(--logoBoxW)));
+    align-items:center; gap: clamp(12px, 2vw, 20px);
+    cursor:pointer; user-select:none; outline:none;
+    transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+  }
+  .tile:hover{ transform: translateY(-1px); box-shadow: 0 14px 30px rgba(2,6,23,.10);} 
+  .tile:focus-visible{ box-shadow: 0 0 0 3px rgba(17,24,39,.25), var(--shadow); }
+
+  .meta .label{ font-size: clamp(18px, 2.2vw, 22px); font-weight: 750; letter-spacing:.2px; }
+  .meta .sub{ color:var(--muted); font-size: clamp(12px, 1.8vw, 15px); margin-top:6px; }
+
+  .logo-box{ height: var(--logoH); display:flex; align-items:center; justify-content:flex-end; }
+  .logo-box img{ max-height: 100%; max-width: 100%; width: auto; height: auto; object-fit: contain; display:block; }
+
+  .widget.weather{ grid-column: span 6; }
+  .widget.clock{ grid-column: span 6; }
+  @media (max-width: 900px){ .widget.weather, .widget.clock{ grid-column: span 12; } .tiles{ grid-template-columns: 1fr; } }
+
+  /* Calendar overlay */
+  .calendar-view{ position: fixed; inset: 0; padding: clamp(12px, 2vw, 20px); background: rgba(246,247,249,.85); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); display:none; z-index: 60; }
+  .calendar-inner{ height:100%; display:flex; flex-direction:column; gap:12px; }
+  .topbar{ display:flex; align-items:center; gap:12px; }
+  .back-btn{ display:inline-flex; align-items:center; gap:10px; padding: 10px 14px; border-radius: 12px; background:#fff; border:1px solid var(--border); color: var(--fg); cursor:pointer; font-weight:650; box-shadow: var(--shadow); }
+  .calframe.panel{ flex:1; min-height:0; overflow:hidden; display:flex; }
+  iframe{ width:100%; height:100%; border:0; display:block; }
+  .sr-only{ position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+
+  /* Floating settings button */
+  .fab{ position: fixed; right: 20px; bottom: 20px; z-index: 70; }
+  .fab button{ width:56px; height:56px; border-radius: 50%; border:1px solid var(--border); background:#fff; color:var(--fg); display:inline-flex; align-items:center; justify-content:center; box-shadow: var(--shadow); cursor:pointer; }
+  .fab button:hover{ transform: translateY(-1px); box-shadow: 0 14px 30px rgba(2,6,23,.10);} 
+
+  /* Settings modal */
+  .modal{ position: fixed; inset:0; background: rgba(15,23,42,.28); display:none; align-items:center; justify-content:center; padding:20px; z-index: 80; }
+  .modal[aria-hidden="false"]{ display:flex; }
+  .dialog{ width:min(920px, 96vw); max-height: 92vh; overflow:auto; background:#fff; border:1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow); padding:20px; }
+  .dialog h3{ margin:0 0 10px 0; font-size: 20px; }
+  .form-grid{ display:grid; grid-template-columns: 1fr 1fr; gap:16px; }
+  .form-grid .full{ grid-column: 1 / -1; }
+  .field{ display:flex; flex-direction:column; gap:8px; }
+  .field label{ font-weight:600; font-size:14px; color:var(--muted); }
+  .hint{ font-size:12px; color:var(--muted); }
+  .row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  input[type="text"], input[type="url"], select{ width:100%; padding:10px 12px; border-radius: 12px; border:1px solid var(--border); font-size:14px; }
+  input[type="file"]{ font-size: 13px; }
+  .actions{ display:flex; gap:10px; justify-content:flex-end; margin-top: 8px; }
+  .btn{ padding:10px 14px; border-radius: 12px; border:1px solid var(--border); background:#fff; cursor:pointer; font-weight:650; }
+  .btn.primary{ background: var(--fg); color:#fff; border-color: var(--fg); }
+
+  .logoPreview{ width: 140px; height: 64px; display:flex; align-items:center; justify-content:center; border:1px dashed var(--border); border-radius:12px; background:#fafafa; }
+  .logoPreview img{ max-width:100%; max-height:100%; object-fit:contain; display:block; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="grid">
+      <section class="panel widget weather" aria-label="Vejr">
+        <h2>Vejr</h2>
+        <div class="weather-main">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 16.5a4.5 4.5 0 0 1 4.5-4.5h.5A6.5 6.5 0 1 1 20 14.5a3.5 3.5 0 0 1-3.5 3.5H8.5A5.5 5.5 0 0 1 3 16.5z"/>
+          </svg>
+          <div>
+            <div class="weather-temp">18°</div>
+            <div class="weather-line">Klart</div>
+            <div class="weather-line">Farum</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel widget clock" aria-label="Ur">
+        <h2>Ur</h2>
+        <div class="clock-time" id="clockTime">--:--</div>
+        <div class="clock-date" id="clockDate">--</div>
+      </section>
+
+      <div class="tiles">
+        <button class="panel tile" id="tileCalendar" type="button" aria-label="Åbn kalender" title="Åbn kalender">
+          <div class="meta"><div class="label">Kalender</div><div class="sub">Familieoversigt</div></div>
+          <div class="logo-box"><img id="logoCalendar" alt="Kalender-logo" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='64' viewBox='0 0 160 64'%3E%3Crect width='160' height='64' fill='%23f0f2f5'/%3E%3Ctext x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' font-size='14' fill='%236b7280' font-family='Inter,Arial'%3EKalender%3C/text%3E%3C/svg%3E"/></div>
+        </button>
+        <button class="panel tile" id="tileHomey" type="button" aria-label="Åbn Homey" title="Åbn Homey">
+          <div class="meta"><div class="label">Homey</div><div class="sub">Dashboard</div></div>
+          <div class="logo-box"><img id="logoHomey" alt="Homey-logo" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='64' viewBox='0 0 160 64'%3E%3Crect width='160' height='64' fill='%23f0f2f5'/%3E%3Ctext x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' font-size='14' fill='%236b7280' font-family='Inter,Arial'%3EHomey%3C/text%3E%3C/svg%3E"/></div>
+        </button>
+        <button class="panel tile" id="tileSonos" type="button" aria-label="Åbn Sonos" title="Åbn Sonos">
+          <div class="meta"><div class="label">Sonos</div><div class="sub">App eller web</div></div>
+          <div class="logo-box"><img id="logoSonos" alt="Sonos-logo" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='64' viewBox='0 0 160 64'%3E%3Crect width='160' height='64' fill='%23f0f2f5'/%3E%3Ctext x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' font-size='14' fill='%236b7280' font-family='Inter,Arial'%3ESonos%3C/text%3E%3C/svg%3E"/></div>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Calendar overlay -->
+  <section class="calendar-view" id="calendarView" aria-hidden="true">
+    <div class="calendar-inner">
+      <div class="topbar">
+        <button class="back-btn" id="closeCalendar" type="button" aria-label="Luk">⬅ Luk</button>
+      </div>
+      <div class="calframe panel">
+        <iframe id="calendarFrame" title="Kalender"></iframe>
+      </div>
+    </div>
+  </section>
+
+  <!-- Floating Settings Button -->
+  <div class="fab" aria-live="polite">
+    <button id="openSettings" title="Indstillinger" aria-label="Indstillinger">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c0 .66.26 1.3.73 1.77.47.47 1.11.73 1.77.73h.09a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Settings Modal -->
+  <div class="modal" id="settingsModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <div class="dialog">
+      <h3 id="settingsTitle">Indstillinger</h3>
+      <div class="form-grid">
+        <div class="field full">
+          <label for="calendarMode">Kalenderkilde</label>
+          <div class="row">
+            <label class="row"><input type="radio" name="calendarMode" value="url" checked> URL</label>
+            <label class="row"><input type="radio" name="calendarMode" value="upload"> Upload HTML</label>
+          </div>
+          <input type="url" id="calendarUrl" placeholder="https://…" />
+          <div class="row" id="calendarUploadRow" style="display:none;">
+            <input type="file" id="calendarFile" accept="text/html,.html" />
+            <span class="hint">Filen gemmes lokalt i browseren.</span>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="homeyUrl">Homey dashboard URL</label>
+          <input type="url" id="homeyUrl" placeholder="https://homey.app/…" />
+        </div>
+        <div class="field">
+          <label for="sonosUrl">Sonos link (app eller web)</label>
+          <input type="text" id="sonosUrl" placeholder="sonos:// eller https://" />
+        </div>
+
+        <div class="field">
+          <label>Kalender-logo</label>
+          <div class="row">
+            <div class="logoPreview"><img id="prevCalendar"></div>
+            <input type="file" id="logoInputCalendar" accept="image/*" />
+          </div>
+        </div>
+        <div class="field">
+          <label>Homey-logo</label>
+          <div class="row">
+            <div class="logoPreview"><img id="prevHomey"></div>
+            <input type="file" id="logoInputHomey" accept="image/*" />
+          </div>
+        </div>
+        <div class="field">
+          <label>Sonos-logo</label>
+          <div class="row">
+            <div class="logoPreview"><img id="prevSonos"></div>
+            <input type="file" id="logoInputSonos" accept="image/*" />
+          </div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn" id="resetConfig" type="button">Nulstil</button>
+        <button class="btn" id="closeSettings" type="button">Luk</button>
+        <button class="btn primary" id="saveSettings" type="button">Gem</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+// --- Clock ---
+function updateClock(){
+  const now = new Date();
+  const time = now.toLocaleTimeString('da-DK', {hour:'2-digit', minute:'2-digit'});
+  const date = now.toLocaleDateString('da-DK', {weekday:'long', day:'2-digit', month:'long'});
+  document.getElementById('clockTime').textContent = time;
+  document.getElementById('clockDate').textContent = date.charAt(0).toUpperCase()+date.slice(1);
+}
+setInterval(updateClock, 1000); updateClock();
+
+// --- Config persistence ---
+const LS_KEY = 'webkioskConfigV2';
+const defaults = {
+  calendar: { mode:'url', url:'', fileName:'', fileData:'' },
+  homeyUrl: '',
+  sonosUrl: '',
+  logos: { calendar:'', homey:'', sonos:'' }
+};
+
+function loadConfig(){
+  try{ return Object.assign({}, defaults, JSON.parse(localStorage.getItem(LS_KEY)||'{}')); }
+  catch(e){ return {...defaults}; }
+}
+function saveConfig(cfg){ localStorage.setItem(LS_KEY, JSON.stringify(cfg)); }
+
+let config = loadConfig();
+
+// --- UI bindings ---
+const modal = document.getElementById('settingsModal');
+const btnOpen = document.getElementById('openSettings');
+const btnClose = document.getElementById('closeSettings');
+const btnSave = document.getElementById('saveSettings');
+const btnReset = document.getElementById('resetConfig');
+
+const calendarUrl = document.getElementById('calendarUrl');
+const calendarFile = document.getElementById('calendarFile');
+const calendarUploadRow = document.getElementById('calendarUploadRow');
+
+const homeyUrl = document.getElementById('homeyUrl');
+const sonosUrl = document.getElementById('sonosUrl');
+
+const logoInputs = {
+  calendar: document.getElementById('logoInputCalendar'),
+  homey: document.getElementById('logoInputHomey'),
+  sonos: document.getElementById('logoInputSonos')
+};
+const logoImgs = {
+  calendar: document.getElementById('logoCalendar'),
+  homey: document.getElementById('logoHomey'),
+  sonos: document.getElementById('logoSonos')
+};
+const logoPreviews = {
+  calendar: document.getElementById('prevCalendar'),
+  homey: document.getElementById('prevHomey'),
+  sonos: document.getElementById('prevSonos')
+};
+
+function openModal(){ modal.setAttribute('aria-hidden','false'); }
+function closeModal(){ modal.setAttribute('aria-hidden','true'); }
+btnOpen.addEventListener('click', openModal);
+btnClose.addEventListener('click', closeModal);
+modal.addEventListener('click', (e)=>{ if(e.target===modal) closeModal(); });
+
+// Calendar mode radios
+const modeRadios = [...document.querySelectorAll('input[name="calendarMode"]')];
+function syncCalendarModeUI(){
+  const m = modeRadios.find(r=>r.checked)?.value || 'url';
+  calendarUploadRow.style.display = (m==='upload') ? '' : 'none';
+}
+modeRadios.forEach(r=> r.addEventListener('change', syncCalendarModeUI));
+
+// Load current config into form & view
+function applyLogos(){
+  ['calendar','homey','sonos'].forEach(k=>{
+    const b64 = config.logos[k];
+    if(b64){ logoImgs[k].src = b64; logoPreviews[k].src = b64; }
+  });
+}
+function applyForm(){
+  // radios
+  modeRadios.forEach(r=> r.checked = (r.value === (config.calendar.mode||'url')));
+  syncCalendarModeUI();
+  calendarUrl.value = config.calendar.url || '';
+  homeyUrl.value = config.homeyUrl || '';
+  sonosUrl.value = config.sonosUrl || '';
+  applyLogos();
+}
+
+function toBase64(file){
+  return new Promise((res, rej)=>{ const fr = new FileReader(); fr.onload = ()=>res(fr.result); fr.onerror=rej; fr.readAsDataURL(file); });
+}
+
+Object.entries(logoInputs).forEach(([key, input])=>{
+  input.addEventListener('change', async ()=>{
+    const f = input.files?.[0];
+    if(!f) return;
+    const b64 = await toBase64(f);
+    config.logos[key] = b64; applyLogos();
+  });
+});
+
+calendarFile.addEventListener('change', async ()=>{
+  const f = calendarFile.files?.[0];
+  if(!f) return;
+  const b64 = await toBase64(f);
+  config.calendar.fileName = f.name; 
+  config.calendar.fileData = b64; // data URL
+});
+
+btnSave.addEventListener('click', ()=>{
+  config.calendar.mode = modeRadios.find(r=>r.checked)?.value || 'url';
+  config.calendar.url = calendarUrl.value.trim();
+  config.homeyUrl = homeyUrl.value.trim();
+  config.sonosUrl = sonosUrl.value.trim();
+  saveConfig(config);
+  closeModal();
+});
+
+btnReset.addEventListener('click', ()=>{
+  if(confirm('Nulstil alle indstillinger?')){
+    localStorage.removeItem(LS_KEY); config = loadConfig(); applyForm();
+  }
+});
+
+// --- Tiles behavior ---
+const calendarView = document.getElementById('calendarView');
+const calendarFrame = document.getElementById('calendarFrame');
+const openCal = document.getElementById('tileCalendar');
+const closeCal = document.getElementById('closeCalendar');
+
+function openCalendar(){
+  // Decide source
+  let src = '';
+  if(config.calendar.mode === 'upload' && config.calendar.fileData){
+    // Create blob URL from data URL for better iframe support
+    try{
+      const arr = config.calendar.fileData.split(',');
+      const mime = arr[0].match(/data:(.*);base64/)[1] || 'text/html';
+      const bytes = atob(arr[1]);
+      const buf = new Uint8Array(bytes.length); for(let i=0;i<bytes.length;i++) buf[i] = bytes.charCodeAt(i);
+      const blob = new Blob([buf], {type:mime});
+      src = URL.createObjectURL(blob);
+    }catch(e){ src = config.calendar.fileData; }
+  } else if(config.calendar.url){
+    src = config.calendar.url;
+  }
+  if(!src){ alert('Ingen kalenderkilde er sat endnu. Åbn Indstillinger for at vælge.'); return; }
+  calendarFrame.src = src;
+  calendarView.style.display = 'block';
+}
+function closeCalendar(){ calendarView.style.display = 'none'; calendarFrame.src = ''; }
+openCal.addEventListener('click', openCalendar);
+closeCal.addEventListener('click', closeCalendar);
+
+// Homey
+document.getElementById('tileHomey').addEventListener('click', ()=>{
+  const url = (config.homeyUrl||'').trim();
+  if(!url){ alert('Ingen Homey URL sat endnu.'); return; }
+  window.open(url, '_blank');
+});
+// Sonos
+document.getElementById('tileSonos').addEventListener('click', ()=>{
+  const url = (config.sonosUrl||'').trim();
+  if(!url){ alert('Ingen Sonos-link sat endnu.'); return; }
+  // Attempt to open – app schemes may be blocked by the browser but we'll try
+  window.location.href = url;
+});
+
+// Init
+applyForm();
+</script>
+</body>
+</html>

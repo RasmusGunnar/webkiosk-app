@@ -1,5 +1,29 @@
 <!DOCTYPE html>
 <html lang="da">
+<style id="wk-a-overrides">
+  /* Lag-orden: modaler/kalender-iframe øverst, tandhjul/fab under */
+  .wk-modal, .modal, .dialog, [role="dialog"] { z-index: 2000 !important; }
+  .calendar-overlay, #calendarOverlay, .overlay--calendar { z-index: 1900 !important; }
+
+  /* Typiske id/klasser for tandhjul/FAB – tilpas om nødvendigt */
+  #settingsFab, .settings-fab, .settings-btn { z-index: 900 !important; }
+
+  /* Skjul tandhjul og Google-FAB når kalender eller modal er åben */
+  .calendar-open #settingsFab,
+  .calendar-open .settings-fab,
+  .calendar-open .settings-btn,
+  .modal-open   #settingsFab,
+  .modal-open   .settings-fab,
+  .modal-open   .settings-btn,
+  .calendar-open .google-fab,
+  .modal-open   .google-fab { display: none !important; }
+
+  /* Sørg for at kalenderens iframe kan klikkes og fylder hele overlayet */
+  .calendar-overlay iframe, #calendarOverlay iframe {
+    width: 100% !important; height: 100% !important; border: 0;
+    pointer-events: auto !important;
+  }
+</style>
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />

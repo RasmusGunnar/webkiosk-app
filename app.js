@@ -1,1 +1,9 @@
-// Webkiosk host-app// Loader forsiden (A) i et fuldskærms-iframe.// A håndterer selv navigation til kalenderen (B).const A = './webkiosk_apple_crisp_with_settings_fab.html';const stage = document.getElementById('stage');function loadA() {  // Fjern tidligere iframe hvis der var en  while (stage.firstChild) stage.removeChild(stage.firstChild);  const iframe = document.createElement('iframe');  iframe.id = 'stage-iframe';  iframe.src = A;  iframe.setAttribute('allow', 'clipboard-read; clipboard-write');  iframe.style.pointerEvents = 'auto';  stage.appendChild(iframe);}document.addEventListener('DOMContentLoaded', loadA);if ('serviceWorker' in navigator) {  window.addEventListener('load', () => {    navigator.serviceWorker.register('./service-worker.js').catch(console.warn);  });}
+// Registrér service worker med korrekt scope for GitHub Pages
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/webkiosk-app/service-worker.js', { scope: '/webkiosk-app/' })
+      .catch(console.warn);
+  });
+}
+
+// (Intentionelt tom ift. at loade A – det håndteres nu i index.html for at kunne autodetektere)

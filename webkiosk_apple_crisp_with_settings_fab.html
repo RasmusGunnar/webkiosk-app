@@ -106,6 +106,119 @@
   }
 </style>
 </head>
+<style id="wk-gear-autohide">
+  .wk-hidden { display: none !important; }
+  .wk-modal, .modal, .dialog, [role="dialog"] { z-index: 2000 !important; }
+  .calendar-overlay, #calendarOverlay, .overlay--calendar { z-index: 1900 !important; }
+</style>
+
+<script>
+/*
+  Webkiosk – Auto-skjul tandhjul/FAB når kalenderen/modaler er åbne
+  - Finder "flydende" knapper i hjørner (position:fixed, små)
+  - Skjuler dem når en kalender-iframe/overlay er synlig
+  - Robust mod DOM-ændringer (MutationObserver + resize + interval)
+*/
+(function () {
+  const body = document.body;
+  const CORNER_PAD = 160;   // afstand fra kanterne der tæller som "hjørne"
+  const MAX_SIZE  = 140;    // maks bredde/højde for en lille FAB
+  const candidates = new Set();
+
+  function isVisible(el) {
+    if (!el) return false;
+    const s = getComputedStyle(el);
+    if (s.display === 'none' || s.visibility === 'hidden' || +s.opacity === 0) return false;
+    const r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0;
+  }
+
+  function inCorner(r) {
+    const w = window.innerWidth, h = window.innerHeight;
+    const nearTop    = r.top    <= CORNER_PAD;
+    const nearBottom = (h - r.bottom) <= CORNER_PAD;
+    const nearLeft   = r.left   <= CORNER_PAD;
+    const nearRight  = (w - r.right) <= CORNER_PAD;
+    return (nearBottom || nearTop) && (nearLeft || nearRight);
+  }
+
+  // (1) Find potentielle gear/FAB-knapper
+  function scanForFloatingButtons() {
+    const all = document.querySelectorAll('button, a, div, span');
+    all.forEach(el => {
+      try {
+        const s = getComputedStyle(el);
+        if (s.position !== 'fixed') return;             // typisk for FABs
+        const r = el.getBoundingClientRect();
+        if (Math.max(r.width, r.height) > MAX_SIZE) return;
+        if (!inCorner(r)) return;
+
+        // ser den “gear-agtig” ud?
+        const txt  = (el.innerText||'').toLowerCase();
+        const aria = (el.getAttribute('aria-label')||'').toLowerCase();
+        const ttl  = (el.getAttribute('title')||'').toLowerCase();
+        const html = (el.innerHTML||'').toLowerCase();
+        const looksLikeGear =
+          /settings|indstillinger|gear|tandhjul/.test(txt+aria+ttl) ||
+          /gear|cog|settings|tand|ikon/.test(html);
+
+        if (looksLikeGear || true) { // <- “true” gør den ekstra aggressiv: tag alle små corner-FABs
+          candidates.add(el);
+        }
+      } catch(_) {}
+    });
+
+    // Kendte navne hvis de findes
+    document.querySelectorAll('#settingsFab, .settings-fab, .settings-btn, .fab-settings')
+      .forEach(el => candidates.add(el));
+  }
+
+  // (2) Opdag om kalender er åben
+  function calendarOpen() {
+    // a) overlay-elementer
+    const overlay = document.querySelector('.calendar-overlay, #calendarOverlay, .overlay--calendar');
+    if (overlay && isVisible(overlay)) return true;
+    // b) iframe som peger på kalender
+    const iframes = document.querySelectorAll('iframe');
+    for (const f of iframes) {
+      const src = (f.getAttribute('src')||'').toLowerCase();
+      if (isVisible(f) && /familie|kalender|calendar|oversigt/.test(src)) return true;
+    }
+    return false;
+  }
+
+  // (3) Skjul/vis kandidater
+  function applyVisibility() {
+    const hide = calendarOpen() || anyModalOpen();
+    candidates.forEach(el => {
+      if (!el || !el.isConnected) return;
+      el.classList.toggle('wk-hidden', hide);
+    });
+    body.classList.toggle('calendar-open', hide);
+  }
+
+  function anyModalOpen() {
+    const m = document.querySelector('.wk-modal, .modal, .dialog, [role="dialog"]');
+    return !!(m && isVisible(m));
+  }
+
+  // Start scanning og hold øje med ændringer
+  scanForFloatingButtons();
+  const mo = new MutationObserver(() => {
+    scanForFloatingButtons();
+    applyVisibility();
+  });
+  mo.observe(document.documentElement, { subtree:true, childList:true, attributes:true });
+
+  ['load','click','keydown','resize','hashchange'].forEach(ev =>
+    addEventListener(ev, () => setTimeout(applyVisibility, 0))
+  );
+  // Nød-fallback hvis framework animerer ting ind:
+  setInterval(applyVisibility, 600);
+
+  applyVisibility();
+})();
+</script>
 <body>
   <div class="wrap">
     <div class="grid">

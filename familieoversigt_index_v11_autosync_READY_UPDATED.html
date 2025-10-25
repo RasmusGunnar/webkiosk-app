@@ -789,23 +789,5 @@
 
   grid.addEventListener('dblclick', (e)=>{ const day = e.target.closest('.day'); if(day){ openNew(day.getAttribute('data-date')); }});
 </script>
-
-<script>
-(function () {
-  const body = document.body;
-  function anyModalOpen() {
-    const m = document.querySelector('.modal, .dialog, [role="dialog"]');
-    if (!m) return false;
-    const style = getComputedStyle(m);
-    return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
-  }
-  function tick() { body.classList.toggle('modal-open', anyModalOpen()); }
-  const mo = new MutationObserver(() => setTimeout(tick, 0));
-  mo.observe(document.documentElement, { subtree: true, childList: true, attributes: true });
-  ['click','keydown','load'].forEach(ev => addEventListener(ev, () => setTimeout(tick, 0)));
-  tick();
-})();
-</script>
 </body>
 </html>
-

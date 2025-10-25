@@ -87,138 +87,7 @@
   .logoPreview{ width: 140px; height: 64px; display:flex; align-items:center; justify-content:center; border:1px dashed var(--border); border-radius:12px; background:#fafafa; }
   .logoPreview img{ max-width:100%; max-height:100%; object-fit:contain; display:block; }
 </style>
-
-<style id="wk-a-overrides">
-  .wk-modal, .modal, .dialog, [role="dialog"] { z-index: 2000 !important; }
-  .calendar-overlay, #calendarOverlay, .overlay--calendar { z-index: 1900 !important; }
-  #settingsFab, .settings-fab, .settings-btn { z-index: 900 !important; }
-  .calendar-open #settingsFab,
-  .calendar-open .settings-fab,
-  .calendar-open .settings-btn,
-  .modal-open   #settingsFab,
-  .modal-open   .settings-fab,
-  .modal-open   .settings-btn,
-  .calendar-open .google-fab,
-  .modal-open   .google-fab { display: none !important; }
-  .calendar-overlay iframe, #calendarOverlay iframe {
-    width: 100% !important; height: 100% !important; border: 0;
-    pointer-events: auto !important;
-  }
-</style>
 </head>
-<style id="wk-gear-autohide">
-  .wk-hidden { display: none !important; }
-  .wk-modal, .modal, .dialog, [role="dialog"] { z-index: 2000 !important; }
-  .calendar-overlay, #calendarOverlay, .overlay--calendar { z-index: 1900 !important; }
-</style>
-
-<script>
-/*
-  Webkiosk – Auto-skjul tandhjul/FAB når kalenderen/modaler er åbne
-  - Finder "flydende" knapper i hjørner (position:fixed, små)
-  - Skjuler dem når en kalender-iframe/overlay er synlig
-  - Robust mod DOM-ændringer (MutationObserver + resize + interval)
-*/
-(function () {
-  const body = document.body;
-  const CORNER_PAD = 160;   // afstand fra kanterne der tæller som "hjørne"
-  const MAX_SIZE  = 140;    // maks bredde/højde for en lille FAB
-  const candidates = new Set();
-
-  function isVisible(el) {
-    if (!el) return false;
-    const s = getComputedStyle(el);
-    if (s.display === 'none' || s.visibility === 'hidden' || +s.opacity === 0) return false;
-    const r = el.getBoundingClientRect();
-    return r.width > 0 && r.height > 0;
-  }
-
-  function inCorner(r) {
-    const w = window.innerWidth, h = window.innerHeight;
-    const nearTop    = r.top    <= CORNER_PAD;
-    const nearBottom = (h - r.bottom) <= CORNER_PAD;
-    const nearLeft   = r.left   <= CORNER_PAD;
-    const nearRight  = (w - r.right) <= CORNER_PAD;
-    return (nearBottom || nearTop) && (nearLeft || nearRight);
-  }
-
-  // (1) Find potentielle gear/FAB-knapper
-  function scanForFloatingButtons() {
-    const all = document.querySelectorAll('button, a, div, span');
-    all.forEach(el => {
-      try {
-        const s = getComputedStyle(el);
-        if (s.position !== 'fixed') return;             // typisk for FABs
-        const r = el.getBoundingClientRect();
-        if (Math.max(r.width, r.height) > MAX_SIZE) return;
-        if (!inCorner(r)) return;
-
-        // ser den “gear-agtig” ud?
-        const txt  = (el.innerText||'').toLowerCase();
-        const aria = (el.getAttribute('aria-label')||'').toLowerCase();
-        const ttl  = (el.getAttribute('title')||'').toLowerCase();
-        const html = (el.innerHTML||'').toLowerCase();
-        const looksLikeGear =
-          /settings|indstillinger|gear|tandhjul/.test(txt+aria+ttl) ||
-          /gear|cog|settings|tand|ikon/.test(html);
-
-        if (looksLikeGear || true) { // <- “true” gør den ekstra aggressiv: tag alle små corner-FABs
-          candidates.add(el);
-        }
-      } catch(_) {}
-    });
-
-    // Kendte navne hvis de findes
-    document.querySelectorAll('#settingsFab, .settings-fab, .settings-btn, .fab-settings')
-      .forEach(el => candidates.add(el));
-  }
-
-  // (2) Opdag om kalender er åben
-  function calendarOpen() {
-    // a) overlay-elementer
-    const overlay = document.querySelector('.calendar-overlay, #calendarOverlay, .overlay--calendar');
-    if (overlay && isVisible(overlay)) return true;
-    // b) iframe som peger på kalender
-    const iframes = document.querySelectorAll('iframe');
-    for (const f of iframes) {
-      const src = (f.getAttribute('src')||'').toLowerCase();
-      if (isVisible(f) && /familie|kalender|calendar|oversigt/.test(src)) return true;
-    }
-    return false;
-  }
-
-  // (3) Skjul/vis kandidater
-  function applyVisibility() {
-    const hide = calendarOpen() || anyModalOpen();
-    candidates.forEach(el => {
-      if (!el || !el.isConnected) return;
-      el.classList.toggle('wk-hidden', hide);
-    });
-    body.classList.toggle('calendar-open', hide);
-  }
-
-  function anyModalOpen() {
-    const m = document.querySelector('.wk-modal, .modal, .dialog, [role="dialog"]');
-    return !!(m && isVisible(m));
-  }
-
-  // Start scanning og hold øje med ændringer
-  scanForFloatingButtons();
-  const mo = new MutationObserver(() => {
-    scanForFloatingButtons();
-    applyVisibility();
-  });
-  mo.observe(document.documentElement, { subtree:true, childList:true, attributes:true });
-
-  ['load','click','keydown','resize','hashchange'].forEach(ev =>
-    addEventListener(ev, () => setTimeout(applyVisibility, 0))
-  );
-  // Nød-fallback hvis framework animerer ting ind:
-  setInterval(applyVisibility, 600);
-
-  applyVisibility();
-})();
-</script>
 <body>
   <div class="wrap">
     <div class="grid">
@@ -512,26 +381,125 @@ document.getElementById('tileSonos').addEventListener('click', ()=>{
 applyForm();
 </script>
 
-<script>
-(function () {
+<style id="wk-gear-autohide">
+  .wk-hidden { display: none !important; }
+  /* make sure settings FAB remains clickable when visible */
+  .wk-gear-candidate { z-index: 3000 !important; pointer-events: auto !important; }
+  /* modals/overlays stack above normal content; not toggled repeatedly */
+  .wk-modal, .modal, .dialog, [role="dialog"], [aria-modal="true"] { z-index: 2000 !important; }
+  .calendar-overlay, #calendarOverlay, .overlay--calendar { z-index: 1900 !important; }
+</style>
+
+<script id="wk-gear-autohide-script">
+(function(){
+  // --- Config ---
+  const VIEW_FILL_FOR_CALENDAR = 0.60; // 60% of viewport -> treat as "calendar open"
+  const VIEW_FILL_FOR_MODAL    = 0.20; // 20% of viewport -> treat as modal open
+  const CORNER_PAD = 160, MAX_SIZE = 140;
+  const CHECK_DELAY = 160; // debounce ms
+
+  const B_NAMES = [
+    'familieoversigt_index_v11_autosync_READY_UPDATED.html',
+    'familieoversigt_index_v11_autosync.html',
+    'familieoversigt.html',
+    'calendar.html'
+  ].map(s => s.toLowerCase());
+
   const body = document.body;
-  function isVisible(el) {
-    if (!el) return false;
-    const style = getComputedStyle(el);
-    return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+  let gearSet = null;
+  let scheduled = false;
+  let last = { cal:false, modal:false };
+
+  function vp() { return { w: window.innerWidth||0, h: window.innerHeight||0 }; }
+
+  function isVisible(el){
+    if(!el) return false;
+    const s = getComputedStyle(el);
+    if (s.display === 'none' || s.visibility === 'hidden' || +s.opacity === 0) return false;
+    const r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0;
   }
-  function updateState() {
-    const calOverlay = document.querySelector(
-      '.calendar-overlay, #calendarOverlay, .overlay--calendar, iframe[src*="familieoversigt"]'
-    );
-    const anyModal = document.querySelector('.wk-modal, .modal, .dialog, [role="dialog"]');
-    body.classList.toggle('calendar-open', !!calOverlay && isVisible(calOverlay));
-    body.classList.toggle('modal-open', !!anyModal && isVisible(anyModal));
+
+  function areaRatio(el){
+    const r = el.getBoundingClientRect();
+    const {w,h} = vp();
+    if (w===0||h===0) return 0;
+    return (r.width * r.height) / (w*h);
   }
-  const mo = new MutationObserver(() => setTimeout(updateState, 0));
-  mo.observe(document.documentElement, { subtree: true, childList: true, attributes: true });
-  ['click','keydown','hashchange','load'].forEach(ev => addEventListener(ev, () => setTimeout(updateState, 0)));
-  updateState();
+
+  function largeCalendarIframeOpen(){
+    const iframes = document.querySelectorAll('iframe');
+    for(const f of iframes){
+      const src = (f.getAttribute('src')||'').toLowerCase();
+      const isCalendar = B_NAMES.some(n=>src.includes(n)) || /familieoversigt|kalender|calendar/.test(src);
+      if(!isCalendar) continue;
+      if(!isVisible(f)) continue;
+      if(areaRatio(f) >= VIEW_FILL_FOR_CALENDAR) return true;
+    }
+    return false;
+  }
+
+  function calendarOverlayOpen(){
+    const el = document.querySelector('.calendar-overlay, #calendarOverlay, .overlay--calendar');
+    return !!(el && isVisible(el) && areaRatio(el) >= VIEW_FILL_FOR_CALENDAR*0.9);
+  }
+
+  function modalOpen(){
+    const m = document.querySelector('.wk-modal, .modal.show, .dialog.show, [role="dialog"], [aria-modal="true"]');
+    return !!(m && isVisible(m) && areaRatio(m) >= VIEW_FILL_FOR_MODAL);
+  }
+
+  function findGearsOnce(){
+    const set = new Set();
+    // Known
+    document.querySelectorAll('#settingsFab, .settings-fab, .settings-btn, .fab-settings, [data-role=\"settings\"]').forEach(el=>set.add(el));
+    // Heuristic: small fixed elements near corners
+    document.querySelectorAll('button,a,div,span').forEach(el=>{
+      try{
+        const s = getComputedStyle(el);
+        if (s.position !== 'fixed') return;
+        const r = el.getBoundingClientRect();
+        if (Math.max(r.width, r.height) > MAX_SIZE) return;
+        const nearCorner = (r.top <= CORNER_PAD || (window.innerHeight - r.bottom) <= CORNER_PAD) &&
+                           (r.left <= CORNER_PAD || (window.innerWidth - r.right) <= CORNER_PAD);
+        if (!nearCorner) return;
+        set.add(el);
+      }catch(_){}
+    });
+    set.forEach(el=>el && el.classList && el.classList.add('wk-gear-candidate'));
+    return set;
+  }
+
+  function apply(){
+    scheduled = false;
+    if(!gearSet) gearSet = findGearsOnce();
+
+    const cal = largeCalendarIframeOpen() || calendarOverlayOpen();
+    const mod = modalOpen();
+
+    if (cal !== last.cal || mod !== last.mod){
+      last = { cal, mod };
+      gearSet.forEach(el => { if(el) el.classList.toggle('wk-hidden', cal || mod); });
+      body.classList.toggle('calendar-open', cal);
+      body.classList.toggle('modal-open', mod);
+    }
+  }
+
+  function schedule(){
+    if (scheduled) return;
+    scheduled = true;
+    setTimeout(apply, CHECK_DELAY);
+  }
+
+  // Observe, but debounced to avoid flicker
+  const mo = new MutationObserver(schedule);
+  mo.observe(document.documentElement, { subtree:true, childList:true, attributes:true });
+  ['load','click','keydown','resize','hashchange','transitionend','animationend'].forEach(ev =>
+    addEventListener(ev, schedule, true)
+  );
+
+  // Initial run
+  schedule();
 })();
 </script>
 </body>

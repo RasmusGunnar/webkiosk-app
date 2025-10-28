@@ -96,6 +96,91 @@
   }
 </style>
 </head>
+<script id="wk-drive-sync">
+/*
+  Webkiosk Drive Sync – gemmer localStorage i Google Drive og henter den igen.
+  Kræver at du allerede er logget ind med Google (samme auth som kalenderen).
+*/
+(async function(){
+  // Vent på, at Google API er indlæst og autoriseret
+  function waitForAuth() {
+    return new Promise((resolve) => {
+      let tries = 0;
+      const t = setInterval(() => {
+        tries++;
+        const g = window.gapi;
+        if (g && g.client && g.auth && g.auth.getToken && g.auth.getToken()) {
+          clearInterval(t);
+          resolve(g);
+        }
+        if (tries > 100) { clearInterval(t); resolve(null); }
+      }, 300);
+    });
+  }
+
+  const g = await waitForAuth();
+  if (!g) {
+    console.warn("Google API not authorized – skipping Drive sync");
+    return;
+  }
+
+  const token = g.auth.getToken().access_token;
+
+  async function getFileId() {
+    const r = await fetch('https://www.googleapis.com/drive/v3/files?q=name%3D%27webkiosk_sync_data.json%27+and+trashed%3Dfalse&fields=files(id)&spaces=appDataFolder', {
+      headers: { Authorization: 'Bearer ' + token }
+    });
+    const d = await r.json();
+    return (d.files && d.files[0]) ? d.files[0].id : null;
+  }
+
+  async function uploadData() {
+    const data = JSON.stringify(localStorage);
+    let fileId = await getFileId();
+    const meta = { name: 'webkiosk_sync_data.json', parents: ['appDataFolder'] };
+
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify(meta)], { type: 'application/json' }));
+    form.append('file', new Blob([data], { type: 'application/json' }));
+
+    const method = fileId ? 'PATCH' : 'POST';
+    const url = fileId
+      ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`
+      : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+    const r = await fetch(url, {
+      method,
+      headers: { Authorization: 'Bearer ' + token },
+      body: form
+    });
+    console.log("Synced localStorage → Drive", r.status);
+  }
+
+  async function downloadData() {
+    const fileId = await getFileId();
+    if (!fileId) return;
+    const r = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+      headers: { Authorization: 'Bearer ' + token }
+    });
+    const text = await r.text();
+    try {
+      const obj = JSON.parse(text);
+      for (const [k, v] of Object.entries(obj)) {
+        localStorage.setItem(k, v);
+      }
+      console.log("Synced Drive → localStorage");
+    } catch(e){ console.warn("Drive data parse error", e); }
+  }
+
+  // Gør tilgængelig globalt hvis du vil kalde det fra andre scripts
+  window.syncLocalToDrive = uploadData;
+  window.syncDriveToLocal = downloadData;
+
+  // Synkroniser automatisk
+  await downloadData();
+  window.addEventListener('beforeunload', uploadData);
+  setInterval(uploadData, 120000); // upload hvert 2. minut
+})();
+</script>
 <body>
   <div class="wrap">
     <div class="grid">

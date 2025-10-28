@@ -1,793 +1,423 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="da">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Familieoversigt – autosync</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Webkiosk – Apple Crisp + Settings</title>
 <style>
   :root{
-    --bg:#f6f7fb; --panel:#ffffff; --ink:#0f172a; --muted:#475569; --muter:#94a3b8;
-    --shadow:0 8px 30px rgba(2,6,23,.08); --radius:18px;
-    --edge-pad: clamp(8px, 2vw, 20px); --col-gap: clamp(6px, 1.2vw, 14px);
-    --done-bg:#ecfdf5;
+    --bg:#f6f7f9; --panel:#ffffff; --fg:#0f172a; --muted:#6b7280;
+    --border:#e6e8ec; --accent:#0f172a;
+    --radius:20px; --shadow:0 10px 30px rgba(2,6,23,.06);
+    --logoH: 64px; --logoBoxW: 42%; --logoMaxW: 280px;
   }
-  *{box-sizing:border-box}
-  html,body{height:100%}
-  body{margin:0; font:16px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial; color:var(--ink); background:var(--bg);}
-  .wrap{max-width:100vw; margin:0 auto; padding:var(--edge-pad)}
-  header{display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;}
-  .title{font-size:22px; font-weight:800; letter-spacing:.2px}
-  .controls{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
-  .btn{border:1px solid #e5e7eb; background:#fff; border-radius:10px; padding:8px 12px; cursor:pointer; font-weight:700; color:#0f172a; box-shadow:0 2px 6px rgba(2,6,23,.05);}
-  .btn.primary{background:var(--ink); color:#fff; border-color:transparent}
-  .btn.icon{width:36px;height:36px;display:inline-grid;place-items:center;padding:0}
-  .btn.small{padding:8px 10px; border-radius:10px; font-size:13px}
-  .btn.ghost{background:#fff; border:1px solid #e5e7eb;}
-  .chipbar{display:flex; gap:8px; flex-wrap:wrap; margin:10px 0}
-  .chip{display:flex; align-items:center; gap:8px; background:#fff; border:1px solid #e5e7eb; color:#334155; font-weight:700; border-radius:999px; padding:6px 10px; cursor:pointer;}
-  .chip .tally{font-size:14px}
-  .chip.active{background:#0f172a;color:#fff;border-color:transparent}
-  .chip.active .tally{filter:brightness(1.4)}
-  .avatar{width:22px; height:22px; border-radius:999px; object-fit:cover; object-position:center;}
+  @media (max-width: 1100px){ :root{ --logoBoxW: 45%; --logoH: 60px; } }
+  @media (max-width: 900px){  :root{ --logoBoxW: 50%; --logoH: 56px; } }
 
-  .grid{display:grid; grid-template-columns: repeat(7, minmax(0,1fr)); gap:var(--col-gap); align-items:stretch;}
-  .day{background:var(--panel); border-radius:var(--radius); box-shadow:var(--shadow); padding:10px 10px 14px; min-height:42vh; display:flex; flex-direction:column; width:100%;}
-  .day .head{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px}
-  .day .name{font-weight:800;color:#111827; text-transform:capitalize}
-  .day .date{color:#475569; font-size:12px; font-weight:700}
-  .day.today{outline:2px solid #11182722}
-  .list{display:flex; flex-direction:column; gap:6px; margin-top:6px; flex:1; min-height:100px}
-  .section{margin-top:6px}
-  .section .h{font-size:11px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:.06em; margin:6px 0 2px}
-  .section .items{display:flex; flex-direction:column; gap:6px}
+  * { box-sizing: border-box; }
+  html, body { height:100%; }
+  body{ margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--fg); display:flex; align-items:stretch; justify-content:center; min-height:100vh; }
+  .wrap{ width:min(1200px, 100%); padding: clamp(12px, 2vw, 24px); margin:auto; }
+  .grid{ display:grid; gap:clamp(12px,2vw,18px); grid-template-columns: repeat(12, 1fr); }
 
-  .item{background:#fff; border:1px solid #e5e7eb; border-left:6px solid #64748b; border-radius:12px; padding:8px 10px; display:flex; gap:8px; align-items:flex-start; box-shadow:0 4px 14px rgba(2,6,23,.06); cursor:pointer; width:100%;}
-  .item .left{display:flex; align-items:center; justify-content:center; min-width:52px; font-weight:800; color:#0f172a}
-  .item .meta{display:flex; flex-direction:column; gap:2px; min-width:0; flex:1}
-  .item .title{font-weight:800; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-  .item .note{color:#475569; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-  .item.done{background:var(--done-bg)}
-  .item.done .title{text-decoration:line-through}
+  .panel{ background: var(--panel); border:1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .widget{ padding: clamp(16px, 2.2vw, 24px); }
+  .widget h2{ margin:0 0 6px 0; font-size: clamp(15px,1.6vw,18px); color:var(--muted); font-weight:600; letter-spacing:.2px; }
 
-  .floating{position:fixed; right:16px; bottom:16px; display:flex; gap:8px; align-items:center; z-index:9999; flex-wrap:wrap; justify-content:flex-end;}
-  .gcal-badge{background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:8px 12px; font-weight:700; color:#334155; box-shadow:var(--shadow);}
+  .clock-time{ font-size: clamp(40px, 6vw, 56px); line-height:1; font-weight:750; }
+  .clock-date{ margin-top: 6px; font-size: clamp(14px, 1.8vw, 18px); color: var(--muted); }
+  .weather-main{ display:flex; align-items:center; gap:14px; }
+  .weather-temp{ font-size: clamp(40px, 6vw, 56px); font-weight:750; }
+  .weather-line{ font-size: clamp(14px, 1.8vw, 18px); color: var(--muted); }
+  .widget .icon{ width: clamp(34px,4.5vw,48px); height: clamp(34px,4.5vw,48px); color: var(--accent);} 
 
-  /* Modal (opret/rediger) */
-  .modal-backdrop{position:fixed; inset:0; background:rgba(2,6,23,.28); display:none; align-items:flex-start; justify-content:center; padding:32px; z-index:50}
-  .modal{width:min(860px, 92vw); background:#fff; border-radius:16px; box-shadow:var(--shadow); padding:16px 16px 12px}
-  .modal h3{margin:0 0 10px 0; font-size:18px; font-weight:800}
-  .form{display:grid; grid-template-columns: 1fr 1fr; gap:10px}
-  .form .full{grid-column:1 / -1}
-  label{display:block; font-size:12px; font-weight:800; color:#334155; margin-bottom:6px}
-  input[type="text"], input[type="date"], input[type="time"], input[type="number"], textarea, select{width:100%; border:1px solid #e5e7eb; border-radius:10px; padding:10px 12px; font:inherit; background:#fff;}
-  textarea{min-height:80px; resize:vertical}
-  .row{display:flex; gap:12px; align-items:center}
-  .row label{margin:0; font-weight:700}
-  .row input[type="checkbox"]{transform: translateY(1px)}
-  .modal .actions{display:flex; justify-content:flex-end; gap:8px; margin-top:10px}
+  .tiles{ grid-column: 1 / -1; display:grid; gap:clamp(12px,2vw,18px); grid-template-columns: repeat(3, 1fr); }
 
-  /* Indstillinger */
-  .settings-backdrop{position:fixed; inset:0; background:rgba(2,6,23,.28); display:none; align-items:flex-start; justify-content:center; padding:32px; z-index:60}
-  .settings{width:min(860px, 92vw); background:#fff; border-radius:16px; box-shadow:var(--shadow); padding:16px}
-  .settings h3{margin:0 0 10px; font-size:18px; font-weight:800}
-  .row-s{display:grid; grid-template-columns: 44px 1fr 1fr 64px 32px; gap:12px; align-items:center; padding:8px; border:1px solid #e5e7eb; border-radius:12px; margin-bottom:8px}
-  .initial{width:36px; height:36px; border-radius:999px; display:grid; place-items:center; background:#eef2ff; font-weight:800}
-  .swatch{width:14px; height:14px; border-radius:999px; border:1px solid #e5e7eb; justify-self:end}
-  .tip{color:#64748b; font-size:12px; margin-top:8px}
-  .settings .actions{display:flex; justify-content:flex-end; gap:8px; margin-top:10px}
+  .tile{
+    min-height: 140px; padding: clamp(16px, 2.4vw, 24px);
+    display:grid; grid-template-columns: 1fr minmax(160px, min(var(--logoMaxW), var(--logoBoxW)));
+    align-items:center; gap: clamp(12px, 2vw, 20px);
+    cursor:pointer; user-select:none; outline:none;
+    transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+  }
+  .tile:hover{ transform: translateY(-1px); box-shadow: 0 14px 30px rgba(2,6,23,.10);} 
+  .tile:focus-visible{ box-shadow: 0 0 0 3px rgba(17,24,39,.25), var(--shadow); }
 
-  @media (max-width:1200px){ .day{min-height:38vh} }
-  @media (max-width:980px){ .grid{grid-template-columns: repeat(2, minmax(0,1fr))} .day{min-height:auto} }
-  @media (max-width:640px){ .grid{grid-template-columns: 1fr} .form{grid-template-columns: 1 fr} }
+  .meta .label{ font-size: clamp(18px, 2.2vw, 22px); font-weight: 750; letter-spacing:.2px; }
+  .meta .sub{ color:var(--muted); font-size: clamp(12px, 1.8vw, 15px); margin-top:6px; }
+
+  .logo-box{ height: var(--logoH); display:flex; align-items:center; justify-content:flex-end; }
+  .logo-box img{ max-height: 100%; max-width: 100%; width: auto; height: auto; object-fit: contain; display:block; }
+
+  .widget.weather{ grid-column: span 6; }
+  .widget.clock{ grid-column: span 6; }
+  @media (max-width: 900px){ .widget.weather, .widget.clock{ grid-column: span 12; } .tiles{ grid-template-columns: 1fr; } }
+
+  /* Calendar overlay */
+  .calendar-view{ position: fixed; inset: 0; padding: clamp(12px, 2vw, 20px); background: rgba(246,247,249,.85); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); display:none; z-index: 60; }
+  .calendar-inner{ height:100%; display:flex; flex-direction:column; gap:12px; }
+  .topbar{ display:flex; align-items:center; gap:12px; }
+  .back-btn{ display:inline-flex; align-items:center; gap:10px; padding: 10px 14px; border-radius: 12px; background:#fff; border:1px solid var(--border); color: var(--fg); cursor:pointer; font-weight:650; box-shadow: var(--shadow); }
+  .calframe.panel{ flex:1; min-height:0; overflow:hidden; display:flex; }
+  iframe{ width:100%; height:100%; border:0; display:block; }
+  .sr-only{ position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+
+  /* Floating settings button */
+  .fab{ position: fixed; right: 20px; bottom: 20px; z-index: 70; }
+  .fab button{ width:56px; height:56px; border-radius: 50%; border:1px solid var(--border); background:#fff; color:var(--fg); display:inline-flex; align-items:center; justify-content:center; box-shadow: var(--shadow); cursor:pointer; }
+  .fab button:hover{ transform: translateY(-1px); box-shadow: 0 14px 30px rgba(2,6,23,.10);} 
+
+  /* Settings modal */
+  .modal{ position: fixed; inset:0; background: rgba(15,23,42,.28); display:none; align-items:center; justify-content:center; padding:20px; z-index: 80; }
+  .modal[aria-hidden="false"]{ display:flex; }
+  .dialog{ width:min(920px, 96vw); max-height: 92vh; overflow:auto; background:#fff; border:1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow); padding:20px; }
+  .dialog h3{ margin:0 0 10px 0; font-size: 20px; }
+  .form-grid{ display:grid; grid-template-columns: 1fr 1fr; gap:16px; }
+  .form-grid .full{ grid-column: 1 / -1; }
+  .field{ display:flex; flex-direction:column; gap:8px; }
+  .field label{ font-weight:600; font-size:14px; color:var(--muted); }
+  .hint{ font-size:12px; color:var(--muted); }
+  .row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  input[type="text"], input[type="url"], select{ width:100%; padding:10px 12px; border-radius: 12px; border:1px solid var(--border); font-size:14px; }
+  input[type="file"]{ font-size: 13px; }
+  .actions{ display:flex; gap:10px; justify-content:flex-end; margin-top: 8px; }
+  .btn{ padding:10px 14px; border-radius: 12px; border:1px solid var(--border); background:#fff; cursor:pointer; font-weight:650; }
+  .btn.primary{ background: var(--fg); color:#fff; border-color: var(--fg); }
+
+  .logoPreview{ width: 140px; height: 64px; display:flex; align-items:center; justify-content:center; border:1px dashed var(--border); border-radius:12px; background:#fafafa; }
+  .logoPreview img{ max-width:100%; max-height:100%; object-fit:contain; display:block; }
 </style>
 
-<style id="wk-b-overrides">
-  .modal, .dialog, [role="dialog"] { z-index: 2000 !important; }
-  .modal .content, .dialog .content, [role="dialog"] .content,
-  .modal .body, .dialog .body, [role="dialog"] .body {
-    max-height: 90vh !important;
-    overflow: auto !important;
-    -webkit-overflow-scrolling: touch !important;
+<style id="wk-gear-floor">
+  .calendar-overlay, #calendarOverlay, .overlay--calendar { z-index: 1900 !important; }
+  #settingsFab, .settings-fab, .settings-btn, .fab-settings {
+    z-index: 100 !important;
+    pointer-events: auto !important;
   }
-  body.modal-open { overflow: hidden !important; }
-  .google-fab, .sync-fab, .g-sync, .fab-sync { z-index: 900 !important; }
-  body.modal-open .google-fab,
-  body.modal-open .sync-fab,
-  body.modal-open .g-sync,
-  body.modal-open .fab-sync { display: none !important; }
 </style>
 </head>
 <body>
   <div class="wrap">
-    <header>
-      <div class="title">Familieoversigt <span class="muted">– uge <span id="weekNo">?</span></span></div>
-      <div class="controls">
-        <button class="btn icon" id="btnPrev" title="Forrige uge">⟨</button>
-        <button class="btn" id="btnWeek">—</button>
-        <button class="btn icon" id="btnNext" title="Næste uge">⟩</button>
-        <button class="btn primary" id="btnNew">+ Ny</button>
-        <button class="btn" id="btnSettings">Indstillinger</button>
-      </div>
-    </header>
+    <div class="grid">
+      <section class="panel widget weather" aria-label="Vejr">
+        <h2>Vejr</h2>
+        <div class="weather-main">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 16.5a4.5 4.5 0 0 1 4.5-4.5h.5A6.5 6.5 0 1 1 20 14.5a3.5 3.5 0 0 1-3.5 3.5H8.5A5.5 5.5 0 0 1 3 16.5z"/>
+          </svg>
+          <div>
+            <div class="weather-temp">18°</div>
+            <div class="weather-line">Klart</div>
+            <div class="weather-line">Farum</div>
+          </div>
+        </div>
+      </section>
 
-    <div class="chipbar" id="peopleBar"></div>
-    <section class="grid" id="grid"></section>
-  </div>
+      <section class="panel widget clock" aria-label="Ur">
+        <h2>Ur</h2>
+        <div class="clock-time" id="clockTime">--:--</div>
+        <div class="clock-date" id="clockDate">--</div>
+      </section>
 
-  <!-- Flydende status + knapper nederst til højre -->
-  <div class="floating">
-    <div class="gcal-badge" id="syncBadge">Google sync: —</div>
-    <button class="btn small" id="btnSync">Sync nu</button>
-    <button class="btn small ghost" id="btnSyncHard">Nulstil &amp; sync</button>
-  </div>
-
-  <!-- Modal (opret/rediger) -->
-  <div class="modal-backdrop" id="backdrop" aria-hidden="true">
-    <div class="modal">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px">
-        <h3 id="dlgTitle">Tilføj</h3>
-        <button class="btn ghost" id="dlgClose">Luk</button>
-      </div>
-      <div class="form" id="form">
-        <div class="full">
-          <label for="f_title">Titel</label>
-          <input id="f_title" type="text" placeholder="Titel">
-        </div>
-        <div>
-          <label for="f_type">Type</label>
-          <select id="f_type">
-            <option>Aktivitet</option>
-            <option>Opgave</option>
-            <option>Fritidsinteresse</option>
-          </select>
-        </div>
-        <div>
-          <label for="f_person">Person</label>
-          <select id="f_person"><option>Alle</option></select>
-        </div>
-        <div>
-          <label for="f_date">Dato</label>
-          <input id="f_date" type="date">
-        </div>
-        <div>
-          <label for="f_time">Tid (valgfri)</label>
-          <input id="f_time" type="time" step="900" placeholder="--:--">
-        </div>
-        <div>
-          <label for="f_duration">Varighed (min, valgfri)</label>
-          <input id="f_duration" type="number" min="0" step="5" placeholder="30">
-        </div>
-        <div>
-          <label for="f_location">Sted (valgfri)</label>
-          <input id="f_location" type="text" placeholder="Adresse/sted">
-        </div>
-        <div class="full">
-          <label for="f_note">Note (valgfri)</label>
-          <textarea id="f_note" placeholder="Noter"></textarea>
-        </div>
-        <div class="full row">
-          <input id="f_repeat" type="checkbox"><label for="f_repeat">Gentag hver uge</label>
-          <input id="f_done" type="checkbox" style="margin-left:16px"><label for="f_done">Marker som udført</label>
-        </div>
-      </div>
-      <div class="actions">
-        <button class="btn ghost" id="btnDelete" style="display:none">Slet</button>
-        <button class="btn primary" id="btnSave">Gem</button>
+      <div class="tiles">
+        <button class="panel tile" id="tileCalendar" type="button" aria-label="Åbn kalender" title="Åbn kalender">
+          <div class="meta"><div class="label">Kalender</div><div class="sub">Familieoversigt</div></div>
+          <div class="logo-box"><img id="logoCalendar" alt="Kalender-logo" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='64' viewBox='0 0 160 64'%3E%3Crect width='160' height='64' fill='%23f0f2f5'/%3E%3Ctext x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' font-size='14' fill='%236b7280' font-family='Inter,Arial'%3EKalender%3C/text%3E%3C/svg%3E"/></div>
+        </button>
+        <button class="panel tile" id="tileHomey" type="button" aria-label="Åbn Homey" title="Åbn Homey">
+          <div class="meta"><div class="label">Homey</div><div class="sub">Dashboard</div></div>
+          <div class="logo-box"><img id="logoHomey" alt="Homey-logo" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='64' viewBox='0 0 160 64'%3E%3Crect width='160' height='64' fill='%23f0f2f5'/%3E%3Ctext x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' font-size='14' fill='%236b7280' font-family='Inter,Arial'%3EHomey%3C/text%3E%3C/svg%3E"/></div>
+        </button>
+        <button class="panel tile" id="tileSonos" type="button" aria-label="Åbn Sonos" title="Åbn Sonos">
+          <div class="meta"><div class="label">Sonos</div><div class="sub">App eller web</div></div>
+          <div class="logo-box"><img id="logoSonos" alt="Sonos-logo" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='64' viewBox='0 0 160 64'%3E%3Crect width='160' height='64' fill='%23f0f2f5'/%3E%3Ctext x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' font-size='14' fill='%236b7280' font-family='Inter,Arial'%3ESonos%3C/text%3E%3C/svg%3E"/></div>
+        </button>
       </div>
     </div>
   </div>
 
-  <!-- Indstillinger -->
-  <div class="settings-backdrop" id="settingsBackdrop">
-    <div class="settings">
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <h3>Indstillinger · Familie</h3>
-        <button class="btn ghost" id="btnSettingsClose">Luk</button>
+  <section class="calendar-view" id="calendarView" aria-hidden="true">
+    <div class="calendar-inner">
+      <div class="topbar">
+        <button class="back-btn" id="closeCalendar" type="button" aria-label="Luk">⬅ Luk</button>
       </div>
-      <div id="settingsRows"></div>
-      <div class="tip">Tip: Billeder gemmes lokalt i browseren (ingen upload til internettet).</div>
+      <div class="calframe panel">
+        <iframe id="calendarFrame" title="Kalender"></iframe>
+      </div>
+    </div>
+  </section>
+
+  <div class="fab" aria-live="polite">
+    <button id="openSettings" title="Indstillinger" aria-label="Indstillinger">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c0 .66.26 1.3.73 1.77.47.47 1.11.73 1.77.73h.09a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/>
+      </svg>
+    </button>
+  </div>
+
+  <div class="modal" id="settingsModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <div class="dialog">
+      <h3 id="settingsTitle">Indstillinger</h3>
+      <div class="form-grid">
+        <div class="field full">
+          <label for="calendarMode">Kalenderkilde</label>
+          <div class="row">
+            <label class="row"><input type="radio" name="calendarMode" value="url" checked> URL</label>
+            <label class="row"><input type="radio" name="calendarMode" value="upload"> Upload HTML</label>
+          </div>
+          <input type="url" id="calendarUrl" placeholder="https://…" />
+          <div class="row" id="calendarUploadRow" style="display:none;">
+            <input type="file" id="calendarFile" accept="text/html,.html" />
+            <span class="hint">Filen gemmes lokalt i browseren.</span>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="homeyUrl">Homey dashboard URL</label>
+          <input type="url" id="homeyUrl" placeholder="https://homey.app/…" />
+        </div>
+        <div class="field">
+          <label for="sonosUrl">Sonos link (app eller web)</label>
+          <input type="text" id="sonosUrl" placeholder="sonos:// eller https://" />
+        </div>
+
+        <div class="field">
+          <label>Kalender-logo</label>
+          <div class="row">
+            <div class="logoPreview"><img id="prevCalendar"></div>
+            <input type="file" id="logoInputCalendar" accept="image/*" />
+          </div>
+        </div>
+        <div class="field">
+          <label>Homey-logo</label>
+          <div class="row">
+            <div class="logoPreview"><img id="prevHomey"></div>
+            <input type="file" id="logoInputHomey" accept="image/*" />
+          </div>
+        </div>
+        <div class="field">
+          <label>Sonos-logo</label>
+          <div class="row">
+            <div class="logoPreview"><img id="prevSonos"></div>
+            <input type="file" id="logoInputSonos" accept="image/*" />
+          </div>
+        </div>
+      </div>
+
       <div class="actions">
-        <button class="btn primary" id="btnSettingsSave">Gem ændringer</button>
+        <button class="btn" id="resetConfig" type="button">Nulstil</button>
+        <button class="btn" id="closeSettings" type="button">Luk</button>
+        <button class="btn primary" id="saveSettings" type="button">Gem</button>
       </div>
     </div>
   </div>
 
 <script>
-  /* ========= Konfiguration ========= */
-  const GAS_URL = "https://script.google.com/macros/s/AKfycbyQeS_NvMVv4A3IImB6S3AsRt67aSpeKuaoHHSf8K4xRE9sx3zSZS8zHlvZFL_WDIKl/exec";
-  const SYNC_MS = 120000; // 2 min
-  const LS_ITEMS = "fam_items_v1";
-  const LS_GCAL_INDEX = "gcal_index";
-  const LS_PREFS = "fam_people_prefs_v1";
+function updateClock(){
+  const now = new Date();
+  const time = now.toLocaleTimeString('da-DK', {hour:'2-digit', minute:'2-digit'});
+  const date = now.toLocaleDateString('da-DK', {weekday:'long', day:'2-digit', month:'long'});
+  document.getElementById('clockTime').textContent = time;
+  document.getElementById('clockDate').textContent = date.charAt(0).toUpperCase()+date.slice(1);
+}
+setInterval(updateClock, 1000); updateClock();
 
-  // ---------- Type-normalisering ----------
-  function normalizeType(t){
-    if (t === "Anden aftale" || t === "Andre aftaler") return "Aktivitet";
-    if (t === "Fritidsinteresser") return "Fritidsinteresse";
-    return t || "Aktivitet";
-  }
+const LS_KEY = 'webkioskConfigV2';
+const defaults = {
+  calendar: { mode:'url', url:'', fileName:'', fileData:'' },
+  homeyUrl: '',
+  sonosUrl: '',
+  logos: { calendar:'', homey:'', sonos:'' }
+};
 
-  // Default personer
-  const DEFAULT_PEOPLE = [
-    {name:"Alle",  color:"#0f172a"},
-    {name:"Far",   color:"#ef4444"},
-    {name:"Mor",   color:"#8b5cf6"},
-    {name:"Carl",  color:"#22c55e"},
-    {name:"Jakob", color:"#0ea5e9"},
-    {name:"Ida",   color:"#f59e0b"},
-  ];
+function loadConfig(){
+  try{ return Object.assign({}, defaults, JSON.parse(localStorage.getItem(LS_KEY)||'{}')); }
+  catch(e){ return {...defaults}; }
+}
+function saveConfig(cfg){ localStorage.setItem(LS_KEY, JSON.stringify(cfg)); }
 
-  /* ========= Preferences (farver + avatar) ========= */
-  function loadPrefs(){ try{ return JSON.parse(localStorage.getItem(LS_PREFS)) || {}; } catch(_){ return {}; } }
-  function savePrefs(p){ localStorage.setItem(LS_PREFS, JSON.stringify(p)); }
-  function getPeople(){
-    const prefs = loadPrefs();
-    return DEFAULT_PEOPLE.map(p=>{
-      const pp = prefs[p.name] || {};
-      return {...p, color: pp.color || p.color, avatar: pp.avatar || ""};
-    });
-  }
+let config = loadConfig();
 
-  /* ========= Model ========= */
-  let items = loadItems();
-  let PEOPLE = getPeople();
-  let currentPerson = "Alle";
-  let editingId = null;
+const modal = document.getElementById('settingsModal');
+const btnOpen = document.getElementById('openSettings');
+const btnClose = document.getElementById('closeSettings');
+const btnSave = document.getElementById('saveSettings');
+const btnReset = document.getElementById('resetConfig');
 
-  function startOfWeek(d=new Date()){
-    const day = (d.getDay()+6)%7; // Mon=0
-    const monday = new Date(d); monday.setDate(d.getDate()-day); monday.setHours(0,0,0,0);
-    return monday;
-  }
-  let weekStart = startOfWeek();
+const calendarUrl = document.getElementById('calendarUrl');
+const calendarFile = document.getElementById('calendarFile');
+const calendarUploadRow = document.getElementById('calendarUploadRow');
 
-  function fmtDateISO(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,'0')+"-"+String(d.getDate()).padStart(2,'0'); }
-  function pad(n){ return (n<10?'0':'')+n; }
-  function monthName(m){
-    return ["januar","februar","marts","april","maj","juni","juli","august","september","oktober","november","december"][m];
-  }
-  function weekNumber(d){
-    d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-    const dayNum = d.getUTCDay() || 7;
-    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-    const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
-    return Math.ceil((((d - yearStart) / 86400000) + 1)/7);
-  }
-  function loadItems(){
-    try{
-      const arr = JSON.parse(localStorage.getItem(LS_ITEMS)||"[]");
-      const migrated = arr.map(it => ({
-        ...it,
-        type: normalizeType(it.type),
-        person: it.person || "Alle"
-      }));
-      localStorage.setItem(LS_ITEMS, JSON.stringify(migrated));
-      return migrated;
-    }catch(_){ return []; }
-  }
-  function saveItems(){ localStorage.setItem(LS_ITEMS, JSON.stringify(items)); }
-  function upsertItem(obj){
-    obj.type = normalizeType(obj.type);
-    if(!obj.person) obj.person = "Alle";
-    const i = items.findIndex(x => x.id === obj.id);
-    if(i>=0){ items[i]=obj; } else { items.push(obj); }
-    saveItems(); render();
-  }
-  function deleteItem(id){
-    items = items.filter(x => x.id !== id);
-    saveItems(); render();
-  }
+const homeyUrl = document.getElementById('homeyUrl');
+const sonosUrl = document.getElementById('sonosUrl');
 
-  /* ========= Helpers for gentagelser (robust base-opslag) ========= */
-  function resolveBaseId(id){
-    if(!id) return id;
-    if(id.startsWith("rpt|")){            // nyt format
-      return id.split("|")[1];
-    }
-    if(id.startsWith("rpt:")){            // gammelt format
-      return id.split(":")[1];
-    }
-    return id; // allerede base
-  }
-  function getBaseItemFromAnyId(anyId){
-    const baseId = resolveBaseId(anyId);
-    let it = items.find(x=>x.id===baseId);
-    if(it) return it;
+const logoInputs = {
+  calendar: document.getElementById('logoInputCalendar'),
+  homey: document.getElementById('logoInputHomey'),
+  sonos: document.getElementById('logoInputSonos')
+};
+const logoImgs = {
+  calendar: document.getElementById('logoCalendar'),
+  homey: document.getElementById('logoHomey'),
+  sonos: document.getElementById('logoSonos')
+};
+const logoPreviews = {
+  calendar: document.getElementById('prevCalendar'),
+  homey: document.getElementById('prevHomey'),
+  sonos: document.getElementById('prevSonos')
+};
 
-    // Fallback: find et item hvis id'et forekommer som substring i klon-id'et
-    it = items.find(x => anyId.includes(x.id));
-    if(it) return it;
+function openModal(){ modal.setAttribute('aria-hidden','false'); }
+function closeModal(){ modal.setAttribute('aria-hidden','true'); }
+btnOpen.addEventListener('click', openModal);
+btnClose.addEventListener('click', closeModal);
+modal.addEventListener('click', (e)=>{ if(e.target===modal) closeModal(); });
 
-    // Ekstra fallback: hvis elementet i DOM havde data-base-id
-    const el = document.querySelector(`.item[data-id="${escapeCss(anyId)}"]`);
-    if(el && el.dataset.baseId){
-      return items.find(x=>x.id===el.dataset.baseId) || null;
-    }
-    return null;
-  }
-  function escapeCss(s){ return String(s).replace(/(["\\.#:[\]()])/g,"\\$1"); }
+const modeRadios = [...document.querySelectorAll('input[name="calendarMode"]')];
+function syncCalendarModeUI(){
+  const m = modeRadios.find(r=>r.checked)?.value || 'url';
+  calendarUploadRow.style.display = (m==='upload') ? '' : 'none';
+}
+modeRadios.forEach(r=> r.addEventListener('change', syncCalendarModeUI));
 
-  /* ========= UI refs ========= */
-  const grid = document.getElementById('grid');
-  const weekNoEl = document.getElementById('weekNo');
-  const peopleBar = document.getElementById('peopleBar');
-  const badge = document.getElementById('syncBadge');
-  const btnWeek = document.getElementById('btnWeek');
-
-  function setBadge(t){ badge.textContent = "Google sync: " + t; }
-
-  function personColor(name){ const p = PEOPLE.find(x=>x.name===name); return p ? p.color : "#64748b"; }
-  function personAvatar(name){ const p = PEOPLE.find(x=>x.name===name); return p?.avatar || ""; }
-
-  function weekRangeLabel(){
-    const s = new Date(weekStart);
-    const e = new Date(weekStart); e.setDate(e.getDate()+6);
-    const sameMonth = s.getMonth()===e.getMonth();
-    return sameMonth
-      ? `${s.getDate()}.–${e.getDate()}. ${monthName(e.getMonth())}`
-      : `${s.getDate()}. ${monthName(s.getMonth())} – ${e.getDate()}. ${monthName(e.getMonth())}`;
-  }
-
-  function buildPeople(){
-    peopleBar.innerHTML = "";
-    for(const p of PEOPLE){
-      const chip = document.createElement('button');
-      chip.className = "chip" + (p.name===currentPerson?" active":"");
-      chip.style.borderColor = p.name!=="Alle" ? personColor(p.name) : "";
-      const media = p.name!=="Alle" && personAvatar(p.name)
-        ? `<img class="avatar" src="${personAvatar(p.name)}" alt="${p.name}">`
-        : `<span class="avatar" style="background:${personColor(p.name)}22; display:grid; place-items:center; font-weight:800; color:#111;">${p.name[0]}</span>`;
-      const tally = p.name!=="Alle" ? `<span class="tally" data-person="${p.name}"></span>` : "";
-      chip.innerHTML = `${media}<span>${p.name}</span>${tally}`;
-      chip.addEventListener('click', ()=>{ currentPerson = p.name; buildPeople(); render(); });
-      peopleBar.appendChild(chip);
-    }
-  }
-
-  function buildGrid(){
-    grid.innerHTML = "";
-    const names = ["mandag","tirsdag","onsdag","torsdag","fredag","lørdag","søndag"];
-    for(let i=0;i<7;i++){
-      const d = new Date(weekStart); d.setDate(weekStart.getDate()+i);
-      const iso = fmtDateISO(d);
-      const card = document.createElement('div');
-      card.className = "day" + (fmtDateISO(new Date())===iso ? " today":"");
-      card.setAttribute('data-date', iso);
-      const head = document.createElement('div'); head.className="head";
-      const name = document.createElement('div'); name.className="name"; name.textContent = names[i];
-      const date = document.createElement('div'); date.className="date"; date.textContent = pad(d.getDate()) + ". " + pad(d.getMonth()+1) + ".";
-      head.appendChild(name); head.appendChild(date);
-      const list = document.createElement('div'); list.className="list";
-      list.innerHTML = `
-        <div class="section" data-section="Aktivitet">
-          <div class="h">Aktiviteter</div>
-          <div class="items"></div>
-        </div>
-        <div class="section" data-section="Fritidsinteresse">
-          <div class="h">Fritidsinteresser</div>
-          <div class="items"></div>
-        </div>
-        <div class="section" data-section="Opgave">
-          <div class="h">Opgaver</div>
-          <div class="items"></div>
-        </div>`;
-      card.appendChild(head); card.appendChild(list);
-      grid.appendChild(card);
-    }
-  }
-
-  function withinWeekDate(dateISO){
-    const [Y,M,D] = dateISO.split('-').map(Number);
-    const d = new Date(Y, M-1, D);
-    const end = new Date(weekStart); end.setDate(weekStart.getDate()+7);
-    return d >= weekStart && d < end;
-  }
-
-  function escapeHtml(str){ return String(str).replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s])); }
-
-  function materializeRepeats(base){
-    const out = [...base];
-    const weekISO = fmtDateISO(weekStart);
-    for(const it of base){
-      if(!it.repeatWeekly) continue;
-      if(withinWeekDate(it.date)) continue;
-      const [y,m,dd] = it.date.split('-').map(Number);
-      const src = new Date(y, m-1, dd);
-      const srcDow = (src.getDay()+6)%7; // Mon=0
-      const target = new Date(weekStart); target.setDate(weekStart.getDate()+srcDow);
-      const clone = {...it};
-      clone.baseId = it.id;                         // husk basis-id
-      clone.id = "rpt|"+it.id+"|"+weekISO;         // klon-id
-      clone.date = fmtDateISO(target);
-      out.push(clone);
-    }
-    return out;
-  }
-
-  function symbolsForCount(n){
-    if(n<=0) return "";
-    if(n===1) return "🪙";
-    if(n===2) return "🪙🪙";
-    if(n===3) return "🟨";
-    if(n===4) return "🟨🟨";
-    if(n===5) return "💎";
-    if(n===6) return "💎💎";
-    return "👑";
-  }
-
-  function render(){
-    weekNoEl.textContent = weekNumber(weekStart);
-    btnWeek.textContent = weekRangeLabel();
-
-    buildGrid();
-
-    const materialized = materializeRepeats(items);
-
-    // points pr. person i denne uge (kun Opgave && done)
-    const doneCounts = {};
-    for(const p of PEOPLE){ if(p.name!=="Alle") doneCounts[p.name]=0; }
-    for(const it of materialized){
-      if(it.type==="Opgave" && it.done && it.person && withinWeekDate(it.date)){
-        doneCounts[it.person] = (doneCounts[it.person]||0)+1;
-      }
-    }
-    for(const p of PEOPLE){
-      if(p.name==="Alle") continue;
-      const span = document.querySelector(`.tally[data-person="${p.name}"]`);
-      if(span){ span.textContent = symbolsForCount(doneCounts[p.name]||0); }
-    }
-
-    const visible = materialized
-      .filter(it => withinWeekDate(it.date))
-      .filter(it => currentPerson==="Alle" ? true : (it.person === currentPerson))
-      .sort((a,b)=> (a.date.localeCompare(b.date) || (a.time||"").localeCompare(b.time||"")));
-
-    for(const it of visible){
-      const day = document.querySelector(`.day[data-date="${it.date}"]`);
-      if(!day) continue;
-
-      const type = normalizeType(it.type);
-      const section = day.querySelector(`.section[data-section="${type}"] .items`);
-      if(!section) continue;
-
-      const div = document.createElement('div');
-      const color = personColor(it.person);
-      div.className = "item" + (it.done ? " done" : "");
-      div.style.borderLeftColor = color;
-      div.setAttribute('data-id', it.id);
-      // Sæt data-base-id også for ældre data (beregnet fra id)
-      div.setAttribute('data-base-id', it.baseId || resolveBaseId(it.id));
-
-      const leftHTML = (type==="Opgave")
-        ? `<input type="checkbox" ${it.done?'checked':''} data-opgave="${it.id}" title="Marker som udført">`
-        : (it.time ? escapeHtml(it.time) : '<span class="muted">Heldag</span>');
-
-      div.innerHTML = `
-        <div class="left">${leftHTML}</div>
-        <div class="meta">
-          <div class="title">${escapeHtml(it.title||"(uden titel)")}${it.repeatWeekly?' · <span class="muted">↻ uge</span>':''}</div>
-          ${it.location? `<div class="note">${escapeHtml(it.location)}</div>`:""}
-          ${it.note? `<div class="note">${escapeHtml(it.note)}</div>`:""}
-        </div>`;
-
-      // Hele kortet er klikbart (undtagen på selve checkboxen)
-      div.addEventListener('click', (e)=>{
-        if(e.target && (e.target.matches('input[type="checkbox"]') || e.target.hasAttribute('data-opgave'))) return;
-        openEditor(div.getAttribute('data-id'));
-      });
-
-      section.appendChild(div);
-    }
-
-    // skjul tomme sektioner
-    document.querySelectorAll('.day').forEach(d=>{
-      d.querySelectorAll('.section').forEach(sec=>{
-        const has = sec.querySelector('.items').children.length>0;
-        sec.style.display = has ? '' : 'none';
-      });
-    });
-
-    // Checkbox-håndtering (Opgaver) — opdater basisposten
-    document.querySelectorAll('input[type="checkbox"][data-opgave]').forEach(cb=>{
-      cb.addEventListener('click', (e)=>{ e.stopPropagation(); });
-      cb.addEventListener('change', (e)=>{
-        const anyId = e.target.getAttribute('data-opgave');
-        const item = getBaseItemFromAnyId(anyId);
-        if(!item) return;
-        item.done = e.target.checked;
-        upsertItem(item);
-      });
-    });
-  }
-
-  /* ========= Editor ========= */
-  const backdrop = document.getElementById('backdrop');
-  const dlgClose = document.getElementById('dlgClose');
-  const btnSave = document.getElementById('btnSave');
-  const btnDelete = document.getElementById('btnDelete');
-  const dlgTitle = document.getElementById('dlgTitle');
-
-  const f_title = document.getElementById('f_title');
-  const f_type = document.getElementById('f_type');
-  const f_person = document.getElementById('f_person');
-  const f_date = document.getElementById('f_date');
-  const f_time = document.getElementById('f_time');
-  const f_duration = document.getElementById('f_duration');
-  const f_location = document.getElementById('f_location');
-  const f_note = document.getElementById('f_note');
-  const f_repeat = document.getElementById('f_repeat');
-  const f_done = document.getElementById('f_done');
-
-  function buildPersonOptions(){
-    const opts = PEOPLE.map(p=>`<option${p.name==="Alle"?' selected':''}>${p.name}</option>`).join('');
-    f_person.innerHTML = opts;
-  }
-
-  function openNew(dateISO){
-    editingId = null;
-    dlgTitle.textContent = "Tilføj";
-    f_title.value = "";
-    f_type.value = "Aktivitet";
-    f_person.value = "Alle";
-    f_date.value = dateISO || fmtDateISO(new Date());
-    f_time.value = "";
-    f_duration.value = "";
-    f_location.value = "";
-    f_note.value = "";
-    f_repeat.checked = false;
-    f_done.checked = false;
-    btnDelete.style.display = "none";
-    backdrop.style.display = "flex";
-  }
-
-  function openEditor(anyId){
-    const base = getBaseItemFromAnyId(anyId);
-    if(!base) return;
-
-    editingId = base.id; // ← altid basis-id
-    dlgTitle.textContent = "Rediger";
-    f_title.value = base.title||"";
-    f_type.value = normalizeType(base.type)||"Aktivitet";
-    f_person.value = base.person || "Alle";
-    f_date.value = base.date || fmtDateISO(new Date());
-    f_time.value = base.time || "";
-    f_duration.value = base.durationMin || "";
-    f_location.value = base.location || "";
-    f_note.value = base.note || "";
-    f_repeat.checked = !!base.repeatWeekly;
-    f_done.checked = !!base.done;
-
-    btnDelete.style.display = "inline-flex";
-    backdrop.style.display = "flex";
-  }
-
-  document.getElementById('dlgClose').addEventListener('click', ()=> backdrop.style.display="none");
-  btnDelete.addEventListener('click', ()=>{ if(editingId){ deleteItem(editingId); backdrop.style.display="none"; }});
-  btnSave.addEventListener('click', ()=>{
-    const obj = {
-      id: editingId || ("loc:"+Date.now().toString(36)+Math.random().toString(36).slice(2)),
-      title: f_title.value.trim() || "(uden titel)",
-      type: normalizeType(f_type.value),
-      person: f_person.value || "Alle",
-      date: f_date.value,
-      time: f_time.value || "",
-      durationMin: f_duration.value ? parseInt(f_duration.value,10) : 0,
-      location: f_location.value.trim(),
-      note: f_note.value.trim(),
-      repeatWeekly: !!f_repeat.checked,
-      done: !!f_done.checked,
-      source: editingId && String(editingId).startsWith("gcal") ? "google" : "local"
-    };
-    upsertItem(obj);
-    backdrop.style.display="none";
+function applyLogos(){
+  ['calendar','homey','sonos'].forEach(k=>{
+    const b64 = config.logos[k];
+    if(b64){ logoImgs[k].src = b64; logoPreviews[k].src = b64; }
   });
+}
+function applyForm(){
+  modeRadios.forEach(r=> r.checked = (r.value === (config.calendar.mode||'url')));
+  syncCalendarModeUI();
+  calendarUrl.value = config.calendar.url || '';
+  homeyUrl.value = config.homeyUrl || '';
+  sonosUrl.value = config.sonosUrl || '';
+  applyLogos();
+}
 
-  document.getElementById('btnNew').addEventListener('click', ()=> openNew());
-  document.getElementById('btnPrev').addEventListener('click', ()=>{ weekStart.setDate(weekStart.getDate()-7); render(); });
-  document.getElementById('btnNext').addEventListener('click', ()=>{ weekStart.setDate(weekStart.getDate()+7); render(); });
-  document.getElementById('btnWeek').addEventListener('click', ()=>{ weekStart = startOfWeek(new Date()); render(); });
+function toBase64(file){
+  return new Promise((res, rej)=>{ const fr = new FileReader(); fr.onload = ()=>res(fr.result); fr.onerror=rej; fr.readAsDataURL(file); });
+}
 
-  /* ========= Google Apps Script sync ========= */
-  function toLocalDateISO(ev){
-    if (ev.startISO){
-      const d = new Date(ev.startISO);
-      return fmtDateISO(d);
-    }
-    return ev.date;
-  }
-  function weekdayFromEv(ev){
-    const d = new Date(ev.startISO || (ev.date+"T00:00:00"));
-    return (d.getDay()+6)%7; // Mon=0
-  }
-  function recurrenceKey(ev){
-    if (ev.recurringEventId) return "weekly:"+ev.recurringEventId;
-    const recArr = Array.isArray(ev.recurrence) ? ev.recurrence.join(';') : (ev.rrule || ev.recurrence || "");
-    if (/FREQ=WEEKLY/i.test(recArr) || ev.isRecurring === true) return null;
-    return null;
-  }
-  async function fetchEvents(){
-    const url = GAS_URL + (GAS_URL.includes("?") ? "&" : "?") + "t=" + Date.now();
-    const res = await fetch(url, { cache: "no-store" });
-    if(!res.ok) throw new Error("Apps Script fejl: " + res.status);
-    const data = await res.json();
-    return Array.isArray(data.items) ? data.items : [];
-  }
-  function loadIndex(){ try{ return JSON.parse(localStorage.getItem(LS_GCAL_INDEX) || "{}"); }catch(_){ return {}; } }
-  function saveIndex(o){ localStorage.setItem(LS_GCAL_INDEX, JSON.stringify(o)); }
-
-  async function syncNow(){
-    try{
-      setBadge("henter…");
-      const events = await fetchEvents();
-      const idx = loadIndex();
-      let created = 0;
-
-      const groups = new Map();
-      for(const ev of events){
-        let key = recurrenceKey(ev);
-        if(!key){
-          const title = (ev.summary||"").trim().toLowerCase();
-          const wd = weekdayFromEv(ev);
-          const time = (ev.time||"").trim();
-          key = `heur:${title}|${wd}|${time}`;
-        }
-        if(!groups.has(key)) groups.set(key, []);
-        groups.get(key).push(ev);
-      }
-
-      const processed = new Set();
-      for(const [key, list] of groups){
-        const latestUpdated = list.reduce((a,b)=> (a.updated>b.updated?a:b)).updated;
-
-        const isOfficialRepeat = key.startsWith("weekly:");
-        let isHeuristicRepeat = false;
-        if (!isOfficialRepeat) {
-          if (list.length >= 2) {
-            const titleOk = (list[0].summary || "").trim().length >= 3;
-            if (titleOk) {
-              const ms = list.map(ev => new Date(toLocalDateISO(ev)).getTime()).sort((a,b)=>a-b);
-              const spanDays = (ms[ms.length-1] - ms[0]) / (1000*60*60*24);
-              const distinctDates = new Set(ms.map(x => new Date(x).toDateString())).size;
-              isHeuristicRepeat = (distinctDates >= 2) && (spanDays >= 6);
-            }
-          }
-        }
-
-        if (isOfficialRepeat || isHeuristicRepeat){
-          const storageId = "gcalr:"+key;
-          if (idx[storageId] !== latestUpdated){
-            list.sort((a,b)=> (toLocalDateISO(a)).localeCompare(toLocalDateISO(b)));
-            const anchor = list[0];
-            const item = {
-              id: storageId,
-              title: anchor.summary || "(uden titel)",
-              type: "Aktivitet",
-              person: "Alle",
-              date: toLocalDateISO(anchor),
-              time: anchor.time || "",
-              durationMin: anchor.durationMin || 30,
-              location: anchor.location || "",
-              note: anchor.description || "",
-              repeatWeekly: true,
-              done: false,
-              source: "google"
-            };
-            upsertItem(item);
-            idx[storageId] = latestUpdated;
-            created++;
-          }
-          list.forEach(ev=> processed.add(ev.id));
-        }
-      }
-
-      for(const ev of events){
-        if(processed.has(ev.id)) continue;
-        const storageId = "gcal:"+ev.id;
-        if (idx[storageId] === ev.updated) continue;
-
-        const item = {
-          id: storageId,
-          title: ev.summary || "(uden titel)",
-          type: "Aktivitet",
-          person: "Alle",
-          date: toLocalDateISO(ev),
-          time: ev.time || "",
-          durationMin: ev.durationMin || 30,
-          location: ev.location || "",
-          note: ev.description || "",
-          repeatWeekly: false,
-          done: false,
-          source: "google"
-        };
-        upsertItem(item);
-        idx[storageId] = ev.updated;
-        created++;
-      }
-
-      saveIndex(idx);
-      setBadge(created ? `+${created} oprettet` : "ingen ændringer");
-    }catch(e){
-      console.error(e);
-      setBadge("fejl");
-    }
-  }
-
-  document.getElementById('btnSync').addEventListener('click', async ()=>{ try{ setBadge('henter…'); await syncNow(); }catch(e){ console.error(e); }});
-  document.getElementById('btnSyncHard').addEventListener('click', async ()=>{ try{
-    localStorage.removeItem('gcal_index');
-    setBadge('nulstiller…');
-    await syncNow();
-  }catch(e){ console.error(e); }});
-
-  /* ========= Indstillinger (farver + avatar) ========= */
-  const settingsBackdrop = document.getElementById('settingsBackdrop');
-  const btnSettings = document.getElementById('btnSettings');
-  const btnSettingsClose = document.getElementById('btnSettingsClose');
-  const btnSettingsSave = document.getElementById('btnSettingsSave');
-  const settingsRows = document.getElementById('settingsRows');
-
-  btnSettings.addEventListener('click', ()=>{ buildSettingsUI(); settingsBackdrop.style.display='flex'; });
-  btnSettingsClose.addEventListener('click', ()=>{ settingsBackdrop.style.display='none'; });
-
-  function buildSettingsUI(){
-    settingsRows.innerHTML = "";
-    for(const p of PEOPLE){
-      const row = document.createElement('div');
-      row.className = 'row-s';
-      row.innerHTML = `
-        <div class="initial">${(p.name[0]||'?').toUpperCase()}</div>
-        <input type="text" value="${p.name}" data-field="name" data-for="${p.name}">
-        <input type="file" accept="image/*" data-field="avatar" data-for="${p.name}">
-        <input type="color" value="${p.color}" data-field="color" data-for="${p.name}">
-        <span class="swatch" style="background:${p.color}"></span>
-      `;
-      settingsRows.appendChild(row);
-      row.querySelector('input[type="color"]').addEventListener('input', e=>{
-        row.querySelector('.swatch').style.background = e.target.value;
-      });
-    }
-  }
-
-  btnSettingsSave.addEventListener('click', async ()=>{
-    const prefs = loadPrefs();
-    const rows = settingsRows.querySelectorAll('.row-s');
-    rows.forEach(r=>{
-      const nameOld = r.querySelector('input[data-field="name"]').getAttribute('data-for');
-      const nameNew = r.querySelector('input[data-field="name"]').value.trim() || nameOld;
-      const color = r.querySelector('input[data-field="color"]').value;
-      const fileInput = r.querySelector('input[data-field="avatar"]');
-      if (fileInput.files && fileInput.files[0]){
-        const fr = new FileReader();
-        fr.onload = ()=>{ prefs[nameNew] = {color, avatar: fr.result}; savePrefs(prefs); refreshPeopleFromPrefs(); };
-        fr.readAsDataURL(fileInput.files[0]);
-      } else {
-        prefs[nameNew] = {color, avatar: (prefs[nameOld]?.avatar || "")};
-        savePrefs(prefs);
-        refreshPeopleFromPrefs();
-      }
-    });
-    settingsBackdrop.style.display='none';
+Object.entries(logoInputs).forEach(([key, input])=>{
+  input.addEventListener('change', async ()=>{
+    const f = input.files?.[0];
+    if(!f) return;
+    const b64 = await toBase64(f);
+    config.logos[key] = b64; applyLogos();
   });
+});
 
-  function refreshPeopleFromPrefs(){
-    PEOPLE = getPeople();
-    buildPersonOptions();
-    buildPeople();
-    render();
+calendarFile.addEventListener('change', async ()=>{
+  const f = calendarFile.files?.[0];
+  if(!f) return;
+  const b64 = await toBase64(f);
+  config.calendar.fileName = f.name; 
+  config.calendar.fileData = b64;
+});
+
+btnSave.addEventListener('click', ()=>{
+  config.calendar.mode = modeRadios.find(r=>r.checked)?.value || 'url';
+  config.calendar.url = calendarUrl.value.trim();
+  config.homeyUrl = homeyUrl.value.trim();
+  config.sonosUrl = sonosUrl.value.trim();
+  saveConfig(config);
+  closeModal();
+});
+
+btnReset.addEventListener('click', ()=>{
+  if(confirm('Nulstil alle indstillinger?')){
+    localStorage.removeItem(LS_KEY); config = loadConfig(); applyForm();
   }
+});
 
-  /* ========= Init ========= */
-  function buildPersonOptions(){
-    const opts = PEOPLE.map(p=>`<option${p.name==="Alle"?' selected':''}>${p.name}</option>`).join('');
-    document.getElementById('f_person').innerHTML = opts;
+const calendarView = document.getElementById('calendarView');
+const calendarFrame = document.getElementById('calendarFrame');
+const openCal = document.getElementById('tileCalendar');
+const closeCal = document.getElementById('closeCalendar');
+
+function openCalendar(){
+  let src = '';
+  if(config.calendar.mode === 'upload' && config.calendar.fileData){
+    try{
+      const arr = config.calendar.fileData.split(',');
+      const mime = arr[0].match(/data:(.*);base64/)[1] || 'text/html';
+      const bytes = atob(arr[1]);
+      const buf = new Uint8Array(bytes.length); for(let i=0;i<bytes.length;i++) buf[i] = bytes.charCodeAt(i);
+      const blob = new Blob([buf], {type:mime});
+      src = URL.createObjectURL(blob);
+    }catch(e){ src = config.calendar.fileData; }
+  } else if(config.calendar.url){
+    src = config.calendar.url;
   }
+  if(!src){ alert('Ingen kalenderkilde er sat endnu. Åbn Indstillinger for at vælge.'); return; }
+  calendarFrame.src = src;
+  calendarView.style.display = 'block';
+}
+function closeCalendar(){ calendarView.style.display = 'none'; calendarFrame.src = ''; }
+openCal.addEventListener('click', openCalendar);
+closeCal.addEventListener('click', closeCalendar);
 
-  function buildAll(){ buildPersonOptions(); buildPeople(); render(); }
-  buildAll();
-  syncNow();
-  setInterval(syncNow, SYNC_MS);
+document.getElementById('tileHomey').addEventListener('click', ()=>{
+  const url = (config.homeyUrl||'').trim();
+  if(!url){ alert('Ingen Homey URL sat endnu.'); return; }
+  window.open(url, '_blank');
+});
+document.getElementById('tileSonos').addEventListener('click', ()=>{
+  const url = (config.sonosUrl||'').trim();
+  if(!url){ alert('Ingen Sonos-link sat endnu.'); return; }
+  window.location.href = url;
+});
 
-  grid.addEventListener('dblclick', (e)=>{ const day = e.target.closest('.day'); if(day){ openNew(day.getAttribute('data-date')); }});
+applyForm();
+
+const GAS_URL_SYNC = "https://script.google.com/macros/s/AKfycbyQeS_NvMVv4A3IImB6S3AsRt67aSpeKuaoHHSf8K4xRE9sx3zSZS8zHlvZFL_WDIKl/exec";
+
+function lsToObject(){
+  const o = {};
+  for (let i=0;i<localStorage.length;i++){
+    const k = localStorage.key(i);
+    o[k] = localStorage.getItem(k);
+  }
+  return o;
+}
+function mergeIntoLocalStorage(obj){
+  if (!obj || typeof obj !== 'object') return;
+  for (const [k,v] of Object.entries(obj)){
+    try{ localStorage.setItem(k, v); }catch(_){}
+  }
+  config = loadConfig();
+  applyForm();
+}
+
+async function syncLoad(){
+  try{
+    const res = await fetch(GAS_URL_SYNC + "?mode=load&t=" + Date.now(), { cache: "no-store" });
+    if (!res.ok) return;
+    const text = await res.text();
+    let obj = {};
+    try{ obj = JSON.parse(text); }catch(_){ obj = {}; }
+    mergeIntoLocalStorage(obj);
+    console.log("[WAP] Synced Drive → localStorage");
+  }catch(e){ console.warn("syncLoad failed", e); }
+}
+
+async function syncSave(){
+  try{
+    const body = JSON.stringify(lsToObject());
+    await fetch(GAS_URL_SYNC + "?mode=save", {
+      method: "POST",
+      headers: { "Content-Type":"application/json" },
+      body
+    });
+    console.log("[WAP] Synced localStorage → Drive");
+  }catch(e){ console.warn("syncSave failed", e); }
+}
+
+syncLoad();
+window.addEventListener('beforeunload', syncSave);
+setInterval(syncSave, 120000);
 </script>
 </body>
 </html>

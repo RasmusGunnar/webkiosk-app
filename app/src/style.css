@@ -1100,3 +1100,31 @@ h3 {
     flex-direction: column-reverse;
   }
 }
+
+/* Calendar completion: keep the existing visual language and readable day cards. */
+.day-card.is-today { border-color: #94a3b8; box-shadow: 0 0 0 2px #cbd5e1; }
+.day-card-header { position: relative; padding-right: 42px; }
+.day-add-button { position: absolute; right: 0; top: 0; min-width: 40px; min-height: 40px; padding: 4px; font-size: 22px; }
+#calendar-today-button { background: #e2e8f0; color: #0f172a; font-weight: 700; }
+.calendar-item { padding: 12px; }
+.calendar-item-title-row { flex-wrap: wrap; gap: 6px; }
+.calendar-item-title-row strong { overflow-wrap: anywhere; min-width: 0; flex: 1 1 110px; line-height: 1.4; }
+.calendar-time-badge, .calendar-source-badge { white-space: nowrap; font-size: 11px; line-height: 1.6; }
+.calendar-source-badge { color: #64748b; border: 1px solid #e2e8f0; border-radius: 5px; padding: 0 5px; }
+.calendar-item-meta, .calendar-person, .calendar-note { overflow-wrap: anywhere; }
+.calendar-item:focus-visible { outline: 3px solid #94a3b8; outline-offset: 2px; }
+.calendar-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
+.calendar-fields:disabled { opacity: .8; }
+.source-notice { font-size: 13px; line-height: 1.5; color: #475569; margin: 8px 0 16px; }
+.calendar-modal { max-height: calc(100dvh - 32px); overflow-y: auto; overscroll-behavior: contain; }
+.modal-actions { position: sticky; bottom: -1px; background: #fff; padding-top: 12px; z-index: 1; }
+button, .checkbox-label, .done-toggle, .calendar-person-pill { min-height: 44px; }
+.done-toggle { display: flex; align-items: center; }
+#calendar-sync-status { color: #64748b; }
+@media (max-width: 700px) {
+  .calendar-modal { width: 100%; max-height: calc(100dvh - 16px); padding: 18px; }
+  .modal-backdrop { padding: 8px; }
+  .repeat-scope-row { display: flex; flex-direction: column; align-items: stretch; }
+  .calendar-person-pills { gap: 8px; }
+  .week-grid { min-width: 1960px; grid-template-columns: repeat(7, minmax(280px, 1fr)); }
+}

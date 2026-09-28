@@ -32,7 +32,7 @@ export function itemPeople(item, people) {
   return selectPeople(item.data?.people || item.people || item.person || item.data?.person || [], people).people
 }
 export function itemMatchesPerson(item, personId, people) {
-  return personId === 'Alle' || itemPersonIds(item, people).includes(personId)
+  return personId === 'Alle' || itemPeople(item, people).includes('Alle') || itemPersonIds(item, people).includes(personId)
 }
 export function feedPerson(feed, people) {
   return findPerson(feed.assigned_person_id || feed.assigned_person_name, people)

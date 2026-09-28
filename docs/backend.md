@@ -98,7 +98,7 @@ Afprøvet med Node 24, Supabase CLI 2.118.0, Deno 2.9.6 og Docker Desktop. Komma
 
 ```powershell
 npm.cmd ci --prefix app
-npx.cmd --yes supabase@2.118.0 start -x realtime,studio,postgres-meta,edge-runtime,logflare,vector,supavisor
+npx.cmd --yes supabase@2.118.0 start -x studio,postgres-meta,edge-runtime,logflare,vector,supavisor
 npm.cmd --prefix app run dev:local
 ```
 
@@ -113,6 +113,7 @@ node scripts/test-database.mjs
 npx.cmd --yes deno@2.9.6 task --cwd supabase/functions check
 npx.cmd --yes deno@2.9.6 task --cwd supabase/functions test
 node app/tests/browser.mjs
+node app/tests/calendar-browser.mjs
 npx.cmd --yes supabase@2.118.0 db advisors --local --type security --level warn --fail-on error
 ```
 
@@ -126,7 +127,7 @@ Kun offentlige browserkeys må have VITE_-prefix. Servermiljøet bruger SUPABASE
 
 ## Release gennemført og resterende aktivering
 
-Database og Edge Function er live. Der skal **ikke** anvendes migrationer igen for denne release. Migrationshistorikken indeholder 20260928093825, 20260928093827 og 20260928093828.
+Database og Edge Function er live. Der skal **ikke** anvendes migrationer igen for denne release. Migrationshistorikken indeholder 20260928093825, 20260928093827 og 20260928093828 fra fundamentet samt 20260928112804 fra [Mega 2 kalenderen](calendar.md). Sidstnævnte tilføjer atomisk kalenderlagring og realtime uden at omskrive eksisterende kalenderdata.
 
 Den eksisterende offentlige kiosk ligger på https://rasmusgunnar.github.io/webkiosk-app/. Oprettelse af en ny Pages-build for /app afventer udtrykkelig hostinggodkendelse. Ingen hostingindstillinger er ændret, og ingen ny Pages-workflow er oprettet.
 
@@ -154,4 +155,4 @@ Supabase/.temp/live-release/recovery/ indeholder lokalt hentet kildekode for den
 
 ## Afgrænsning
 
-Dette fundament implementerer ikke realtime/offline-kø, push, kiosk/device auth, Capacitor, generelt deep-link routing, fuld kontosletning/eksport, invitationsmail eller App Store-pakning. De kan bygges videre på household-modellen. Legacy-kiosk, Apps Script og Firebase-kode er bevaret.
+[Mega 2](calendar.md) tilføjer kalenderrealtime. Offline-cache/ændringskø, push, kiosk/device auth, Capacitor, generelt deep-link routing, fuld kontosletning/eksport, invitationsmail og App Store-pakning er endnu ikke implementeret. De kan bygges videre på household-modellen. Legacy-kiosk, Apps Script og Firebase-kode er bevaret.

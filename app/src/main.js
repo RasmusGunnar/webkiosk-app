@@ -6,6 +6,9 @@ import { normalizeFeedUrl, redactFeedUrl, feedIdOf } from './lib/feeds.js'
 import { calendarPayload } from './lib/calendar.js'
 import { observeSession } from './lib/auth.js'
 import { readAllRows } from './lib/rows.js'
+import { calendarHeading, preferredView, VIEW_KEY } from './lib/calendar-dates.js'
+import { materialize, displayTitle, value as calendarValue, imported, sourceLabel, repeatContext, baseFor, itemValues, planCreate, planEdit, planDelete, taskSuggestions } from './lib/calendar-semantics.js'
+import { calendarRealtime } from './lib/calendar-realtime.js'
 
 const app = document.querySelector('#app')
 
@@ -18,6 +21,9 @@ let session = null
 let households = []
 let activeHousehold = null
 let calendarItems = []
+let calendarLoadVersion = 0
+let peopleLoadVersion = 0
+let feedsLoadVersion = 0
 let calendarItemsHouseholdId = null
 let householdPeople = []
 let householdPeopleHouseholdId = null
@@ -44,10 +50,28 @@ let calendarFeedDraft = createEmptyCalendarFeedDraft()
 let calendarViewMode = getDefaultCalendarViewMode()
 let calendarCursorDate = new Date()
 let hasUserSelectedCalendarView = false
+let newCalendarDate = null
+let editingCalendarSnapshot = null
+let editingRowsSnapshot = []
+const realtime = calendarRealtime(supabase, async () => {
+  if (!session || !activeHousehold) return
+  const epoch = sessionEpoch, id = activeHousehold.id
+  await Promise.all([loadCalendarItems(), loadHouseholdPeople(), loadCalendarFeeds()])
+  if (epoch === sessionEpoch && activeHousehold?.id === id) render({ preserveDialogs: true })
+}, state => {
+  const indicator = document.querySelector('#calendar-sync-status')
+  if (indicator) {
+    indicator.textContent = state === 'SUBSCRIBED' ? '' : 'Forbindelsen genoprettes…'
+    indicator.dataset.state = state
+  }
+})
 
 async function init() {
   if (configurationError) { app.innerHTML = '<main class="app-shell"><p>' + escapeHtml(configurationError) + '</p></main>'; return }
   observeSession(supabase, applySession, error => { message = 'Login kunne ikke indlæses: ' + error.message; render() })
+  window.addEventListener('online', () => realtime.refresh())
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) realtime.refresh() })
+  window.matchMedia('(max-width: 699px)').addEventListener('change', () => { if (session) render({ preserveDialogs: true }) })
   setInterval(async () => {
     if (!session || !activeHousehold) return
     const epoch = sessionEpoch
@@ -64,6 +88,8 @@ async function applySession(nextSession) {
   render()
 }
 function clearSessionState() {
+  realtime.stop()
+  editingCalendarSnapshot = null; editingRowsSnapshot = []
   sessionEpoch++
   session = null
   households = []; activeHousehold = null; householdRole = null
@@ -82,14 +108,14 @@ function clearSessionState() {
 }
 function canManageFeeds() { return ['owner', 'admin'].includes(householdRole) }
 
-function render() {
+function render({ preserveDialogs = false } = {}) {
   if (!session) {
     renderLogin()
     return
   }
 
   if (activeHousehold) {
-    renderDashboard()
+    renderDashboard(preserveDialogs)
     return
   }
 
@@ -173,10 +199,21 @@ function renderCreateFirstHousehold() {
   document.querySelector('#household-form').addEventListener('submit', handleCreateHousehold)
 }
 
-function renderDashboard() {
+function renderDashboard(preserveDialogs = false) {
+  const savedCalendarModal = preserveDialogs && isCalendarModalOpen ? document.querySelector('#calendar-modal') : null
+  const savedSettingsModal = preserveDialogs && isSettingsModalOpen ? document.querySelector('#settings-modal') : null
+  const activeInput = document.activeElement
+  const restoreInput = activeInput && (savedCalendarModal?.contains(activeInput) || savedSettingsModal?.contains(activeInput))
+  const selection = restoreInput && typeof activeInput.selectionStart === 'number'
+    ? [activeInput.selectionStart, activeInput.selectionEnd] : null
+  const dialogScroll = [savedCalendarModal, savedSettingsModal].filter(Boolean).map(modal => {
+    const panel = modal.firstElementChild
+    return [panel, panel.scrollTop]
+  })
   syncDefaultCalendarViewMode()
 
   const householdId = getHouseholdId(activeHousehold)
+  realtime.start(householdId)
   const toggleViewLabel = calendarViewMode === 'week' ? 'Vis dag' : 'Vis uge'
   const navUnit = calendarViewMode === 'week' ? 'uge' : 'dag'
 
@@ -198,7 +235,7 @@ function renderDashboard() {
         <div>
           <p class="eyebrow">Familie</p>
           <h1>${escapeHtml(getHouseholdName(activeHousehold))}</h1>
-          <p>Kalender, opgaver og aftaler for denne uge</p>
+          <p>Familiens kalender, opgaver og aftaler</p>
         </div>
         <button id="logout-button" class="logout-button" type="button">Log ud</button>
       </header>
@@ -209,11 +246,13 @@ function renderDashboard() {
         <div class="section-heading calendar-heading">
           <div>
             <h2>Kalender</h2>
-            <p>${escapeHtml(getCalendarHeaderLabel())}</p>
+            <p id="calendar-heading-label">${escapeHtml(getCalendarHeaderLabel())}</p>
+            <small id="calendar-sync-status" role="status"></small>
           </div>
           <div class="calendar-toolbar">
             <div class="calendar-nav">
               <button id="calendar-prev-button" type="button">Forrige ${navUnit}</button>
+              <button id="calendar-today-button" type="button">I dag</button>
               <button id="calendar-next-button" type="button">Næste ${navUnit}</button>
             </div>
             <button id="calendar-toggle-view-button" type="button">${toggleViewLabel}</button>
@@ -231,7 +270,13 @@ function renderDashboard() {
   `
 
   document.querySelector('#logout-button').addEventListener('click', handleLogout)
-  document.querySelector('#new-calendar-button').addEventListener('click', openCreateCalendarModal)
+  if (savedCalendarModal) document.querySelector('#calendar-modal')?.replaceWith(savedCalendarModal)
+  if (savedSettingsModal) document.querySelector('#settings-modal')?.replaceWith(savedSettingsModal)
+  for (const [panel, scrollTop] of dialogScroll) panel.scrollTop = scrollTop
+  if (restoreInput) { activeInput.focus({ preventScroll: true }); if (selection) activeInput.setSelectionRange(...selection) }
+  document.querySelector('#new-calendar-button').addEventListener('click', () => openCreateCalendarModal())
+  document.querySelector('#calendar-today-button').addEventListener('click', () => { calendarCursorDate = new Date(); render() })
+  document.querySelectorAll('[data-create-on-date]').forEach(button => button.addEventListener('click', () => openCreateCalendarModal(button.dataset.createOnDate)))
   document.querySelector('#settings-button').addEventListener('click', openSettingsModal)
   document.querySelector('#calendar-prev-button').addEventListener('click', () => navigateCalendar(-1))
   document.querySelector('#calendar-next-button').addEventListener('click', () => navigateCalendar(1))
@@ -251,6 +296,7 @@ function renderDashboard() {
 
       openEditCalendarModal(card.dataset.calendarItem)
     })
+    card.addEventListener('keydown', event => { if (event.target === card && ['Enter', ' '].includes(event.key)) { event.preventDefault(); openEditCalendarModal(card.dataset.calendarItem) } })
   })
 
   const modalForm = document.querySelector('#calendar-modal-form')
@@ -259,7 +305,7 @@ function renderDashboard() {
   const calendarFeedForm = document.querySelector('#calendar-feed-form')
   const settingsBackdrop = document.querySelector('#settings-modal')
 
-  if (modalForm) {
+  if (modalForm && !savedCalendarModal) {
     modalForm.addEventListener('submit', handleSaveCalendarItem)
     document.querySelector('#calendar-modal-close').addEventListener('click', closeCalendarModal)
     document.querySelector('#calendar-modal-cancel').addEventListener('click', closeCalendarModal)
@@ -268,10 +314,12 @@ function renderDashboard() {
     document.querySelectorAll('[data-calendar-person-choice]').forEach((input) => {
       input.addEventListener('change', handleCalendarPersonChoice)
     })
+    document.querySelectorAll('[name="repeatScope"]').forEach(input => input.addEventListener('change', updateModalScopeFields))
     updateModalTypeFields()
+    updateModalScopeFields()
   }
 
-  if (modalBackdrop) {
+  if (modalBackdrop && !savedCalendarModal) {
     modalBackdrop.addEventListener('click', (event) => {
       if (event.target === modalBackdrop) {
         closeCalendarModal()
@@ -279,7 +327,7 @@ function renderDashboard() {
     })
   }
 
-  if (settingsForm) {
+  if (settingsForm && !savedSettingsModal) {
     settingsForm.addEventListener('submit', handleSavePeopleSettings)
     document.querySelector('#settings-modal-close').addEventListener('click', closeSettingsModal)
     document.querySelectorAll('[data-person-avatar-file]').forEach((input) => {
@@ -296,6 +344,7 @@ function renderDashboard() {
     })
   }
 
+  if (!savedSettingsModal) {
   document.querySelector('#add-calendar-feed-button')?.addEventListener('click', openCreateCalendarFeedForm)
 
   document.querySelectorAll('[data-edit-calendar-feed]').forEach((button) => {
@@ -324,6 +373,7 @@ function renderDashboard() {
     document.querySelector('#calendar-feed-cancel').addEventListener('click', closeCalendarFeedForm)
   }
 
+  }
   document.querySelectorAll('[data-person-filter]').forEach((button) => {
     button.addEventListener('click', () => {
       activePersonFilter = button.dataset.personFilter || 'Alle'
@@ -331,7 +381,7 @@ function renderDashboard() {
     })
   })
 
-  if (settingsBackdrop) {
+  if (settingsBackdrop && !savedSettingsModal) {
     settingsBackdrop.addEventListener('click', (event) => {
       if (event.target === settingsBackdrop) {
         closeSettingsModal()
@@ -382,10 +432,11 @@ function renderDayCard(date) {
   ]
 
   return `
-    <article class="day-card">
+    <article class="day-card ${dateIso === toDateIso(new Date()) ? 'is-today' : ''}" data-day="${dateIso}">
       <header class="day-card-header">
         <strong>${escapeHtml(formatWeekday(date))}</strong>
-        <span>${escapeHtml(formatShortDate(date))}</span>
+        <span>${escapeHtml(formatShortDate(date))}${dateIso === toDateIso(new Date()) ? ' · I dag' : ''}</span>
+        <button class="day-add-button" type="button" data-create-on-date="${dateIso}" aria-label="Ny aftale ${dateIso}">+</button>
       </header>
 
       <div class="day-sections">
@@ -420,7 +471,7 @@ function renderCalendarItemCard(item) {
   const iconColumn = itemIcon
     ? `<div class="calendar-item-icon-column">${itemIcon}</div>`
     : ''
-  const doneControl = type === 'Opgave'
+  const doneControl = type === 'Opgave' && !imported(item)
     ? `
       <label class="done-toggle">
         <input
@@ -436,7 +487,7 @@ function renderCalendarItemCard(item) {
   return `
     <article
       class="calendar-item ${itemIcon ? 'has-icon' : ''} ${done ? 'is-done' : ''}"
-      data-calendar-item="${escapeHtml(id)}"
+      data-calendar-item="${escapeHtml(id)}" tabindex="0" role="button" aria-label="${escapeHtml(title)}"
       style="border-left-color:${escapeHtml(getCalendarItemColor(item))}"
     >
       <div class="calendar-item-layout">
@@ -444,6 +495,7 @@ function renderCalendarItemCard(item) {
         <div class="calendar-item-content">
           <div class="calendar-item-title-row">
             <strong>${escapeHtml(title)}</strong>
+            ${sourceLabel(item) ? `<span class="calendar-source-badge">${sourceLabel(item)}</span>` : ''}
             ${itemIcon ? '' : `<span class="calendar-time-badge">${escapeHtml(timeLabel)}</span>`}
           </div>
           ${itemIcon ? `
@@ -481,216 +533,18 @@ function renderCalendarItemIcon(item) {
 function renderCalendarRepeatMeta(item) {
   const labels = []
 
-  if (Boolean(getCalendarValue(item, 'repeatWeekly')) || item.isRepeatOccurrence) {
+  if (!imported(item) && (Boolean(getCalendarValue(item, 'repeatWeekly')) || item.isRepeatOccurrence)) {
     labels.push('↻ uge')
   }
 
-  if (getCalendarValue(item, 'overrideOf')) {
+  if (!imported(item) && getCalendarValue(item, 'overrideOf')) {
     labels.push('tilpasset')
   }
 
   return labels.map((label) => `<span class="calendar-repeat-label">${escapeHtml(label)}</span>`).join('')
 }
 
-function getCalendarItemTitle(item) {
-  const title = getCalendarValue(item, 'title') || '(uden titel)'
-  const birthYear = parseOptionalNumber(getCalendarValue(item, 'birthYear'))
-  const date = new Date(getCalendarValue(item, 'date'))
-
-  if (!isBirthdayItem(item) || !birthYear || Number.isNaN(date.getTime())) {
-    return title
-  }
-
-  const age = date.getFullYear() - birthYear
-  return age > 0 ? `${title} bliver ${age} år` : title
-}
-
-function renderCalendarModalOld() {
-  if (!isCalendarModalOpen) {
-    return ''
-  }
-
-  const item = getEditingCalendarItem()
-  const mode = item ? 'Rediger kalender-item' : 'Nyt kalender-item'
-  const submitText = item ? 'Gem ændringer' : 'Opret kalender-item'
-  const values = {
-    title: getCalendarValue(item || {}, 'title'),
-    date: getCalendarValue(item || {}, 'date') || getDefaultCalendarItemDate(),
-    time: getCalendarValue(item || {}, 'time'),
-    person: getPrimaryCalendarPerson(item || {}),
-    type: getCalendarValue(item || {}, 'type') || 'Aktivitet',
-    durationMin: getCalendarValue(item || {}, 'durationMin'),
-    location: getCalendarValue(item || {}, 'location'),
-    note: getCalendarValue(item || {}, 'note'),
-    repeatWeekly: Boolean(getCalendarValue(item || {}, 'repeatWeekly')),
-    repeatYearly: Boolean(getCalendarValue(item || {}, 'repeatYearly')),
-    repeatUntil: getCalendarValue(item || {}, 'repeatUntil'),
-  }
-
-  return `
-    <div id="calendar-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="calendar-modal-title">
-      <div class="calendar-modal">
-        <header class="modal-header">
-          <h2 id="calendar-modal-title">${mode}</h2>
-          <button id="calendar-modal-close" class="icon-button" type="button" aria-label="Luk">×</button>
-        </header>
-
-        <form id="calendar-modal-form">
-          <div class="form-grid">
-            <div class="full">
-              <label for="calendar-title">Titel</label>
-              <input id="calendar-title" name="title" type="text" value="${escapeHtml(values.title)}" required />
-            </div>
-
-            <div>
-              <label for="calendar-date">Dato</label>
-              <input id="calendar-date" name="date" type="date" value="${escapeHtml(values.date)}" required />
-            </div>
-
-            <div>
-              <label for="calendar-time">Tid</label>
-              <input id="calendar-time" name="time" type="time" value="${escapeHtml(values.time)}" />
-            </div>
-
-            <div class="full">
-              <label>Personer</label>
-              <div class="calendar-person-pills">
-                ${renderCalendarPersonPills(values.people)}
-              </div>
-            </div>
-
-            <div>
-              <label for="calendar-type">Type</label>
-              <select id="calendar-type" name="type">
-                ${renderTypeOption('Aktivitet', values.type)}
-                ${renderTypeOption('Opgave', values.type)}
-                ${renderTypeOption('Fritidsinteresse', values.type)}
-                ${renderTypeOption('Fødselsdag', values.type)}
-                ${renderTypeOption('Mærkedag', values.type)}
-              </select>
-            </div>
-
-            <div class="full">
-              <label for="calendar-note">Note</label>
-              <textarea id="calendar-note" name="note">${escapeHtml(values.note)}</textarea>
-            </div>
-          </div>
-
-          <footer class="modal-actions">
-            <button id="calendar-modal-cancel" type="button">Annuller</button>
-            <button type="submit">${submitText}</button>
-          </footer>
-        </form>
-      </div>
-    </div>
-  `
-}
-
-function renderCalendarModalUnused() {
-  if (!isCalendarModalOpen) {
-    return ''
-  }
-
-  const item = getEditingCalendarItem()
-  const mode = item ? 'Rediger kalender-item' : 'Nyt kalender-item'
-  const submitText = item ? 'Gem ændringer' : 'Opret kalender-item'
-  const values = {
-    title: getCalendarValue(item || {}, 'title'),
-    date: getCalendarValue(item || {}, 'date') || getDefaultCalendarItemDate(),
-    time: getCalendarValue(item || {}, 'time'),
-    person: getPrimaryCalendarPerson(item || {}),
-    type: getCalendarValue(item || {}, 'type') || 'Aktivitet',
-    durationMin: getCalendarValue(item || {}, 'durationMin'),
-    location: getCalendarValue(item || {}, 'location'),
-    note: getCalendarValue(item || {}, 'note'),
-    repeatWeekly: Boolean(getCalendarValue(item || {}, 'repeatWeekly')),
-    repeatYearly: Boolean(getCalendarValue(item || {}, 'repeatYearly')),
-    repeatUntil: getCalendarValue(item || {}, 'repeatUntil'),
-  }
-
-  return `
-    <div id="calendar-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="calendar-modal-title">
-      <div class="calendar-modal">
-        <header class="modal-header">
-          <h2 id="calendar-modal-title">${mode}</h2>
-          <button id="calendar-modal-close" class="icon-button" type="button" aria-label="Luk">×</button>
-        </header>
-
-        <form id="calendar-modal-form">
-          <div class="form-grid">
-            <div class="full">
-              <label for="calendar-title">Titel</label>
-              <input id="calendar-title" name="title" type="text" value="${escapeHtml(values.title)}" required />
-            </div>
-
-            <div>
-              <label for="calendar-date">Dato</label>
-              <input id="calendar-date" name="date" type="date" value="${escapeHtml(values.date)}" required />
-            </div>
-
-            <div>
-              <label for="calendar-time">Tid</label>
-              <input id="calendar-time" name="time" type="time" value="${escapeHtml(values.time)}" />
-            </div>
-
-            <div class="full">
-              <label>Personer</label>
-              <div class="calendar-person-pills">
-                ${renderCalendarPersonPills(values.people)}
-              </div>
-            </div>
-
-            <div>
-              <label for="calendar-type">Type</label>
-              <select id="calendar-type" name="type">
-                ${renderTypeOption('Aktivitet', values.type)}
-                ${renderTypeOption('Fritidsinteresse', values.type)}
-                ${renderTypeOption('Opgave', values.type)}
-                ${renderTypeOption('Fødselsdag', values.type)}
-                ${renderTypeOption('Mærkedag', values.type)}
-              </select>
-            </div>
-
-            <div>
-              <label for="calendar-duration">Varighed</label>
-              <input id="calendar-duration" name="durationMin" type="number" min="0" step="5" value="${escapeHtml(values.durationMin)}" />
-            </div>
-
-            <div class="full">
-              <label for="calendar-location">Lokation</label>
-              <input id="calendar-location" name="location" type="text" value="${escapeHtml(values.location)}" />
-            </div>
-
-            <div class="full">
-              <label for="calendar-note">Note</label>
-              <textarea id="calendar-note" name="note">${escapeHtml(values.note)}</textarea>
-            </div>
-
-            <div id="calendar-options" class="full repeat-options ${isBirthday ? 'hidden' : ''}">
-              <label class="checkbox-label">
-                <input name="repeatWeekly" type="checkbox" ${values.repeatWeekly ? 'checked' : ''} />
-                Gentag ugentligt
-              </label>
-              <label class="checkbox-label">
-                <input name="repeatYearly" type="checkbox" ${values.repeatYearly ? 'checked' : ''} />
-                Gentag årligt
-              </label>
-              <div>
-                <label for="calendar-repeat-until">Gentag indtil</label>
-                <input id="calendar-repeat-until" name="repeatUntil" type="date" value="${escapeHtml(values.repeatUntil)}" />
-              </div>
-            </div>
-          </div>
-
-          <footer class="modal-actions">
-            <button id="calendar-modal-cancel" type="button">Annuller</button>
-            <button type="submit">${submitText}</button>
-          </footer>
-        </form>
-      </div>
-    </div>
-  `
-}
+function getCalendarItemTitle(item) { return displayTitle(item) }
 
 function renderCalendarModal() {
   if (!isCalendarModalOpen) {
@@ -698,11 +552,13 @@ function renderCalendarModal() {
   }
 
   const item = getEditingCalendarItem()
-  const mode = item ? 'Rediger kalender-item' : 'Nyt kalender-item'
+  const base = item ? baseFor(editingRowsSnapshot, item) : null
+  const readOnly = imported(item) || item?.isVirtualMilestone
+  const mode = readOnly ? 'Kalenderaftale' : item ? 'Rediger kalender-item' : 'Nyt kalender-item'
   const submitText = item ? 'Gem ændringer' : 'Opret kalender-item'
   const values = {
     title: getCalendarValue(item || {}, 'title'),
-    date: getCalendarValue(item || {}, 'date') || getDefaultCalendarItemDate(),
+    date: (item?.isYearlyOccurrence ? getCalendarValue(base || item, 'date') : getCalendarValue(item || {}, 'date')) || getDefaultCalendarItemDate(),
     time: getCalendarValue(item || {}, 'time'),
     people: item && itemPersonIds(item, householdPeople).length ? [...itemPersonIds(item, householdPeople), ...(item.data?.unresolvedPeople || [])] : getCalendarItemPeople(item || {}),
     type: normalizeTypeValue(getCalendarValue(item || {}, 'type') || 'Aktivitet'),
@@ -710,7 +566,7 @@ function renderCalendarModal() {
     location: getCalendarValue(item || {}, 'location'),
     note: getCalendarValue(item || {}, 'note'),
     done: Boolean(getCalendarValue(item || {}, 'done')),
-    repeatWeekly: Boolean(getCalendarValue(item || {}, 'repeatWeekly')),
+    repeatWeekly: Boolean(getCalendarValue(base || item || {}, 'repeatWeekly')),
     weekdays: Boolean(getCalendarValue(item || {}, 'weekdays')),
     birthYear: getCalendarValue(item || {}, 'birthYear'),
   }
@@ -729,10 +585,14 @@ function renderCalendarModal() {
         </header>
 
         <form id="calendar-modal-form">
+          ${readOnly ? '<p class="source-notice">' + (item.isVirtualMilestone ? 'Automatisk mærkedag fra kalenderens traditionsliste.' : 'Importeret fra ' + sourceLabel(item) + '. Redigér aftalen i kildekalenderen; ændringer kommer med ved næste import.') + '</p>' : ''}
+          ${item?.isYearlyOccurrence ? '<p class="source-notice">Ændringer gælder fødselsdagen i alle år. Datoen her er den oprindelige dato.</p>' : ''}
+          <fieldset class="calendar-fields" ${readOnly ? 'disabled' : ''}>
           <div class="form-grid">
             <div class="full">
               <label for="calendar-title">Titel</label>
-              <input id="calendar-title" name="title" type="text" value="${escapeHtml(values.title)}" required />
+              <input id="calendar-title" name="title" type="text" value="${escapeHtml(values.title)}" maxlength="1000" required />
+              <datalist id="task-suggestions">${[...new Set([...taskSuggestions, ...calendarItems.filter(row => row.type === 'Opgave').map(row => row.title)])].map(title => '<option value="' + escapeHtml(title) + '"></option>').join('')}</datalist>
             </div>
 
             <div>
@@ -783,7 +643,7 @@ function renderCalendarModal() {
               <textarea id="calendar-note" name="note">${escapeHtml(values.note)}</textarea>
             </div>
 
-            <div id="calendar-options" class="full repeat-options ${isBirthday ? 'hidden' : ''}">
+            <div id="calendar-options" class="full repeat-options ${isBirthday || readOnly ? 'hidden' : ''}">
               <label id="repeat-weekly-option" class="checkbox-label ${isBirthday ? 'hidden' : ''}">
                 <input name="repeatWeekly" type="checkbox" ${values.repeatWeekly && !isBirthday ? 'checked' : ''} ${isBirthday ? 'disabled' : ''} />
                 Gentag hver uge
@@ -799,20 +659,23 @@ function renderCalendarModal() {
             </div>
             ${hasRepeatScope ? `
               <div class="full repeat-scope-options">
-                <label>Ã†ndring skal gÃ¦lde for</label>
+                <label>Ændringen gælder for</label>
                 <div class="repeat-scope-row">
-                  <label class="checkbox-label"><input type="radio" name="repeatScope" value="one" /> Kun denne</label>
+                  <label class="checkbox-label"><input type="radio" name="repeatScope" value="one" checked /> Kun denne</label>
                   <label class="checkbox-label"><input type="radio" name="repeatScope" value="future" /> Denne og frem</label>
-                  <label class="checkbox-label"><input type="radio" name="repeatScope" value="series" checked /> Hele serien</label>
+                  <label class="checkbox-label"><input type="radio" name="repeatScope" value="series" /> Hele serien</label>
                 </div>
+                <p id="calendar-scope-help" class="source-notice"></p>
               </div>
             ` : ''}
           </div>
 
+          </fieldset>
+          <p id="calendar-editor-message" class="message" role="status"></p>
           <footer class="modal-actions">
-            ${item ? '<button id="calendar-modal-delete" class="danger-button" type="button">Slet</button>' : ''}
+            ${item && !readOnly ? '<button id="calendar-modal-delete" class="danger-button" type="button">Slet</button>' : ''}
             <button id="calendar-modal-cancel" type="button">Annuller</button>
-            <button type="submit">${submitText}</button>
+            ${readOnly ? '' : `<button type="submit">${submitText}</button>`}
           </footer>
         </form>
       </div>
@@ -1489,7 +1352,7 @@ async function loadCalendarItems({ renderAfter = false } = {}) {
   }
 
   const householdId = getHouseholdId(activeHousehold)
-  const epoch = sessionEpoch
+  const epoch = sessionEpoch, loadVersion = ++calendarLoadVersion
   isLoadingCalendar = true
   calendarItemsHouseholdId = householdId
 
@@ -1501,7 +1364,7 @@ async function loadCalendarItems({ renderAfter = false } = {}) {
     .order('time', { ascending: true })
     .order('id'), () => epoch === sessionEpoch && activeHousehold?.id === householdId)
 
-  if (epoch !== sessionEpoch || activeHousehold?.id !== householdId) return
+  if (epoch !== sessionEpoch || activeHousehold?.id !== householdId || loadVersion !== calendarLoadVersion) return
   isLoadingCalendar = false
 
   if (error) {
@@ -1512,482 +1375,108 @@ async function loadCalendarItems({ renderAfter = false } = {}) {
   }
 
   if (renderAfter && activeHousehold && getHouseholdId(activeHousehold) === householdId) {
-    render()
+    render({ preserveDialogs: true })
   }
 }
 
 async function loadHouseholdPeople({ renderAfter = false } = {}) {
   if (!activeHousehold) return
   const householdId = getHouseholdId(activeHousehold), epoch = sessionEpoch
+  const loadVersion = ++peopleLoadVersion
   isLoadingPeople = true; householdPeopleHouseholdId = householdId
   const { data, error } = await supabase.from('household_people').select('*').eq('household_id', householdId).order('sort_order').order('name')
   const people = error ? [] : await resolveAvatarUrls(supabase, data || [])
-  if (epoch !== sessionEpoch || activeHousehold?.id !== householdId) return
+  if (epoch !== sessionEpoch || activeHousehold?.id !== householdId || loadVersion !== peopleLoadVersion) return
   isLoadingPeople = false
   if (error) settingsMessage = 'Kunne ikke hente personer: ' + error.message
   householdPeople = people.map(person => ({ ...person, role: mapPersonRoleToUi(person.role) }))
   syncActivePersonFilter()
-  if (renderAfter) render()
+  if (renderAfter) render({ preserveDialogs: true })
 }
 
 async function loadCalendarFeeds({ renderAfter = false } = {}) {
   if (!activeHousehold) return
   const householdId = getHouseholdId(activeHousehold), epoch = sessionEpoch
+  const loadVersion = ++feedsLoadVersion
   calendarFeedsHouseholdId = householdId
   if (!canManageFeeds()) { calendarFeeds = []; return }
   isLoadingCalendarFeeds = true
   const { data, error } = await supabase.from('calendar_feeds').select('*').eq('household_id', householdId).order('name')
-  if (epoch !== sessionEpoch || activeHousehold?.id !== householdId) return
+  if (epoch !== sessionEpoch || activeHousehold?.id !== householdId || loadVersion !== feedsLoadVersion) return
   isLoadingCalendarFeeds = false
   calendarFeeds = data || []
   if (error) calendarImportMessage = 'Kunne ikke hente feeds: ' + error.message
-  if (renderAfter) render()
+  if (renderAfter) render({ preserveDialogs: true })
 }
 
 async function handleSaveCalendarItem(event) {
   event.preventDefault()
-
-  if (isCreatingCalendarItem || !activeHousehold) {
-    return
-  }
-
-  const form = event.target
-  const submitButton = form.querySelector('button[type="submit"]')
-  const formData = new FormData(form)
-  const householdId = getHouseholdId(activeHousehold)
-  const editingItem = getEditingCalendarItem()
-  const type = normalizeTypeValue(String(formData.get('type')).trim() || 'Aktivitet')
-  const isBirthday = type === 'Fødselsdag'
-  const isTask = type === 'Opgave'
-  const isMilestone = type === 'Mærkedag'
+  if (isCreatingCalendarItem || !activeHousehold) return
+  const form = event.target, formData = new FormData(form), editingItem = getEditingCalendarItem()
+  if (imported(editingItem) || editingItem?.isVirtualMilestone) return
+  const type = normalizeTypeValue(String(formData.get('type') || 'Aktivitet'))
+  const scope = String(formData.get('repeatScope') || 'one')
+  const dateInput = form.querySelector('#calendar-date')
   const selection = selectPeople(formData.getAll('people'), householdPeople)
-  const selectedPeople = selection.people
-  const selectedPerson = selectedPeople[0] || 'Alle'
   const itemData = {
-    household_id: householdId,
-    title: String(formData.get('title')).trim(),
-    date: String(formData.get('date')).trim(),
-    time: String(formData.get('time')).trim(),
-    person: selectedPerson,
-    people: selectedPeople,
-    personIds: selection.personIds,
-    unresolvedPeople: selection.unresolvedPeople,
-    type,
-    durationMin: parseOptionalNumber(formData.get('durationMin')),
-    location: String(formData.get('location')).trim(),
-    note: String(formData.get('note')).trim(),
-    done: isTask ? formData.has('done') : false,
-    repeatWeekly: isBirthday ? false : formData.has('repeatWeekly'),
-    weekdays: editingItem || isBirthday || isMilestone ? false : formData.has('weekdays'),
-    exceptions: [],
-    repeatUntil: '',
-    seriesId: '',
-    repeatYearly: isBirthday,
-    birthYear: isBirthday ? String(formData.get('birthYear')).trim() : '',
+    title: String(formData.get('title') || '').trim(), date: dateInput.value,
+    time: String(formData.get('time') || ''), ...selection, person: selection.people[0],
+    type, durationMin: parseOptionalNumber(formData.get('durationMin')),
+    location: String(formData.get('location') || '').trim(), note: String(formData.get('note') || '').trim(),
+    done: type === 'Opgave' && formData.has('done'),
+    repeatWeekly: type !== 'Fødselsdag' && form.querySelector('[name=repeatWeekly]').checked,
+    weekdays: !editingItem && !['Fødselsdag','Mærkedag'].includes(type) && formData.has('weekdays'),
+    repeatYearly: type === 'Fødselsdag', birthYear: type === 'Fødselsdag' ? String(formData.get('birthYear') || '') : '',
   }
-
-  if (!itemData.title || !itemData.date) {
-    return
-  }
-
+  if (!itemData.title || !itemData.date) return
   isCreatingCalendarItem = true
-  submitButton.disabled = true
-  submitButton.textContent = editingItem ? 'Gemmer...' : 'Opretter...'
-  message = editingItem ? 'Gemmer kalender-item...' : 'Opretter kalender-item...'
-
-  const { error } = editingItem
-    ? await saveExistingCalendarItem(editingItem, itemData, formData)
-    : await saveNewCalendarItem(itemData)
-
+  const button = form.querySelector('button[type=submit]'); button.disabled = true
+  const result = await runCalendarMutation(() => editingItem
+    ? planEdit(editingRowsSnapshot, editingItem, itemData, scope)
+    : planCreate(itemData))
   isCreatingCalendarItem = false
-
-  if (error) {
-    message = editingItem
-      ? `Kunne ikke opdatere kalender-item: ${error.message}`
-      : `Kunne ikke oprette kalender-item: ${error.message}`
-    render()
+  if (result.error) {
+    button.disabled = false
+    form.querySelector('#calendar-editor-message').textContent = result.error.message
     return
   }
-
-  isCalendarModalOpen = false
-  editingCalendarItemId = null
+  isCalendarModalOpen = false; editingCalendarItemId = null; editingCalendarSnapshot = null; editingRowsSnapshot = []
   message = editingItem ? 'Kalender-item opdateret.' : 'Kalender-item oprettet.'
   await loadCalendarItems()
-  render()
+  render({ preserveDialogs: true })
 }
-
-async function saveNewCalendarItem(itemData) {
-  if (itemData.weekdays) {
-    return createWeekdayCalendarItems(itemData)
-  }
-
-  return createCalendarItem(itemData)
-}
-
-async function saveExistingCalendarItem(item, itemData, formData) {
-  if (isRepeatContextItem(item)) {
-    return updateRepeatCalendarItem(item, itemData, getRepeatScope(formData))
-  }
-
-  return updateCalendarItem(item, itemData)
-}
-
-async function createWeekdayCalendarItems(itemData) {
-  const dates = getWeekdayDates(itemData.date)
-
-  for (const date of dates) {
-    const { error } = await createCalendarItem({
-      ...itemData,
-      date,
-      repeatWeekly: false,
-      weekdays: false,
-      repeatUntil: '',
-      exceptions: [],
-      seriesId: '',
+async function runCalendarMutation(makePlan) {
+  try {
+    const plan = makePlan()
+    return await supabase.rpc('mutate_calendar', {
+      p_household_id: getHouseholdId(activeHousehold), p_expected: plan.expected, p_delete_ids: plan.deleteIds,
+      p_upserts: plan.upserts.map(({id,values}) => ({id,...calendarPayload(values, householdPeople)})),
     })
-
-    if (error) {
-      return { error }
-    }
-  }
-
-  return { error: null }
-}
-
-async function createCalendarItem(itemData) {
-  const payload = {
-    ...itemData,
-    done: Boolean(itemData.done),
-    created_by: session.user.id,
-  }
-
-  const { data, error } = await supabase
-    .from('calendar_items')
-    .insert({
-      household_id: payload.household_id,
-      title: payload.title,
-      date: payload.date,
-      time: payload.time,
-      person: payload.person,
-      type: payload.type,
-      note: payload.note,
-      done: payload.done,
-      created_by: payload.created_by,
-      ...calendarPayload(payload, householdPeople),
-    })
-    .select('id,data')
-    .single()
-
-  if (error || !data?.id || !payload.repeatWeekly) {
-    return { data, error }
-  }
-
-  const nextData = {
-    ...(data.data || {}),
-    ...payload,
-    seriesId: data.id,
-    exceptions: [],
-    repeatUntil: '',
-  }
-
-  const { error: updateError } = await supabase
-    .from('calendar_items')
-    .update({ data: nextData })
-    .eq('id', data.id)
-
-  return { data, error: updateError }
-}
-
-async function updateCalendarItem(item, itemData) {
-  const storedItem = getStoredCalendarItem(item) || item
-  const nextData = {
-    ...(storedItem.data || {}),
-    ...itemData,
-    seriesId: itemData.seriesId ?? (itemData.repeatWeekly ? (getCalendarValue(storedItem, 'seriesId') || storedItem.id) : ''),
-    exceptions: itemData.exceptions ?? (itemData.repeatWeekly ? getCalendarExceptions(storedItem) : []),
-    repeatUntil: itemData.repeatUntil ?? (itemData.repeatWeekly ? getCalendarValue(storedItem, 'repeatUntil') : ''),
-  }
-
-  return supabase
-    .from('calendar_items')
-    .update({
-      ...calendarPayload(nextData, householdPeople, storedItem),
-    })
-    .eq('id', storedItem.id)
-}
-
-async function updateRepeatCalendarItem(item, itemData, scope) {
-  const baseItem = getRepeatBaseItem(item)
-
-  if (!baseItem) {
-    return updateCalendarItem(item, itemData)
-  }
-
-  if (isBaseOriginalOccurrence(item, baseItem)) {
-    return updateCalendarItem(baseItem, itemData)
-  }
-
-  if (scope === 'one') {
-    return updateOneRepeatOccurrence(baseItem, item, itemData)
-  }
-
-  if (scope === 'future') {
-    return updateFutureRepeatOccurrences(baseItem, item, itemData)
-  }
-
-  return updateWholeRepeatSeries(baseItem, itemData)
-}
-
-async function updateWholeRepeatSeries(baseItem, itemData) {
-  const seriesId = getCalendarSeriesId(baseItem)
-
-  return updateCalendarItem(baseItem, {
-    ...itemData,
-    seriesId,
-    exceptions: getCalendarExceptions(baseItem),
-    repeatUntil: itemData.repeatWeekly ? getCalendarValue(baseItem, 'repeatUntil') : '',
-  })
-}
-
-async function updateOneRepeatOccurrence(baseItem, item, itemData) {
-  const occurrenceDate = getOccurrenceDate(item)
-  const targetDate = toDateString(itemData.date) || occurrenceDate
-  const seriesId = getCalendarSeriesId(baseItem)
-
-  if (!item.isRepeatOccurrence || occurrenceDate === getCalendarValue(baseItem, 'date')) {
-    return updateCalendarItem(baseItem, itemData)
-  }
-
-  const existingOverride = findRepeatOverride(seriesId, occurrenceDate) || findRepeatOverride(seriesId, targetDate)
-  const exceptionResult = await addRepeatException(baseItem, occurrenceDate)
-
-  if (exceptionResult.error) {
-    return exceptionResult
-  }
-
-  if (existingOverride) {
-    return updateCalendarItem(existingOverride, {
-      ...itemData,
-      repeatWeekly: false,
-      repeatUntil: '',
-      exceptions: [],
-      seriesId,
-      overrideOf: seriesId,
-      overrideBaseId: baseItem.id,
-    })
-  }
-
-  return createCalendarItem({
-    ...buildOverrideItemData(baseItem, itemData),
-    date: itemData.date || occurrenceDate,
-    seriesId,
-    overrideOf: seriesId,
-    overrideBaseId: baseItem.id,
-  })
-}
-
-async function updateFutureRepeatOccurrences(baseItem, item, itemData) {
-  const occurrenceDate = getOccurrenceDate(item)
-  const previousDate = addDaysIso(occurrenceDate, -1)
-  const seriesId = getCalendarSeriesId(baseItem)
-  const baseUpdate = await updateBaseRepeatData(baseItem, {
-    repeatUntil: previousDate,
-    exceptions: getCalendarExceptions(baseItem).filter((date) => date < occurrenceDate),
-  })
-
-  if (baseUpdate.error) {
-    return baseUpdate
-  }
-
-  const deleteResult = await deleteFutureRepeatOverrides(seriesId, baseItem.id, occurrenceDate)
-
-  if (deleteResult.error) {
-    return deleteResult
-  }
-
-  return createCalendarItem({
-    ...itemData,
-    date: itemData.date || occurrenceDate,
-    repeatWeekly: itemData.repeatWeekly,
-    weekdays: false,
-    exceptions: [],
-    repeatUntil: '',
-    seriesId: '',
-    overrideOf: '',
-    overrideBaseId: baseItem.id,
-  })
+  } catch (error) { return { error } }
 }
 
 async function toggleCalendarItemDone(itemId, done) {
   const item = findRenderableCalendarItem(itemId)
-
-  if (!item) {
-    return
-  }
-
-  const baseItem = getRepeatBaseItem(item)
-
-  if (baseItem && isBaseOriginalOccurrence(item, baseItem)) {
-    const result = await updateCalendarItem(baseItem, { ...calendarItemToData(item), done })
-
-    if (result.error) {
-      message = `Kunne ikke opdatere done-status: ${result.error.message}`
-      render()
-      return
-    }
-
-    await loadCalendarItems()
-    render()
-    return
-  }
-
-  if (isRepeatContextItem(item) && !getCalendarValue(item, 'overrideOf')) {
-    const result = baseItem
-      ? await updateOneRepeatOccurrence(baseItem, item, { ...calendarItemToData(item), done })
-      : { error: null }
-
-    if (result.error) {
-      message = `Kunne ikke opdatere done-status: ${result.error.message}`
-      render()
-      return
-    }
-
-    await loadCalendarItems()
-    render()
-    return
-  }
-
-  const nextData = {
-    ...(item.data || {}),
-    done,
-  }
-
-  const { error } = await supabase
-    .from('calendar_items')
-    .update({
-      done,
-      data: nextData,
-    })
-    .eq('id', item.id)
-
-  if (error) {
-    message = `Kunne ikke opdatere done-status: ${error.message}`
-    render()
-    return
-  }
-
+  if (!item || imported(item)) return
+  const { error } = await runCalendarMutation(() => planEdit(calendarItems, item, {...itemValues(item), done}, 'one'))
+  if (error) message = 'Kunne ikke gemme udført-status: ' + error.message
   await loadCalendarItems()
-  render()
+  render({ preserveDialogs: true })
 }
 
 async function handleDeleteCalendarItem() {
   const item = getEditingCalendarItem()
-
-  if (!item || isCreatingCalendarItem) {
-    return
-  }
-
-  const scope = getRepeatScope(new FormData(document.querySelector('#calendar-modal-form')))
+  if (!item || isCreatingCalendarItem || imported(item) || item.isVirtualMilestone) return
+  const form = document.querySelector('#calendar-modal-form'), scope = String(new FormData(form).get('repeatScope') || 'one')
   isCreatingCalendarItem = true
-  message = 'Sletter kalender-item...'
-  render()
-
-  const { error } = isRepeatContextItem(item)
-    ? await deleteRepeatCalendarItem(item, scope)
-    : await deleteCalendarItemById(item.id)
-
+  const button = document.querySelector('#calendar-modal-delete'); button.disabled = true
+  const { error } = await runCalendarMutation(() => planDelete(editingRowsSnapshot, item, scope))
   isCreatingCalendarItem = false
-
-  if (error) {
-    message = `Kunne ikke slette kalender-item: ${error.message}`
-    render()
-    return
-  }
-
-  isCalendarModalOpen = false
-  editingCalendarItemId = null
+  if (error) { button.disabled = false; form.querySelector('#calendar-editor-message').textContent = error.message; return }
+  isCalendarModalOpen = false; editingCalendarItemId = null; editingCalendarSnapshot = null; editingRowsSnapshot = []
   message = 'Kalender-item slettet.'
   await loadCalendarItems()
-  render()
-}
-
-async function deleteRepeatCalendarItem(item, scope) {
-  if (scope === 'series') {
-    return deleteWholeRepeatSeries(item)
-  }
-
-  if (scope === 'future') {
-    return deleteFutureRepeatOccurrences(item)
-  }
-
-  return deleteOneRepeatOccurrence(item)
-}
-
-async function deleteWholeRepeatSeries(item) {
-  const baseItem = getRepeatBaseItem(item) || item
-  const seriesId = getCalendarSeriesId(baseItem)
-  const ids = calendarItems
-    .filter((calendarItem) => isSameRepeatSeries(calendarItem, seriesId, baseItem.id))
-    .map((calendarItem) => calendarItem.id)
-
-  return deleteCalendarItemsByIds(ids)
-}
-
-async function deleteOneRepeatOccurrence(item) {
-  const baseItem = getRepeatBaseItem(item)
-  const occurrenceDate = getOccurrenceDate(item)
-
-  if (!baseItem) {
-    return deleteCalendarItemById(item.id)
-  }
-
-  const exceptionResult = await addRepeatException(baseItem, occurrenceDate)
-
-  if (exceptionResult.error) {
-    return exceptionResult
-  }
-
-  const override = findRepeatOverride(getCalendarSeriesId(baseItem), occurrenceDate)
-  return override ? deleteCalendarItemById(override.id) : { error: null }
-}
-
-async function deleteFutureRepeatOccurrences(item) {
-  const baseItem = getRepeatBaseItem(item)
-  const occurrenceDate = getOccurrenceDate(item)
-
-  if (!baseItem) {
-    return deleteCalendarItemById(item.id)
-  }
-
-  const baseUpdate = await updateBaseRepeatData(baseItem, {
-    repeatUntil: addDaysIso(occurrenceDate, -1),
-    exceptions: getCalendarExceptions(baseItem).filter((date) => date < occurrenceDate),
-  })
-
-  if (baseUpdate.error) {
-    return baseUpdate
-  }
-
-  return deleteFutureRepeatOverrides(getCalendarSeriesId(baseItem), baseItem.id, occurrenceDate)
-}
-
-async function deleteCalendarItemById(id) {
-  return deleteCalendarItemsByIds([id])
-}
-
-async function deleteCalendarItemsByIds(ids) {
-  const uniqueIds = [...new Set(ids.filter(Boolean))]
-
-  if (!uniqueIds.length) {
-    return { error: null }
-  }
-
-  const { error } = await supabase
-    .from('calendar_items')
-    .delete()
-    .in('id', uniqueIds)
-
-  return { error }
+  render({ preserveDialogs: true })
 }
 
 async function handleCreatePerson(event) {
@@ -2143,17 +1632,20 @@ function getPersonPreviewColor(rowId) {
   return getInputValue(`person-${rowId}-color`) || '#64748b'
 }
 
-function openCreateCalendarModal() {
-  editingCalendarItemId = null
-  isCalendarModalOpen = true
-  message = ''
+function openCreateCalendarModal(date = null) {
+  editingCalendarItemId = null; editingCalendarSnapshot = null; editingRowsSnapshot = []
+  newCalendarDate = date || toDateIso(calendarCursorDate)
+  isCalendarModalOpen = true; message = ''
   render()
 }
 
 function openEditCalendarModal(itemId) {
+  const item = findRenderableCalendarItem(itemId)
+  if (!item) return
   editingCalendarItemId = itemId
-  isCalendarModalOpen = true
-  message = ''
+  editingCalendarSnapshot = structuredClone(item)
+  editingRowsSnapshot = structuredClone(calendarItems)
+  isCalendarModalOpen = true; message = ''
   render()
 }
 
@@ -2420,18 +1912,11 @@ function navigateCalendar(direction) {
 function toggleCalendarViewMode() {
   calendarViewMode = calendarViewMode === 'week' ? 'day' : 'week'
   hasUserSelectedCalendarView = true
+  try { localStorage.setItem(VIEW_KEY, calendarViewMode) } catch {}
   render()
 }
 
-function getEditingCalendarItem() {
-  if (!editingCalendarItemId) {
-    return null
-  }
-
-  return findRenderableCalendarItem(editingCalendarItemId)
-    || calendarItems.find((item) => String(item.id) === String(editingCalendarItemId))
-    || null
-}
+function getEditingCalendarItem() { return editingCalendarSnapshot }
 
 function renderTypeOption(type, currentType) {
   return `
@@ -2550,11 +2035,33 @@ function updateModalTypeFields() {
   const doneOption = document.querySelector('#done-option')
   const canUseWeekdays = !getEditingCalendarItem() && !isBirthday && !isMilestone
 
+  const readOnly = imported(getEditingCalendarItem()) || getEditingCalendarItem()?.isVirtualMilestone
+  if (readOnly) return
+  const titleInput = document.querySelector('#calendar-title')
+  if (isTask) titleInput?.setAttribute('list', 'task-suggestions'); else titleInput?.removeAttribute('list')
   birthdayFields?.classList.toggle('hidden', !isBirthday)
   calendarOptions?.classList.toggle('hidden', isBirthday)
   setCheckboxOptionEnabled(repeatWeeklyOption, !isBirthday)
   setCheckboxOptionEnabled(weekdaysOption, canUseWeekdays)
   setCheckboxOptionEnabled(doneOption, isTask)
+  updateModalScopeFields()
+}
+
+function updateModalScopeFields() {
+  const item = getEditingCalendarItem()
+  if (!item || imported(item) || item.isVirtualMilestone || !repeatContext(item)) return
+  const form = document.querySelector('#calendar-modal-form'), scope = form?.querySelector('[name=repeatScope]:checked')?.value || 'one'
+  const base = baseFor(editingRowsSnapshot, item), input = form.querySelector('#calendar-date'), weeklyInput = form.querySelector('[name=repeatWeekly]')
+  const previousScope = input.dataset.scope
+  if (previousScope !== scope) input.value = scope === 'series' ? base.date : scope === 'future' ? item.occurrenceDate : item.date
+  input.dataset.scope = scope
+  input.disabled = scope !== 'one'
+  weeklyInput.disabled = scope === 'one' || form.querySelector('#calendar-type').value === 'Fødselsdag'
+  form.querySelector('#calendar-scope-help').textContent = scope === 'one'
+    ? 'Tilpas kun denne forekomst. Den ugentlige serie fortsætter.'
+    : scope === 'future'
+      ? 'Ny serie fra denne forekomst. Senere individuelle tilpasninger og udførte opgaver bevares. Datoen er seriens skæringspunkt.'
+      : 'Seriens oprindelige startdato bevares. Individuelle tilpasninger bevares. Udført gælder stadig kun denne forekomst.'
 }
 
 function setCheckboxOptionEnabled(option, enabled) {
@@ -2590,7 +2097,7 @@ function parseOptionalNumber(value) {
   const trimmed = String(value ?? '').trim()
 
   if (!trimmed) {
-    return 0
+    return null
   }
 
   const number = Number(trimmed)
@@ -2629,7 +2136,7 @@ function getCreatedHouseholdId(rpcData) {
 }
 
 function getDefaultCalendarViewMode() {
-  return window.innerWidth < 700 ? 'day' : 'week'
+  return preferredView(localStorage, window.innerWidth)
 }
 
 function syncDefaultCalendarViewMode() {
@@ -2641,11 +2148,11 @@ function syncDefaultCalendarViewMode() {
 }
 
 function getCalendarHeaderLabel() {
-  return calendarViewMode === 'week' ? 'Denne uge' : formatDayHeaderDate(calendarCursorDate)
+  return calendarHeading(toDateIso(calendarCursorDate), calendarViewMode)
 }
 
 function getDefaultCalendarItemDate() {
-  return toDateIso(calendarViewMode === 'day' ? calendarCursorDate : new Date())
+  return newCalendarDate || toDateIso(calendarCursorDate)
 }
 
 function getVisibleWeekDays() {
@@ -2690,90 +2197,7 @@ function formatDayHeaderDate(date) {
   }).format(date)
 }
 
-function getRenderableCalendarItems() {
-  const visibleDates = getVisibleCalendarDates()
-  const visibleDateSet = new Set(visibleDates)
-  const visibleItems = []
-  const seenIds = new Set()
-
-  calendarItems.forEach((item) => {
-    const itemDate = getCalendarValue(item, 'date')
-
-    if (visibleDateSet.has(itemDate)) {
-      if (Boolean(getCalendarValue(item, 'repeatWeekly')) && !getCalendarValue(item, 'overrideOf')) {
-        const repeatUntil = getCalendarValue(item, 'repeatUntil')
-        const seriesId = getCalendarSeriesId(item)
-
-        if (getCalendarExceptions(item).includes(itemDate) || findRepeatOverride(seriesId, itemDate) || (repeatUntil && itemDate > repeatUntil)) {
-          return
-        }
-      }
-
-      const visibleItem = addRepeatDisplayFields(item, itemDate)
-      visibleItems.push(visibleItem)
-      seenIds.add(String(visibleItem.id))
-    }
-  })
-
-  calendarItems.forEach((item) => {
-    if (!Boolean(getCalendarValue(item, 'repeatWeekly')) || getCalendarValue(item, 'overrideOf')) {
-      return
-    }
-
-    const baseDate = getCalendarValue(item, 'date')
-    const baseDateObject = parseDateIso(baseDate)
-
-    if (!baseDateObject) {
-      return
-    }
-
-    const baseDay = baseDateObject.getDay()
-    const exceptions = new Set(getCalendarExceptions(item))
-    const repeatUntil = getCalendarValue(item, 'repeatUntil')
-    const seriesId = getCalendarSeriesId(item)
-
-    visibleDates.forEach((dateIso) => {
-      const date = parseDateIso(dateIso)
-
-      if (!date || date.getDay() !== baseDay || dateIso <= baseDate) {
-        return
-      }
-
-      if (repeatUntil && dateIso > repeatUntil) {
-        return
-      }
-
-      if (exceptions.has(dateIso) || findRepeatOverride(seriesId, dateIso)) {
-        return
-      }
-
-      const virtualItem = {
-        ...item,
-        id: `repeat|${item.id}|${dateIso}`,
-        date: dateIso,
-        isRepeatOccurrence: true,
-        baseId: item.id,
-        seriesId,
-        occurrenceDate: dateIso,
-      }
-
-      if (!seenIds.has(String(virtualItem.id))) {
-        visibleItems.push(virtualItem)
-        seenIds.add(String(virtualItem.id))
-      }
-    })
-  })
-
-  return visibleItems.sort((a, b) => {
-    const dateCompare = String(getCalendarValue(a, 'date')).localeCompare(String(getCalendarValue(b, 'date')))
-
-    if (dateCompare) {
-      return dateCompare
-    }
-
-    return String(getCalendarValue(a, 'time')).localeCompare(String(getCalendarValue(b, 'time')))
-  })
-}
+function getRenderableCalendarItems() { return materialize(calendarItems, getVisibleCalendarDates()) }
 
 function getVisibleCalendarDates() {
   if (calendarViewMode === 'day') {
@@ -2783,233 +2207,11 @@ function getVisibleCalendarDates() {
   return getVisibleWeekDays().map(toDateIso)
 }
 
-function addRepeatDisplayFields(item, occurrenceDate) {
-  if (!isRepeatContextItem(item)) {
-    return item
-  }
-
-  return {
-    ...item,
-    baseId: getCalendarValue(item, 'overrideBaseId') || item.baseId || item.id,
-    seriesId: getCalendarSeriesId(item),
-    occurrenceDate,
-  }
-}
-
 function findRenderableCalendarItem(itemId) {
   return getRenderableCalendarItems().find((item) => String(item.id) === String(itemId)) || null
 }
 
-function getStoredCalendarItem(item) {
-  if (!item) {
-    return null
-  }
-
-  return calendarItems.find((calendarItem) => String(calendarItem.id) === String(item.id)) || null
-}
-
-function getRepeatBaseItem(item) {
-  if (!item) {
-    return null
-  }
-
-  if (Boolean(getCalendarValue(item, 'repeatWeekly')) && !item.isRepeatOccurrence && !getCalendarValue(item, 'overrideOf')) {
-    return getStoredCalendarItem(item) || item
-  }
-
-  const baseId = item.baseId || getCalendarValue(item, 'overrideBaseId')
-
-  if (baseId) {
-    const base = calendarItems.find((calendarItem) => String(calendarItem.id) === String(baseId))
-    if (base) {
-      return base
-    }
-  }
-
-  const seriesId = getCalendarValue(item, 'overrideOf') || getCalendarSeriesId(item)
-  return calendarItems.find((calendarItem) => (
-    String(calendarItem.id) === String(seriesId)
-    || String(getCalendarSeriesId(calendarItem)) === String(seriesId)
-  ) && Boolean(getCalendarValue(calendarItem, 'repeatWeekly')) && !getCalendarValue(calendarItem, 'overrideOf')) || getStoredCalendarItem(item)
-}
-
-function isRepeatContextItem(item) {
-  return Boolean(
-    item?.isRepeatOccurrence
-    || getCalendarValue(item || {}, 'repeatWeekly')
-    || getCalendarValue(item || {}, 'overrideOf')
-    || getCalendarValue(item || {}, 'overrideBaseId')
-  )
-}
-
-function isBaseOriginalOccurrence(item, baseItem) {
-  if (!item || !baseItem) {
-    return false
-  }
-
-  return !item.isRepeatOccurrence
-    && !getCalendarValue(item, 'overrideOf')
-    && String(item.id) === String(baseItem.id)
-    && getOccurrenceDate(item) === getCalendarValue(baseItem, 'date')
-}
-
-function getCalendarSeriesId(item) {
-  return String(getCalendarValue(item || {}, 'seriesId') || item?.seriesId || item?.id || '')
-}
-
-function getCalendarExceptions(item) {
-  const exceptions = getCalendarValue(item || {}, 'exceptions')
-
-  if (Array.isArray(exceptions)) {
-    return [...new Set(exceptions.map(toDateString).filter(Boolean))]
-  }
-
-  if (typeof exceptions === 'string') {
-    return [...new Set(exceptions.split(/[;,]/).map(toDateString).filter(Boolean))]
-  }
-
-  return []
-}
-
-function findRepeatOverride(seriesId, occurrenceDate) {
-  const targetDate = toDateString(occurrenceDate)
-
-  return calendarItems.find((item) => {
-    if (getCalendarValue(item, 'date') !== targetDate) {
-      return false
-    }
-
-    return String(getCalendarValue(item, 'overrideOf')) === String(seriesId)
-      || String(getCalendarValue(item, 'overrideBaseId')) === String(seriesId)
-      || String(getCalendarValue(item, 'overrideBaseId')) === String(getRepeatBaseItem({ seriesId })?.id || '')
-  }) || null
-}
-
-function isSameRepeatSeries(item, seriesId, baseId) {
-  return String(item.id) === String(baseId)
-    || String(getCalendarSeriesId(item)) === String(seriesId)
-    || String(getCalendarValue(item, 'overrideOf')) === String(seriesId)
-    || String(getCalendarValue(item, 'overrideBaseId')) === String(baseId)
-}
-
-function getOccurrenceDate(item) {
-  return toDateString(item?.occurrenceDate || getCalendarValue(item || {}, 'date'))
-}
-
-function getRepeatScope(formData) {
-  return String(formData.get('repeatScope') || 'series')
-}
-
-function buildOverrideItemData(baseItem, itemData) {
-  return {
-    ...calendarItemToData(baseItem),
-    ...itemData,
-    repeatWeekly: false,
-    weekdays: false,
-    exceptions: [],
-    repeatUntil: '',
-  }
-}
-
-function calendarItemToData(item) {
-  return {
-    household_id: getHouseholdId(activeHousehold),
-    title: getCalendarValue(item, 'title'),
-    date: getCalendarValue(item, 'date'),
-    time: getCalendarValue(item, 'time'),
-    person: getPrimaryCalendarPerson(item),
-    people: getCalendarItemPeople(item),
-    personIds: itemPersonIds(item, householdPeople),
-    unresolvedPeople: item.data?.unresolvedPeople || [],
-    type: normalizeTypeValue(getCalendarValue(item, 'type')),
-    durationMin: parseOptionalNumber(getCalendarValue(item, 'durationMin')),
-    location: getCalendarValue(item, 'location'),
-    note: getCalendarValue(item, 'note'),
-    done: Boolean(getCalendarValue(item, 'done')),
-    repeatWeekly: Boolean(getCalendarValue(item, 'repeatWeekly')),
-    weekdays: false,
-    repeatUntil: getCalendarValue(item, 'repeatUntil'),
-    exceptions: getCalendarExceptions(item),
-    seriesId: getCalendarSeriesId(item),
-    overrideOf: getCalendarValue(item, 'overrideOf'),
-    overrideBaseId: getCalendarValue(item, 'overrideBaseId'),
-    repeatYearly: Boolean(getCalendarValue(item, 'repeatYearly')),
-    birthYear: getCalendarValue(item, 'birthYear'),
-  }
-}
-
-async function addRepeatException(baseItem, occurrenceDate) {
-  const exceptions = [...new Set([...getCalendarExceptions(baseItem), toDateString(occurrenceDate)].filter(Boolean))]
-  return updateBaseRepeatData(baseItem, { exceptions })
-}
-
-async function updateBaseRepeatData(baseItem, repeatData) {
-  const nextData = {
-    ...(baseItem.data || {}),
-    repeatWeekly: Boolean(getCalendarValue(baseItem, 'repeatWeekly')),
-    seriesId: getCalendarSeriesId(baseItem),
-    exceptions: repeatData.exceptions ?? getCalendarExceptions(baseItem),
-    repeatUntil: repeatData.repeatUntil ?? getCalendarValue(baseItem, 'repeatUntil'),
-  }
-
-  const { error } = await supabase
-    .from('calendar_items')
-    .update({ data: nextData })
-    .eq('id', baseItem.id)
-
-  return { error }
-}
-
-async function deleteFutureRepeatOverrides(seriesId, baseId, occurrenceDate) {
-  const ids = calendarItems
-    .filter((item) => (
-      String(getCalendarValue(item, 'overrideOf')) === String(seriesId)
-      || String(getCalendarValue(item, 'overrideBaseId')) === String(baseId)
-    ))
-    .filter((item) => toDateString(getCalendarValue(item, 'date')) >= occurrenceDate)
-    .map((item) => item.id)
-
-  return deleteCalendarItemsByIds(ids)
-}
-
-function getWeekdayDates(dateIso) {
-  const date = parseDateIso(dateIso) || new Date()
-  const monday = getStartOfWeek(date)
-
-  return Array.from({ length: 5 }, (_, index) => {
-    const weekday = new Date(monday)
-    weekday.setDate(monday.getDate() + index)
-    return toDateIso(weekday)
-  })
-}
-
-function addDaysIso(dateIso, days) {
-  const date = parseDateIso(dateIso)
-
-  if (!date) {
-    return ''
-  }
-
-  date.setDate(date.getDate() + days)
-  return toDateIso(date)
-}
-
-function parseDateIso(dateIso) {
-  const value = toDateString(dateIso)
-
-  if (!value) {
-    return null
-  }
-
-  const [year, month, day] = value.split('-').map(Number)
-  const date = new Date(year, month - 1, day)
-  return Number.isNaN(date.getTime()) ? null : date
-}
-
-function toDateString(value) {
-  const text = String(value || '').trim()
-  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : ''
-}
+function isRepeatContextItem(item) { return repeatContext(item) }
 
 function getCalendarSection(type) {
   const normalized = normalizeTypeValue(type)
@@ -3037,6 +2239,7 @@ function isMilestoneItem(item) {
 function doesItemMatchPersonFilter(item) { return itemMatchesPerson(item, activePersonFilter, householdPeople) }
 
 function getCalendarItemColor(item) {
+  if (getCalendarItemPeople(item).length !== 1 || getCalendarItemPeople(item)[0] === 'Alle') return '#64748b'
   const person = householdPeople.find(person => person.id === itemPersonIds(item, householdPeople)[0])
   return person?.color || getPersonColor(getCalendarItemPeople(item)[0])
 }
@@ -3077,22 +2280,7 @@ function getHouseholdId(household) {
   return household.id || household.household_id
 }
 
-function getCalendarValue(item, key) {
-  const aliases = {
-    durationMin: 'duration_min',
-    repeatWeekly: 'repeat_weekly',
-    repeatYearly: 'repeat_yearly',
-    repeatUntil: 'repeat_until',
-    birthYear: 'birth_year',
-    seriesId: 'series_id',
-    overrideOf: 'override_of',
-    overrideBaseId: 'override_base_id',
-    exceptions: 'exception_dates',
-  }
-  const alias = aliases[key]
-
-  return item[key] ?? item.data?.[key] ?? (alias ? item[alias] ?? item.data?.[alias] : undefined) ?? ''
-}
+function getCalendarValue(item, key) { return calendarValue(item, key) }
 
 function escapeHtml(value) {
   return String(value)

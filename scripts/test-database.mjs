@@ -28,3 +28,7 @@ const upgrade = migrations.map(file => readFileSync('supabase/migrations/' + fil
 sql(acceptance.replace('-- REAPPLY_MIGRATIONS_WITH_EXISTING_DATA', () => upgrade))
 const checks = (acceptance.match(/select pg_temp\.(assert_true|expect_error)\(/g) || []).length
 console.log('PASS: ' + checks + ' local PostgreSQL RLS, RPC, identities, storage and import checks')
+
+const calendarAcceptance = readFileSync('supabase/tests/database/calendar.sql', 'utf8')
+sql(calendarAcceptance)
+console.log('PASS: ' + (calendarAcceptance.match(/select pg_temp\.(assert_true|expect_error)\(/g) || []).length + ' calendar atomicity, conflict and realtime RLS checks')

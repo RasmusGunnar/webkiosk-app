@@ -1,0 +1,173 @@
+{
+  "release": "Mega 2 calendar",
+  "date": "2026-09-28",
+  "base_commit": "770db7a5454dd5032facc2b4ea5950ebe9bd9e89",
+  "project_ref": "oyyqniwppytipdktzwsy",
+  "migration": {
+    "version": "20260928112804",
+    "name": "calendar_semantics_realtime",
+    "status": "APPLIED",
+    "sha256": "775a666fce08f5eaa592e1d0f1b6bdc76e61f56536ea80165e02c3943fc112b3"
+  },
+  "schema_drift_before": [],
+  "existing_full_row_fingerprints_unchanged": true,
+  "counts_after": {
+    "auth_users": 1,
+    "calendar_feeds": 4,
+    "calendar_items": 272,
+    "household_invitations": 0,
+    "household_members": 2,
+    "household_people": 5,
+    "households": 2,
+    "profiles": 0,
+    "storage_objects": 0
+  },
+  "backup_verified": {
+    "id": 1805398900,
+    "completed_at": "2026-09-28T03:37:45.625Z",
+    "physical": true
+  },
+  "tests": {
+    "node_unit": {
+      "passed": 38,
+      "failed": 0
+    },
+    "postgres": {
+      "passed": 69,
+      "failed": 0
+    },
+    "edge_import": {
+      "passed": 12,
+      "failed": 0
+    },
+    "browser_calendar": {
+      "passed": 22,
+      "failed": 0
+    },
+    "browser_foundation": "PASS",
+    "build": "PASS",
+    "edge_typecheck": "PASS",
+    "live": {
+      "isolated_authenticated_household": "PASS",
+      "cross_household_RLS": "PASS",
+      "live_realtime_subscribed": "PASS",
+      "atomic_create_and_live_realtime": "PASS",
+      "first_done_is_occurrence_specific": "PASS",
+      "stale_write_rejected": "PASS",
+      "series_edit_retains_completion": "PASS",
+      "atomic_delete_and_live_realtime": "PASS"
+    },
+    "live_cleanup": true
+  },
+  "acceptance": [
+    {
+      "area": "Day/week navigation",
+      "result": "PASS"
+    },
+    {
+      "area": "Today",
+      "result": "PASS"
+    },
+    {
+      "area": "Person filter and Alle",
+      "result": "PASS"
+    },
+    {
+      "area": "Multi-person",
+      "result": "PASS"
+    },
+    {
+      "area": "Yearly birthday",
+      "result": "PASS"
+    },
+    {
+      "area": "February 29",
+      "result": "PASS"
+    },
+    {
+      "area": "Weekly recurrence",
+      "result": "PASS"
+    },
+    {
+      "area": "Only-this edit",
+      "result": "PASS"
+    },
+    {
+      "area": "Only-this delete",
+      "result": "PASS"
+    },
+    {
+      "area": "This and forward",
+      "result": "PASS"
+    },
+    {
+      "area": "Whole series",
+      "result": "PASS"
+    },
+    {
+      "area": "Existing override edit",
+      "result": "PASS"
+    },
+    {
+      "area": "Occurrence-specific done",
+      "result": "PASS"
+    },
+    {
+      "area": "Weekdays",
+      "result": "PASS"
+    },
+    {
+      "area": "Weekdays with weekly repeat",
+      "result": "PASS"
+    },
+    {
+      "area": "Milestones",
+      "result": "PASS"
+    },
+    {
+      "area": "Manual CRUD",
+      "result": "PASS"
+    },
+    {
+      "area": "Aula display",
+      "result": "PASS"
+    },
+    {
+      "area": "Google/ICS display",
+      "result": "PASS"
+    },
+    {
+      "area": "Realtime",
+      "result": "PASS"
+    },
+    {
+      "area": "Mobile default day",
+      "result": "PASS"
+    },
+    {
+      "area": "Desktop default week",
+      "result": "PASS"
+    },
+    {
+      "area": "Build",
+      "result": "PASS"
+    }
+  ],
+  "edge_function": {
+    "changed": false,
+    "deployed": false,
+    "version": 10
+  },
+  "public_app_deployment": false,
+  "security_advisors": {
+    "new_errors": 0,
+    "new_warnings": 0,
+    "existing_warning": "auth_leaked_password_protection",
+    "remediation": "https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection"
+  },
+  "credential_scan": {
+    "blockers": 0,
+    "environment_files_ignored": true,
+    "legacy_apps_script_link_unchanged": true
+  }
+}

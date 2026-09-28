@@ -1,5 +1,7 @@
 # Backendgrundlag for den nye Familiekalender
 
+Nyeste udvidelse: [Mega 3 – opgaver, belønning og offline](tasks-offline.md).
+
 Den autoritative model er **supabase/migrations/**. Rodens supabase_setup.sql er kun reference for den gamle hid/uid-model og må ikke anvendes på den nye app.
 
 ## Status og projekter

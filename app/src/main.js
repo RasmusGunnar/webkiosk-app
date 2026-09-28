@@ -1,16 +1,27 @@
 import './style.css'
-import { supabase, configurationError } from './lib/supabase'
+import { supabase, configurationError, cacheNamespace, clearLocalAuth } from './lib/supabase'
 import { findPerson, selectPeople, itemPeople, itemPersonIds, itemMatchesPerson, feedPerson } from './lib/people.js'
 import { avatarDisplayUrl, validateAvatar, resolveAvatarUrls, savePerson } from './lib/avatars.js'
 import { normalizeFeedUrl, redactFeedUrl, feedIdOf } from './lib/feeds.js'
 import { calendarPayload } from './lib/calendar.js'
 import { observeSession } from './lib/auth.js'
 import { readAllRows } from './lib/rows.js'
-import { calendarHeading, preferredView, VIEW_KEY } from './lib/calendar-dates.js'
+import { calendarHeading, preferredView, VIEW_KEY, parseDate as parseDateIso } from './lib/calendar-dates.js'
 import { materialize, displayTitle, value as calendarValue, imported, sourceLabel, repeatContext, baseFor, itemValues, planCreate, planEdit, planDelete, taskSuggestions } from './lib/calendar-semantics.js'
 import { calendarRealtime } from './lib/calendar-realtime.js'
+import { LocalStore, DATABASE_NAME } from './lib/local-store.js'
+import { OfflineSync } from './lib/offline-sync.js'
+import { taskEmoji, taskOccurrenceKey, weeklyProgress, rewardEnabled } from './lib/task-rewards.js'
+import { CelebrationPopup } from './lib/celebration-ui.js'
 
 const app = document.querySelector('#app')
+const localStore = new LocalStore(DATABASE_NAME + ':' + cacheNamespace)
+let syncEngine = null, syncStatus = { offline: !navigator.onLine, syncing: false }
+let liveFeedMetadata = [], surfaceFrame = null, syncPanelOpen = false
+const expandedTaskDays = new Set()
+const syncPanelRoot = document.createElement('div'); document.body.append(syncPanelRoot)
+const celebrations = new CelebrationPopup({people: () => householdPeople, avatar: renderPersonAvatar})
+document.addEventListener('keydown', event => { if (event.key === 'Escape' && syncPanelOpen) { syncPanelOpen = false; renderSyncPanel() } })
 
 let sessionEpoch = 0
 let authRequestInFlight = false
@@ -53,12 +64,7 @@ let hasUserSelectedCalendarView = false
 let newCalendarDate = null
 let editingCalendarSnapshot = null
 let editingRowsSnapshot = []
-const realtime = calendarRealtime(supabase, async () => {
-  if (!session || !activeHousehold) return
-  const epoch = sessionEpoch, id = activeHousehold.id
-  await Promise.all([loadCalendarItems(), loadHouseholdPeople(), loadCalendarFeeds()])
-  if (epoch === sessionEpoch && activeHousehold?.id === id) render({ preserveDialogs: true })
-}, state => {
+const realtime = calendarRealtime(supabase, async () => { await refreshHousehold() }, state => {
   const indicator = document.querySelector('#calendar-sync-status')
   if (indicator) {
     indicator.textContent = state === 'SUBSCRIBED' ? '' : 'Forbindelsen genoprettes…'
@@ -68,27 +74,110 @@ const realtime = calendarRealtime(supabase, async () => {
 
 async function init() {
   if (configurationError) { app.innerHTML = '<main class="app-shell"><p>' + escapeHtml(configurationError) + '</p></main>'; return }
-  observeSession(supabase, applySession, error => { message = 'Login kunne ikke indlæses: ' + error.message; render() })
-  window.addEventListener('online', () => realtime.refresh())
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) realtime.refresh() })
+  if (import.meta.env.PROD && 'serviceWorker' in navigator) navigator.serviceWorker.register(import.meta.env.BASE_URL + 'sw.js').catch(() => {})
+  try {
+    const remembered = await localStore.get('last-session')
+    if (remembered) await applySession({ user: { id: remembered.user_id }, offlineOnly: true }, 'OFFLINE')
+  } catch { message = 'Lokallagring er utilgængelig. Offlineændringer kan ikke gemmes.' }
+  observeSession(supabase, (next, event) => {
+    if (!next && !navigator.onLine && session) return
+    return applySession(next, event)
+  }, error => { message = 'Login kunne ikke indlæses: ' + error.message; if (!session) render() })
+  window.addEventListener('offline', () => { syncEngine?.emit(); realtime.stop(); updateCalendarSurface() })
+  window.addEventListener('online', reconnectCalendar)
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) reconnectCalendar() })
   window.matchMedia('(max-width: 699px)').addEventListener('change', () => { if (session) render({ preserveDialogs: true }) })
+  setInterval(() => { if (session && navigator.onLine && syncEngine?.state.queue.some(row => ['pending','sending'].includes(row.status))) reconnectCalendar() }, 15000)
   setInterval(async () => {
-    if (!session || !activeHousehold) return
-    const epoch = sessionEpoch
-    const refreshed = await resolveAvatarUrls(supabase, householdPeople)
-    if (epoch === sessionEpoch) { householdPeople = refreshed; if (!isSettingsModalOpen && !isCalendarModalOpen) render() }
+    if (!session || !activeHousehold || !navigator.onLine) return
+    await loadHouseholdPeople()
   }, 45 * 60 * 1000)
 }
+
 async function applySession(nextSession) {
-  if (session?.user?.id === nextSession?.user?.id && session !== null) { session = nextSession; return }
+  if (session?.user?.id === nextSession?.user?.id && session !== null) {
+    const wasOffline = session.offlineOnly; session = nextSession
+    if (wasOffline && !nextSession.offlineOnly) {
+      await loadHouseholds()
+      const chosen = households.find(h => h.id === activeHousehold?.id) || households[0]
+      if (chosen && chosen.id !== activeHousehold?.id) await activateHousehold(chosen)
+      else if (!chosen && !householdsLoadFailed) { syncEngine?.stop(); syncEngine = null; activeHousehold = null }
+      render({preserveDialogs:true}); await reconnectCalendar()
+    }
+    return
+  }
+  const previousId = session?.user?.id
   clearSessionState()
+  if (previousId && nextSession && previousId !== nextSession.user.id) await localStore.clearUser(previousId)
   session = nextSession
   const epoch = sessionEpoch
-  if (session) { await loadHouseholds(); if (epoch !== sessionEpoch) return; chooseDefaultHousehold() }
-  render()
+  if (!session) { render(); return }
+  try {
+    const cached = await localStore.get('user:' + session.user.id)
+    households = cached?.households || []
+    if (households.length) { await activateHousehold(households.find(h => h.id === cached.activeHouseholdId) || households[0]); render() }
+    if (nextSession.offlineOnly) { if (!households.length) render(); return }
+    await loadHouseholds()
+    if (epoch !== sessionEpoch) return
+    const chosen = households.find(h => h.id === activeHousehold?.id) || households[0]
+    if (chosen && chosen.id !== activeHousehold?.id) await activateHousehold(chosen)
+    else if (!chosen) { activeHousehold = null; syncEngine?.stop(); syncEngine = null }
+    render()
+    if (activeHousehold && navigator.onLine) await refreshHousehold()
+  } catch (error) { message = error.message; render() }
 }
+async function activateHousehold(household) {
+  realtime.stop(); syncEngine?.stop(); celebrations.reset()
+  syncPanelOpen = false; syncPanelRoot.innerHTML = ''
+  activeHousehold = household; householdRole = household.memberRole
+  calendarItems = []; householdPeople = []; calendarFeeds = []; liveFeedMetadata = []
+  activePersonFilter = 'Alle'; calendarCursorDate = new Date()
+  editingCalendarSnapshot = null; isCalendarModalOpen = false; isSettingsModalOpen = false
+  const id = household.id, epoch = sessionEpoch
+  syncEngine = new OfflineSync({ store: localStore, client: supabase, userId: session.user.id, householdId: id,
+    onChange: (view, queue, status) => {
+      if (epoch !== sessionEpoch || activeHousehold?.id !== id) return
+      const avatars = new Map(householdPeople.map(person => [person.id, person.avatar_display_url]))
+      calendarItems = view.items
+      householdPeople = view.people.map(person => ({...person, role:mapPersonRoleToUi(person.role), avatar_display_url: avatars.get(person.id)}))
+      calendarFeeds = view.feeds.map(feed => ({...feed, ...(navigator.onLine ? liveFeedMetadata.find(row => row.id === feed.id) : {})}))
+      calendarItemsHouseholdId = householdPeopleHouseholdId = calendarFeedsHouseholdId = id
+      syncStatus = status; syncActivePersonFilter(); scheduleCalendarSurface()
+    },
+    onCelebrations: claims => { if (epoch === sessionEpoch && activeHousehold?.id === id) celebrations.add(claims) },
+  })
+  await syncEngine.init()
+  await rememberHouseholds()
+}
+async function rememberHouseholds() {
+  if (!session) return
+  const data = { user_id: session.user.id, households, activeHouseholdId: activeHousehold?.id }
+  await localStore.put('user:' + session.user.id, data)
+  await localStore.put('last-session', { user_id: session.user.id })
+}
+async function refreshHousehold() {
+  if (!session || !activeHousehold || !navigator.onLine) return
+  const engine = syncEngine
+  await Promise.all([loadCalendarItems(), loadHouseholdPeople(), loadCalendarFeeds(), loadRewardState()])
+  if (engine !== syncEngine) return
+  await engine?.replay()
+  if (engine === syncEngine) updateCalendarSurface()
+}
+async function reconnectCalendar() {
+  if (!navigator.onLine || !session || session.offlineOnly || !activeHousehold) return
+  realtime.start(activeHousehold.id)
+  await refreshHousehold()
+}
+async function loadRewardState() {
+  if (!navigator.onLine || !syncEngine) return
+  const engine = syncEngine, id = activeHousehold.id
+  const { data, error } = await readAllRows(() => supabase.from('reward_celebrations').select('*').eq('household_id',id).order('id').abortSignal(AbortSignal.timeout(6000)))
+  if (!error && engine === syncEngine) await engine.snapshot({ celebrations: data })
+}
+
 function clearSessionState() {
-  realtime.stop()
+  realtime.stop(); syncEngine?.stop(); syncEngine = null; celebrations.reset()
+  syncPanelOpen = false; syncPanelRoot.innerHTML = ''; liveFeedMetadata = []; expandedTaskDays.clear()
   editingCalendarSnapshot = null; editingRowsSnapshot = []
   sessionEpoch++
   session = null
@@ -163,7 +252,7 @@ function renderLogin() {
 function renderCreateFirstHousehold() {
   if (householdsLoadFailed) {
     app.innerHTML = '<main class="app-shell"><p>' + escapeHtml(message) + '</p><button id="retry-households">Prøv igen</button><button id="logout-button">Log ud</button></main>'
-    document.querySelector('#retry-households').onclick = async () => { await loadHouseholds(); chooseDefaultHousehold(); render() }
+    document.querySelector('#retry-households').onclick = async () => { await loadHouseholds(); if (households[0]) await activateHousehold(households[0]); render(); await refreshHousehold() }
     document.querySelector('#logout-button').onclick = handleLogout
     return
   }
@@ -213,7 +302,7 @@ function renderDashboard(preserveDialogs = false) {
   syncDefaultCalendarViewMode()
 
   const householdId = getHouseholdId(activeHousehold)
-  realtime.start(householdId)
+  if (navigator.onLine && !session.offlineOnly) realtime.start(householdId)
   const toggleViewLabel = calendarViewMode === 'week' ? 'Vis dag' : 'Vis uge'
   const navUnit = calendarViewMode === 'week' ? 'uge' : 'dag'
 
@@ -240,6 +329,8 @@ function renderDashboard(preserveDialogs = false) {
         <button id="logout-button" class="logout-button" type="button">Log ud</button>
       </header>
 
+      <div id="sync-status" class="sync-status">${renderSyncStatus()}</div>
+      ${households.length > 1 ? '<label class="household-switch">Familie <select id="household-switch">' + households.map(h => '<option value="' + h.id + '" ' + (h.id === activeHousehold.id ? 'selected' : '') + '>' + escapeHtml(h.name) + '</option>').join('') + '</select></label>' : ''}
       ${renderPersonChips()}
 
       <section class="calendar-section">
@@ -258,7 +349,7 @@ function renderDashboard(preserveDialogs = false) {
             <button id="calendar-toggle-view-button" type="button">${toggleViewLabel}</button>
           </div>
         </div>
-        ${renderCalendarView()}
+        <div id="calendar-view">${renderCalendarView()}</div>
       </section>
 
       <p id="message" class="message">${escapeHtml(message)}</p>
@@ -276,28 +367,12 @@ function renderDashboard(preserveDialogs = false) {
   if (restoreInput) { activeInput.focus({ preventScroll: true }); if (selection) activeInput.setSelectionRange(...selection) }
   document.querySelector('#new-calendar-button').addEventListener('click', () => openCreateCalendarModal())
   document.querySelector('#calendar-today-button').addEventListener('click', () => { calendarCursorDate = new Date(); render() })
-  document.querySelectorAll('[data-create-on-date]').forEach(button => button.addEventListener('click', () => openCreateCalendarModal(button.dataset.createOnDate)))
+  bindCalendarSurface()
+  document.querySelector('#household-switch')?.addEventListener('change', async event => { await activateHousehold(households.find(h => h.id === event.target.value)); render(); await refreshHousehold() })
   document.querySelector('#settings-button').addEventListener('click', openSettingsModal)
   document.querySelector('#calendar-prev-button').addEventListener('click', () => navigateCalendar(-1))
   document.querySelector('#calendar-next-button').addEventListener('click', () => navigateCalendar(1))
   document.querySelector('#calendar-toggle-view-button').addEventListener('click', toggleCalendarViewMode)
-
-  document.querySelectorAll('[data-calendar-toggle]').forEach((checkbox) => {
-    checkbox.addEventListener('change', () => {
-      toggleCalendarItemDone(checkbox.dataset.calendarToggle, checkbox.checked)
-    })
-  })
-
-  document.querySelectorAll('[data-calendar-item]').forEach((card) => {
-    card.addEventListener('click', (event) => {
-      if (event.target.closest('[data-calendar-toggle], .done-toggle')) {
-        return
-      }
-
-      openEditCalendarModal(card.dataset.calendarItem)
-    })
-    card.addEventListener('keydown', event => { if (event.target === card && ['Enter', ' '].includes(event.key)) { event.preventDefault(); openEditCalendarModal(card.dataset.calendarItem) } })
-  })
 
   const modalForm = document.querySelector('#calendar-modal-form')
   const modalBackdrop = document.querySelector('#calendar-modal')
@@ -329,6 +404,9 @@ function renderDashboard(preserveDialogs = false) {
 
   if (settingsForm && !savedSettingsModal) {
     settingsForm.addEventListener('submit', handleSavePeopleSettings)
+    const rewardChoice = document.querySelector('#person-reward-enabled')
+    rewardChoice.onchange = () => { rewardChoice.dataset.explicit = 'true' }
+    document.querySelector('#person-role').onchange = event => { if (!rewardChoice.dataset.explicit) rewardChoice.checked = event.target.value === 'barn' }
     document.querySelector('#settings-modal-close').addEventListener('click', closeSettingsModal)
     document.querySelectorAll('[data-person-avatar-file]').forEach((input) => {
       input.addEventListener('change', handlePersonAvatarPreview)
@@ -374,12 +452,6 @@ function renderDashboard(preserveDialogs = false) {
   }
 
   }
-  document.querySelectorAll('[data-person-filter]').forEach((button) => {
-    button.addEventListener('click', () => {
-      activePersonFilter = button.dataset.personFilter || 'Alle'
-      render()
-    })
-  })
 
   if (settingsBackdrop && !savedSettingsModal) {
     settingsBackdrop.addEventListener('click', (event) => {
@@ -388,6 +460,66 @@ function renderDashboard(preserveDialogs = false) {
       }
     })
   }
+}
+
+function scheduleCalendarSurface() {
+  if (surfaceFrame) return
+  surfaceFrame = requestAnimationFrame(() => { surfaceFrame = null; updateCalendarSurface() })
+}
+function updateCalendarSurface() {
+  if (!session || !activeHousehold || !document.querySelector('#calendar-view')) return
+  document.querySelector('#calendar-view').innerHTML = renderCalendarView()
+  const chips = document.querySelector('#person-chipbar')
+  if (chips) chips.outerHTML = renderPersonChips()
+  document.querySelector('#sync-status').innerHTML = renderSyncStatus()
+  document.querySelector('#message').textContent = message
+  bindCalendarSurface()
+  if (syncPanelOpen) renderSyncPanel()
+}
+function bindCalendarSurface() {
+  document.querySelectorAll('[data-calendar-toggle]').forEach(checkbox => checkbox.onchange = () => toggleCalendarItemDone(checkbox.dataset.calendarToggle,checkbox.checked))
+  document.querySelectorAll('[data-calendar-item]').forEach(card => {
+    card.onclick = event => { if (!event.target.closest('[data-calendar-toggle], .done-toggle')) openEditCalendarModal(card.dataset.calendarItem) }
+    card.onkeydown = event => { if (event.target===card && ['Enter',' '].includes(event.key)) {event.preventDefault();openEditCalendarModal(card.dataset.calendarItem)} }
+  })
+  document.querySelectorAll('[data-person-filter]').forEach(button => button.onclick = () => {activePersonFilter=button.dataset.personFilter;updateCalendarSurface()})
+  document.querySelectorAll('[data-create-on-date]').forEach(button => button.onclick = () => openCreateCalendarModal(button.dataset.createOnDate))
+  document.querySelectorAll('[data-completed-date]').forEach(details => details.ontoggle = () => {
+    if(details.open)expandedTaskDays.add(details.dataset.completedDate);else expandedTaskDays.delete(details.dataset.completedDate)
+  })
+  document.querySelector('#sync-details-button')?.addEventListener('click', () => {syncPanelOpen=true;renderSyncPanel()})
+}
+function renderSyncStatus() {
+  const queue=syncEngine?.state.queue||[], problems=queue.filter(row=>['conflict','error'].includes(row.status)).length
+  const offline=!navigator.onLine||syncStatus.offline
+  const label=problems?problems+' ændringer kræver dit valg':offline?'Offline · ændringer gemmes lokalt':syncStatus.syncing?'Synkroniserer…':queue.length?queue.length+' ændringer venter på synkronisering':''
+  return '<span role="status">'+escapeHtml(label)+'</span>'+(queue.length?'<button id="sync-details-button" class="sync-details-button">Se ændringer</button>':'')
+}
+function renderSyncPanel() {
+  if(!syncPanelOpen){syncPanelRoot.innerHTML='';return}
+  const rows=syncEngine?.state.queue||[]
+  syncPanelRoot.innerHTML='<div class="modal-backdrop" id="sync-panel-backdrop" role="dialog" aria-modal="true" aria-label="Synkronisering"><div class="calendar-modal"><header class="modal-header"><h2>Synkronisering</h2><button id="sync-panel-close" class="icon-button" aria-label="Luk">×</button></header>'+
+    (rows.length?rows.map(row=>{
+      const title=row.payload.p_upserts.at(-1)?.title||'Sletning af aftale'
+      const current=syncEngine.state.snapshot.items.find(item=>item.id===row.payload.p_upserts.at(-1)?.id)
+      return '<article class="sync-problem"><strong>'+escapeHtml(title)+'</strong><p>'+escapeHtml(row.error||'Venter på synkronisering')+'</p>'+
+        (row.status==='conflict'?'<p>Server: '+escapeHtml(current?.title||'Aftalen er slettet eller ændret')+'</p><p>Behold min version gemmer dine felter oven på den aktuelle serverversion. Brug serverversion kasserer også efterfølgende lokale ændringer, der afhænger af denne.</p><button data-sync-choice="local" data-sync-id="'+row.id+'">Behold min version</button><button data-sync-choice="server" data-sync-id="'+row.id+'">Brug serverversion</button>':
+          row.status==='error'?'<button data-sync-retry>Prøv igen</button><button data-sync-choice="server" data-sync-id="'+row.id+'">Brug serverversion</button>':'')+'</article>'
+    }).join(''):'<p>Alle ændringer er synkroniseret.</p>')+'</div></div>'
+  syncPanelRoot.querySelector('#sync-panel-close').onclick=()=>{syncPanelOpen=false;renderSyncPanel()}
+  syncPanelRoot.querySelector('#sync-panel-backdrop').onclick=event=>{if(event.target===event.currentTarget){syncPanelOpen=false;renderSyncPanel()}}
+  syncPanelRoot.querySelectorAll('[data-sync-choice]').forEach(button=>button.onclick=async()=>{
+    button.disabled=true
+    try{await syncEngine.resolve(button.dataset.syncId,button.dataset.syncChoice);await loadCalendarItems()}catch(error){message=error.message}
+    updateCalendarSurface()
+  })
+  syncPanelRoot.querySelector('[data-sync-retry]')?.addEventListener('click',()=>syncEngine.retry())
+}
+function renderDayItems(section,items,date) {
+  if(section!=='Opgave'||calendarViewMode!=='day'||window.innerWidth>=700)return items.length?items.map(renderCalendarItemCard).join(''):'<p class="empty-section">Ingen</p>'
+  const open=items.filter(item=>!item.done),completed=items.filter(item=>item.done)
+  return (open.length?open.map(renderCalendarItemCard).join(''):'<p class="empty-section">Ingen åbne opgaver</p>')+
+    (completed.length?'<details class="completed-tasks" data-completed-date="'+date+'" '+(expandedTaskDays.has(date)?'open':'')+'><summary>'+completed.length+' udførte opgaver</summary>'+completed.map(renderCalendarItemCard).join('')+'</details>':'')
 }
 
 function renderCalendarView() {
@@ -413,12 +545,14 @@ function renderCalendarView() {
 }
 
 function renderPersonChips() {
-  const people = [{ id: 'Alle', name: 'Alle', color: '#0f172a' }, ...householdPeople.filter(isActiveHouseholdPerson)]
-  return '<div class="person-chipbar" aria-label="Personfilter">' + people.map(person =>
-    '<button class="person-chip ' + (activePersonFilter === person.id ? 'active' : '') +
-    '" type="button" data-person-filter="' + escapeHtml(person.id) + '" style="border-color:' + escapeHtml(person.color || '#64748b') + '">' +
-    renderPersonAvatar(person, 'person-chip-avatar') + '<span>' + escapeHtml(person.name) + '</span></button>'
-  ).join('') + '</div>'
+  const people = [{id:'Alle',name:'Alle',color:'#0f172a'},...householdPeople.filter(isActiveHouseholdPerson)]
+  const progress = new Map(weeklyProgress(calendarItems,householdPeople,toDateIso(calendarCursorDate)).map(row=>[row.personId,row]))
+  return '<div id="person-chipbar" class="person-chipbar" aria-label="Personfilter">' + people.map(person => {
+    const reward = progress.get(person.id)
+    return '<button class="person-chip '+(activePersonFilter===person.id?'active':'')+'" type="button" data-person-filter="'+escapeHtml(person.id)+'" style="border-color:'+escapeHtml(person.color||'#64748b')+'">'+
+      renderPersonAvatar(person,'person-chip-avatar')+'<span>'+escapeHtml(person.name)+'</span>'+
+      (reward?.count ? '<small class="reward-progress" data-reward-person="'+person.id+'" aria-label="'+reward.count+' udførte opgaver, uge '+reward.week+'" title="'+reward.count+' udførte opgaver · uge '+reward.week+'">'+reward.symbol+'</small>' : '')+'</button>'
+  }).join('')+'</div>'
 }
 
 function renderDayCard(date) {
@@ -430,6 +564,7 @@ function renderDayCard(date) {
     { key: 'Fritidsinteresse', label: 'Fritidsinteresser' },
     { key: 'Opgave', label: 'Opgaver' },
   ]
+  if (calendarViewMode === 'day' && window.innerWidth < 700) sections.sort((a,b) => Number(b.key==='Opgave')-Number(a.key==='Opgave'))
 
   return `
     <article class="day-card ${dateIso === toDateIso(new Date()) ? 'is-today' : ''}" data-day="${dateIso}">
@@ -447,7 +582,7 @@ function renderDayCard(date) {
             <section class="calendar-day-section">
               <h3>${section.label}</h3>
               <div class="calendar-items">
-                ${items.length ? items.map(renderCalendarItemCard).join('') : '<p class="empty-section">Ingen</p>'}
+                ${renderDayItems(section.key, items, dateIso)}
               </div>
             </section>
           `
@@ -479,7 +614,7 @@ function renderCalendarItemCard(item) {
           data-calendar-toggle="${escapeHtml(id)}"
           ${done ? 'checked' : ''}
         />
-        <span>${done ? 'Done' : 'Ikke done'}</span>
+        <span>${done ? 'Udført' : 'Markér udført'}</span>
       </label>
     `
     : ''
@@ -519,6 +654,7 @@ function renderCalendarItemCard(item) {
 }
 
 function renderCalendarItemIcon(item) {
+  if (getCalendarValue(item, 'type') === 'Opgave') return '<span class="task-emoji" aria-hidden="true">' + taskEmoji(getCalendarItemTitle(item)) + '</span>'
   if (isBirthdayItem(item)) {
     return '<span class="calendar-item-icon calendar-birthday-flag" aria-label="Fødselsdag" title="Fødselsdag"></span>'
   }
@@ -735,6 +871,7 @@ function renderSettingsModal() {
               </div>
               <span class="person-settings-swatch" style="background:#64748b" data-person-color-swatch="new"></span>
             </div>
+            <label class="reward-setting"><input id="person-reward-enabled" name="reward_enabled" type="checkbox" checked />Med i ugentlig opgavebelønning</label>
             <p class="hint">Avatar kan tilføjes senere.</p>
             <footer class="modal-actions">
               <button type="submit" ${isCreatingPerson ? 'disabled' : ''}>${isCreatingPerson ? 'Gemmer...' : 'Gem personer'}</button>
@@ -1174,6 +1311,7 @@ function renderPersonSettingsRow(person, { isNew = false } = {}) {
         <label for="${prefix}-color">Farve</label>
         <input id="${prefix}-color" name="${prefix}-color" type="color" value="${escapeHtml(color)}" data-person-color-input="${escapeHtml(rowId)}" />
       </div>
+      <label class="reward-setting"><input type="checkbox" id="${prefix}-reward-enabled" ${rewardEnabled(person) ? 'checked' : ''} />Med i ugentlig opgavebelønning</label>
       <span class="person-settings-swatch" style="background:${escapeHtml(color)}" data-person-color-swatch="${escapeHtml(rowId)}"></span>
       ${isNew ? '' : `<button class="btn small" type="button" data-save-person="${escapeHtml(rowId)}">Gem</button>`}
     </div>
@@ -1261,25 +1399,31 @@ async function handleLogin(event) {
 }
 
 async function handleLogout() {
-  const { error } = await supabase.auth.signOut({ scope: 'local' })
-  if (error) { message = 'Kunne ikke logge ud: ' + error.message; render(); return }
-  clearSessionState()
-  render()
+  const userId = session?.user.id
+  const pending = syncEngine?.state.queue.length || 0
+  if (pending && !window.confirm(pending + ' ændringer er ikke synkroniseret. Log ud rydder dem fra denne enhed. Fortsæt?')) return
+  syncEngine?.stop(); realtime.stop(); celebrations.reset()
+  if (userId) await localStore.clearUser(userId)
+  clearLocalAuth()
+  clearSessionState(); render()
+  // Local logout must work without a network; cached household data is already gone.
+  void supabase.auth.signOut({scope:'local'}).catch(() => {})
 }
 
 async function loadHouseholds() {
   const epoch = sessionEpoch, userId = session?.user.id
-  if (!userId) return
+  if (!userId || !navigator.onLine) return
   const [result, memberships] = await Promise.all([
-    supabase.from('households').select('*').order('created_at').order('id'),
-    supabase.from('household_members').select('household_id,role').eq('user_id', userId),
+    supabase.from('households').select('*').order('created_at').order('id').abortSignal(AbortSignal.timeout(6000)),
+    supabase.from('household_members').select('household_id,role').eq('user_id',userId).abortSignal(AbortSignal.timeout(6000)),
   ])
   if (epoch !== sessionEpoch) return
   const error = result.error || memberships.error
-  householdsLoadFailed = Boolean(error)
-  if (error) { households = []; activeHousehold = null; message = 'Kunne ikke hente familie: ' + error.message; return }
-  const roles = new Map((memberships.data || []).map(row => [row.household_id, row.role]))
-  households = (result.data || []).map(row => ({ ...row, memberRole: roles.get(row.id) }))
+  householdsLoadFailed = Boolean(error) && !households.length
+  if (error) { message = households.length ? '' : 'Kunne ikke hente familie: ' + error.message; return }
+  const roles = new Map((memberships.data || []).map(row => [row.household_id,row.role]))
+  households = (result.data || []).map(row => ({...row,memberRole:roles.get(row.id)}))
+  await rememberHouseholds()
 }
 
 function chooseDefaultHousehold() {
@@ -1333,80 +1477,42 @@ async function handleCreateHousehold(event) {
 
   form.reset()
   await loadHouseholds()
-  activeHousehold = findCreatedHousehold(data, previousIds, name) || households[0] || null
-  householdRole = activeHousehold?.memberRole || null
-  calendarItems = []
-  calendarItemsHouseholdId = null
-  householdPeople = []
-  householdPeopleHouseholdId = null
-  calendarFeeds = []
-  calendarFeedsHouseholdId = null
-  activePersonFilter = 'Alle'
-  message = ''
-  render()
+  const created = findCreatedHousehold(data, previousIds, name) || households[0]
+  if (created) await activateHousehold(created)
+  message = ''; render(); await refreshHousehold()
 }
 
-async function loadCalendarItems({ renderAfter = false } = {}) {
-  if (!activeHousehold) {
-    return
-  }
-
-  const householdId = getHouseholdId(activeHousehold)
-  const epoch = sessionEpoch, loadVersion = ++calendarLoadVersion
-  isLoadingCalendar = true
-  calendarItemsHouseholdId = householdId
-
-  const { data, error } = await readAllRows(() => supabase
-    .from('calendar_items')
-    .select('*')
-    .eq('household_id', householdId)
-    .order('date', { ascending: true })
-    .order('time', { ascending: true })
-    .order('id'), () => epoch === sessionEpoch && activeHousehold?.id === householdId)
-
-  if (epoch !== sessionEpoch || activeHousehold?.id !== householdId || loadVersion !== calendarLoadVersion) return
-  isLoadingCalendar = false
-
-  if (error) {
-    calendarItems = []
-    message = `Kunne ikke hente kalender-items: ${error.message}`
-  } else {
-    calendarItems = data || []
-  }
-
-  if (renderAfter && activeHousehold && getHouseholdId(activeHousehold) === householdId) {
-    render({ preserveDialogs: true })
-  }
+async function loadCalendarItems() {
+  if (!syncEngine || !navigator.onLine) return
+  const engine = syncEngine, id = activeHousehold.id, version = ++calendarLoadVersion, writeGeneration = engine.writeGeneration
+  const { data, error } = await readAllRows(() => supabase.from('calendar_items').select('*').eq('household_id',id).order('date').order('time').order('id').abortSignal(AbortSignal.timeout(6000)),
+    () => engine === syncEngine && version === calendarLoadVersion)
+  if (engine !== syncEngine || version !== calendarLoadVersion) return
+  // A request started before our write/ACK cannot replace the newer local baseline.
+  if (writeGeneration !== engine.writeGeneration) { if (!engine.running) return loadCalendarItems(); return }
+  if (!error && data) { engine.networkFailed = false; await engine.snapshot({items:data}) }
+  else if (error) { syncStatus.offline = true; updateCalendarSurface() }
 }
 
-async function loadHouseholdPeople({ renderAfter = false } = {}) {
-  if (!activeHousehold) return
-  const householdId = getHouseholdId(activeHousehold), epoch = sessionEpoch
-  const loadVersion = ++peopleLoadVersion
-  isLoadingPeople = true; householdPeopleHouseholdId = householdId
-  const { data, error } = await supabase.from('household_people').select('*').eq('household_id', householdId).order('sort_order').order('name')
-  const people = error ? [] : await resolveAvatarUrls(supabase, data || [])
-  if (epoch !== sessionEpoch || activeHousehold?.id !== householdId || loadVersion !== peopleLoadVersion) return
-  isLoadingPeople = false
-  if (error) settingsMessage = 'Kunne ikke hente personer: ' + error.message
-  householdPeople = people.map(person => ({ ...person, role: mapPersonRoleToUi(person.role) }))
-  syncActivePersonFilter()
-  if (renderAfter) render({ preserveDialogs: true })
+async function loadHouseholdPeople() {
+  if (!syncEngine || !navigator.onLine) return
+  const engine = syncEngine, version = ++peopleLoadVersion
+  const { data, error } = await supabase.from('household_people').select('*').eq('household_id',activeHousehold.id).order('sort_order').order('name').abortSignal(AbortSignal.timeout(6000))
+  if (error || engine !== syncEngine || version !== peopleLoadVersion) return
+  const people = await resolveAvatarUrls(supabase, data || [])
+  if (engine !== syncEngine || version !== peopleLoadVersion) return
+  householdPeople = people
+  await engine.snapshot({people})
 }
 
-async function loadCalendarFeeds({ renderAfter = false } = {}) {
-  if (!activeHousehold) return
-  const householdId = getHouseholdId(activeHousehold), epoch = sessionEpoch
-  const loadVersion = ++feedsLoadVersion
-  calendarFeedsHouseholdId = householdId
-  if (!canManageFeeds()) { calendarFeeds = []; return }
-  isLoadingCalendarFeeds = true
-  const { data, error } = await supabase.from('calendar_feeds').select('*').eq('household_id', householdId).order('name')
-  if (epoch !== sessionEpoch || activeHousehold?.id !== householdId || loadVersion !== feedsLoadVersion) return
-  isLoadingCalendarFeeds = false
-  calendarFeeds = data || []
-  if (error) calendarImportMessage = 'Kunne ikke hente feeds: ' + error.message
-  if (renderAfter) render({ preserveDialogs: true })
+async function loadCalendarFeeds() {
+  if (!syncEngine || !navigator.onLine) return
+  const engine = syncEngine, version = ++feedsLoadVersion
+  if (!canManageFeeds()) { liveFeedMetadata = []; await engine.snapshot({feeds:[]}); return }
+  const { data, error } = await supabase.from('calendar_feeds').select('*').eq('household_id',activeHousehold.id).order('name').abortSignal(AbortSignal.timeout(6000))
+  if (error || engine !== syncEngine || version !== feedsLoadVersion) return
+  liveFeedMetadata = data || []
+  await engine.snapshot({feeds:liveFeedMetadata})
 }
 
 async function handleSaveCalendarItem(event) {
@@ -1433,7 +1539,7 @@ async function handleSaveCalendarItem(event) {
   const button = form.querySelector('button[type=submit]'); button.disabled = true
   const result = await runCalendarMutation(() => editingItem
     ? planEdit(editingRowsSnapshot, editingItem, itemData, scope)
-    : planCreate(itemData))
+    : planCreate(itemData), {action: editingItem ? 'edit' : 'create', entityId: editingItem?.id})
   isCreatingCalendarItem = false
   if (result.error) {
     button.disabled = false
@@ -1445,23 +1551,24 @@ async function handleSaveCalendarItem(event) {
   await loadCalendarItems()
   render({ preserveDialogs: true })
 }
-async function runCalendarMutation(makePlan) {
+async function runCalendarMutation(makePlan, options = {}) {
   try {
     const plan = makePlan()
-    return await supabase.rpc('mutate_calendar', {
-      p_household_id: getHouseholdId(activeHousehold), p_expected: plan.expected, p_delete_ids: plan.deleteIds,
-      p_upserts: plan.upserts.map(({id,values}) => ({id,...calendarPayload(values, householdPeople)})),
-    })
-  } catch (error) { return { error } }
+    if (!syncEngine) throw new Error('Kalenderen er endnu ikke klar.')
+    return await syncEngine.enqueue({
+      p_expected: plan.expected, p_delete_ids: plan.deleteIds,
+      p_upserts: plan.upserts.map(({id,values}) => ({id,...calendarPayload(values,householdPeople)})),
+    }, options)
+  } catch (error) { updateCalendarSurface(); return { error } }
 }
 
 async function toggleCalendarItemDone(itemId, done) {
   const item = findRenderableCalendarItem(itemId)
   if (!item || imported(item)) return
-  const { error } = await runCalendarMutation(() => planEdit(calendarItems, item, {...itemValues(item), done}, 'one'))
+  const { error } = await runCalendarMutation(() => planEdit(calendarItems,item,{...itemValues(item),done},'one'),
+    {action:'toggle_done',entityId:taskOccurrenceKey(item)})
   if (error) message = 'Kunne ikke gemme udført-status: ' + error.message
-  await loadCalendarItems()
-  render({ preserveDialogs: true })
+  updateCalendarSurface()
 }
 
 async function handleDeleteCalendarItem() {
@@ -1470,7 +1577,7 @@ async function handleDeleteCalendarItem() {
   const form = document.querySelector('#calendar-modal-form'), scope = String(new FormData(form).get('repeatScope') || 'one')
   isCreatingCalendarItem = true
   const button = document.querySelector('#calendar-modal-delete'); button.disabled = true
-  const { error } = await runCalendarMutation(() => planDelete(editingRowsSnapshot, item, scope))
+  const { error } = await runCalendarMutation(() => planDelete(editingRowsSnapshot, item, scope), {action:'delete', entityId:item.id})
   isCreatingCalendarItem = false
   if (error) { button.disabled = false; form.querySelector('#calendar-editor-message').textContent = error.message; return }
   isCalendarModalOpen = false; editingCalendarItemId = null; editingCalendarSnapshot = null; editingRowsSnapshot = []
@@ -1485,6 +1592,7 @@ async function handleCreatePerson(event) {
 
 async function handleSavePeopleSettings(event) {
   event.preventDefault()
+  if (!navigator.onLine || syncStatus.offline) { settingsMessage = 'Person- og feedindstillinger kræver forbindelse.'; render({preserveDialogs:true}); return }
   if (isCreatingPerson || !activeHousehold) return
   const householdId = getHouseholdId(activeHousehold)
   const epoch = sessionEpoch
@@ -1507,6 +1615,7 @@ async function handleSavePeopleSettings(event) {
 }
 
 async function handleSavePersonRow(personId) {
+  if (!navigator.onLine || syncStatus.offline) { settingsMessage = 'Person- og feedindstillinger kræver forbindelse.'; render({preserveDialogs:true}); return }
   if (isCreatingPerson || !activeHousehold) return
   const existing = householdPeople.find(person => person.id === personId)
   if (!existing) return
@@ -1529,6 +1638,7 @@ function getPersonRowValues(rowId) {
   return {
     name: getInputValue(`${prefix}-name`),
     role: mapPersonRoleForDb(getInputValue(`${prefix}-role`)),
+    reward_enabled: Boolean(document.getElementById(`${prefix}-reward-enabled`)?.checked),
     color: getInputValue(`${prefix}-color`) || '#64748b',
     avatar_url: getAvatarValue(rowId),
   }
@@ -1540,6 +1650,7 @@ function getNewPersonFormValues(form) {
   return {
     name: String(formData.get('name') || formData.get('new-name') || '').trim(),
     role: mapPersonRoleForDb(formData.get('role') || formData.get('new-role') || 'andet'),
+    reward_enabled: formData.has('reward_enabled'),
     color: String(formData.get('color') || formData.get('new-color') || '#64748b').trim() || '#64748b',
     avatar_url: String(formData.get('avatar_url') || formData.get('new-avatar') || '').trim(),
   }
@@ -1675,6 +1786,7 @@ function closeSettingsModal() {
 }
 
 async function handleImportCalendarFeed(event) {
+  if (!navigator.onLine || syncStatus.offline) { settingsMessage = 'Person- og feedindstillinger kræver forbindelse.'; render({preserveDialogs:true}); return }
   event?.preventDefault()
 
   if (importingCalendarFeedId) {
@@ -1761,6 +1873,7 @@ function openCreateCalendarFeedForm() {
 }
 
 function openEditCalendarFeedForm(feedId) {
+  if (!navigator.onLine || syncStatus.offline) { settingsMessage = 'Person- og feedindstillinger kræver forbindelse.'; render({preserveDialogs:true}); return }
   const feed = calendarFeeds.find((item) => String(item.id) === String(feedId))
 
   if (!feed) {
@@ -1809,6 +1922,7 @@ function updateCalendarImportHelpText(source) {
 
 async function handleSaveCalendarFeed(event) {
   event.preventDefault()
+  if (!navigator.onLine || syncStatus.offline) { settingsMessage = 'Person- og feedindstillinger kræver forbindelse.'; render({preserveDialogs:true}); return }
 
   if (!activeHousehold || isSavingCalendarFeed || !editingCalendarFeedId) {
     return
@@ -1858,6 +1972,7 @@ async function handleSaveCalendarFeed(event) {
 }
 
 async function handleDeleteCalendarFeed(feedId) {
+  if (!navigator.onLine || syncStatus.offline) { settingsMessage = 'Person- og feedindstillinger kræver forbindelse.'; render({preserveDialogs:true}); return }
   if (!activeHousehold || !feedId) {
     return
   }
@@ -2173,6 +2288,7 @@ function getStartOfWeek(date) {
   return start
 }
 
+function toDateString(value) { const parsed = parseDateIso(String(value || '').slice(0,10)); return parsed ? toDateIso(parsed) : '' }
 function toDateIso(date) {
   return [
     date.getFullYear(),

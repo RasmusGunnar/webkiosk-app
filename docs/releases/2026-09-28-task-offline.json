@@ -1,0 +1,144 @@
+{
+  "release": "Mega 3 tasks, rewards and offline",
+  "date": "2026-09-28",
+  "base_commit": "896d7f98b32850fb62cc0c01326130e80182265c",
+  "project_ref": "oyyqniwppytipdktzwsy",
+  "migration": {
+    "version": "20260928131536",
+    "name": "task_rewards_offline_sync",
+    "status": "APPLIED",
+    "sha256": "20cd4b9b0f6f5b8c6cf15e670700c03af639e9b0cb73efe20e95ab23caedeee7"
+  },
+  "schema_drift_before": [],
+  "preservation": {
+    "existing_rows_unchanged": true,
+    "person_columns_excluded": [
+      "reward_enabled",
+      "updated_at"
+    ],
+    "person_reward_defaults_verified": true,
+    "calendar_full_row_fingerprint": "39382364f30cadc366eaf0926cea06ca",
+    "revision_counters": "Expected new/updated counters caused by person backfill",
+    "after_smoke_matches_preflight": true
+  },
+  "counts_after": {
+    "auth_users": 1,
+    "calendar_feeds": 4,
+    "calendar_items": 272,
+    "household_invitations": 0,
+    "household_members": 2,
+    "household_people": 5,
+    "households": 2,
+    "profiles": 0,
+    "storage_objects": 0
+  },
+  "backup_verified": {
+    "id": 1805398900,
+    "inserted_at": "2026-09-28T03:37:45.625Z",
+    "is_physical_backup": true,
+    "status": "COMPLETED"
+  },
+  "acceptance": {
+    "task_reward": {
+      "passed": 16,
+      "failed": 0
+    },
+    "offline_and_build": {
+      "passed": 18,
+      "failed": 0
+    }
+  },
+  "tests": {
+    "node_unit": {
+      "passed": 56,
+      "failed": 0
+    },
+    "postgres": {
+      "passed": 99,
+      "failed": 0
+    },
+    "edge_import": {
+      "passed": 12,
+      "failed": 0
+    },
+    "browser_foundation": "PASS",
+    "browser_calendar": {
+      "passed": 22,
+      "failed": 0
+    },
+    "browser_task_offline": {
+      "passed": 20,
+      "failed": 0,
+      "checks": [
+        "Initial completed history counts without popup; mobile day counts whole week",
+        "IndexedDB snapshot includes items, people, safe feed metadata and reward state",
+        "Child/adult defaults and explicit persisted reward setting",
+        "Seven standard suggestions plus prior household titles; free text remains available",
+        "Quick checkbox stays out of editor; threshold 7 popup and cross-device persisted claim",
+        "Undo/redo never celebrates same threshold twice; Escape closes popup",
+        "Repeated completion stays on concrete occurrence; next week remains incomplete",
+        "Thresholds 9 and 12 independently celebrate with close/backdrop controls",
+        "Discrete chip reward and completed task folding on mobile",
+        "Production service worker reloads app shell; IndexedDB restores calendar offline",
+        "Offline create/edit/delete/done persist with stable IDs and order across reload",
+        "Reconnect replays ordered dependent mutations; queue clears and realtime has one row",
+        "Repeated toggles coalesce into one durable server mutation",
+        "Offline conflict detects newer server row and resolves explicitly: local",
+        "Offline conflict detects newer server row and resolves explicitly: server",
+        "Server failure rolls back checkbox, retains queue and can retry successfully",
+        "Realtime updates IndexedDB and preserves unsaved editor DOM and dashboard",
+        "Household switching uses isolated cached snapshots offline",
+        "Offline logout confirms pending loss, clears every household cache and cannot restore private data",
+        "No browser exceptions in tasks, rewards, offline and reconnect flows"
+      ]
+    },
+    "build": "PASS",
+    "edge_typecheck": "PASS",
+    "live_task_offline": {
+      "role_defaults": "PASS",
+      "no_load_time_celebrations": "PASS",
+      "six_done_without_popup": "PASS",
+      "two_devices_one_atomic_threshold_claim": "PASS",
+      "threshold_9": "PASS",
+      "response_loss_receipt_replay": "PASS",
+      "threshold_12": "PASS",
+      "cross_household_RLS": "PASS",
+      "offline_queue_durable_before_send": "PASS",
+      "ordered_replay_and_realtime": "PASS",
+      "recurring_done_has_one_concrete_override": "PASS",
+      "live_stale_write_conflict": "PASS",
+      "explicit_keep_local": "PASS",
+      "explicit_use_server_preserves_newer_row": "PASS"
+    },
+    "live_calendar": {
+      "isolated_authenticated_household": "PASS",
+      "cross_household_RLS": "PASS",
+      "live_realtime_subscribed": "PASS",
+      "atomic_create_and_live_realtime": "PASS",
+      "first_done_is_occurrence_specific": "PASS",
+      "stale_write_rejected": "PASS",
+      "series_edit_retains_completion": "PASS",
+      "atomic_delete_and_live_realtime": "PASS"
+    }
+  },
+  "cleanup": {
+    "isolated_users_and_households_removed": true,
+    "remaining_test_celebrations": 0,
+    "remaining_test_receipts": 0
+  },
+  "edge_function": {
+    "name": "import-calendar-feed",
+    "version": 10,
+    "status": "ACTIVE",
+    "sha256": "d12314fadf12487a3e5fd3aa0c7407d83dff5890698437c5ece4d79bfc813b7a",
+    "changed": false
+  },
+  "advisors": {
+    "new_security_findings": 0,
+    "existing_auth_notice": "Leaked credential protection remains disabled",
+    "remediation": "https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection",
+    "performance": "Existing INFO only: unused indexes and Auth connection allocation"
+  },
+  "frontend_hosting": "Not requested; source/build and local production service-worker flow verified",
+  "secret_check": "PASS: no new secrets; ignored env/dependencies/build; explicit noncredential test fixture reviewed"
+}

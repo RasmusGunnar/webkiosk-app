@@ -1,5 +1,7 @@
 # Kalendersemantik (Mega 2)
 
+Nyeste udvidelse: [Mega 3 – opgaver, belønning og offline](tasks-offline.md).
+
 Kalenderen bruger samme responsive app på mobil og vægskærm. Mobil starter i dag, desktop i uge; et manuelt valg gemmes under `familiekalender.calendar-view`. Datoer behandles som lokale kalenderdatoer, så sommertid ikke flytter en forekomst.
 
 ## Forekomster og lagring

@@ -65,6 +65,9 @@ try {
   await page.locator('input[name=people][value="' + second.id + '"]').check()
   await page.locator('#calendar-modal-form button[type=submit]').click()
   await expect(page.getByText('Foundation smoke event', { exact: true })).toBeVisible()
+  // Visible cards are optimistic in Mega 3; verify durable server state separately.
+  await expect(page.locator('#calendar-modal')).toHaveCount(0)
+  await expect.poll(async () => (await admin.from('calendar_items').select('id').eq('household_id', hid)).data?.length).toBe(1)
   const items = await admin.from('calendar_items').select('*').eq('household_id', hid)
   expect(items.data[0].person_ids.sort()).toEqual([first.id, second.id].sort())
   await page.locator('[data-person-filter="' + first.id + '"]').click()

@@ -3,8 +3,12 @@ import { publicSupabaseConfig } from './config.js'
 
 let client = null
 let error = ''
+let authStorageKey = ''
+let cacheNamespace = ''
 try {
   const { url, key } = publicSupabaseConfig(import.meta.env)
+  authStorageKey = 'sb-' + new URL(url).hostname.split('.')[0] + '-auth-token'
+  cacheNamespace = new URL(url).origin
   client = createClient(url, key, {
     auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
   })
@@ -13,3 +17,5 @@ try {
 }
 export const supabase = client
 export const configurationError = error
+export { cacheNamespace }
+export function clearLocalAuth() { localStorage.removeItem(authStorageKey); localStorage.removeItem(authStorageKey+'-code-verifier') }

@@ -32,3 +32,7 @@ console.log('PASS: ' + checks + ' local PostgreSQL RLS, RPC, identities, storage
 const calendarAcceptance = readFileSync('supabase/tests/database/calendar.sql', 'utf8')
 sql(calendarAcceptance)
 console.log('PASS: ' + (calendarAcceptance.match(/select pg_temp\.(assert_true|expect_error)\(/g) || []).length + ' calendar atomicity, conflict and realtime RLS checks')
+
+const rewardsAcceptance = readFileSync('supabase/tests/database/rewards.sql', 'utf8')
+sql(rewardsAcceptance)
+console.log('PASS: ' + (rewardsAcceptance.match(/select pg_temp\.(assert_true|expect_error)\(/g) || []).length + ' reward, receipt and offline conflict SQL checks')

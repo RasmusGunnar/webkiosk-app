@@ -18,6 +18,8 @@ async function newPage(width) {
   const context=await browser.newContext({viewport:{width,height:900},timezoneId:'Europe/Copenhagen'})
   const page=await context.newPage()
   page.on('pageerror',error=>errors.push(error.message))
+  // Mega 3 protects unsynced edits on logout. This test deliberately leaves one conflict.
+  page.on('dialog',dialog=>dialog.accept())
   await page.route('**/*',route=>['127.0.0.1','localhost'].includes(new URL(route.request().url()).hostname)?route.continue():route.abort())
   await page.clock.setFixedTime(new Date('2026-09-28T12:00:00+02:00'))
   await page.goto('http://127.0.0.1:5178')

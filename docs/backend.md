@@ -8,7 +8,13 @@ Den autoritative model er **supabase/migrations/**. Rodens supabase_setup.sql er
 - Legacy-projektet **nnfkumgdebxdegjykkwp** er et andet projekt.
 - Live-kataloget blev læst 2026-09-28. Resultatet ligger i [live-before-foundation.json](../supabase/schema/live-before-foundation.json); [capture.sql](../supabase/schema/capture.sql) kan gentage inspektionen.
 - Snapshot omfatter tabeldefinitioner, constraints, indexes, RLS, grants, funktioner og triggers. Det indeholder ingen personrækker, kalenderdata, Auth-brugere eller private feed-URL'er og er **ikke en backup**.
-- Migrationerne er afprøvet mod lokal PostgreSQL 17 med Supabase Auth/Storage. Ingen af dem er anvendt på live i denne opgave. Den ændrede Edge Function er heller ikke deployet.
+- **Backend LIVE 2026-09-28:** alle tre migrationer er anvendt og registreret. Hver migration blev kontrolleret mod både rækketal og fingerprints af alle oprindelige kolonner; eksisterende data var uændrede.
+- Edge Function **version 10** er deployet og testet med den eksisterende brugers session. Email/password-login er desuden testet med en midlertidig bruger.
+- Den byggede app er browser-testet mod live Supabase via lokal preview. Offentlig app-deployment afventer eksplicit hostinggodkendelse; GitHub Pages-workflowet er ikke oprettet.
+- [Releasebevis](releases/2026-09-28-live.json) og [schema efter migration](../supabase/schema/live-after-foundation.json) indeholder ingen credentials, brugerdata eller private feed-URL'er.
+- Supabase-backup **1805398900**, fuldført **2026-09-28 03:37 UTC**, er verificeret via CLI. Alle oprindelige app-data var ældre end backupen; PITR er ikke aktiveret. Recovery sker via Dashboard → Database → Backups. Der er ikke udført en restore på live.
+- Før/efter: profiles **0/0**, households **2/2**, household_members **2/2**, household_people **5/5**, calendar_items **272/272**, calendar_feeds **4/4**. Auth-brugere er igen **1**, og Storage-objekter **0** efter testoprydning. Kun ét eksisterende feeds sync-status/tidsstempler er ændret af smoketesten.
+- Regression: **11 frontendtests, 12 Edge-tests, 49 databasechecks, build, typecheck og live-browsertest PASS**. Live Security Advisor har én Auth-advarsel: leaked password protection er deaktiveret; ingen database-/Storage-advarsler.
 
 ## Model og adgang
 
@@ -71,7 +77,7 @@ Nye uploads: household UUID/person UUID/random UUID.extension. Rækken gemmer av
 
 ## Import
 
-POST import-calendar-feed med JSON {"feedId":"<UUID>"} og brugerens Bearer-token. Klienten leverer aldrig et autoritativt household_id. Funktionen validerer brugeren med auth.getUser(), læser feedet under RLS og kontrollerer admin-rollen. verify_jwt=false bruges kun, fordi funktionen selv validerer token før nogen dataadgang; den giver ikke anonym importadgang.
+POST import-calendar-feed med JSON {"feedId":"<UUID>"} og brugerens Bearer-token. Valgfri preserveExisting:true fravælger oprydning; standardadfærden er uændret. Klienten leverer aldrig et autoritativt household_id. Funktionen validerer brugeren med auth.getUser(), læser feedet under RLS og kontrollerer admin-rollen. verify_jwt=false bruges kun, fordi funktionen selv validerer token før nogen dataadgang; den giver ikke anonym importadgang.
 
 Service-only RPC'er:
 - begin_calendar_feed_import: kontrollerer admin/aktivt feed og tager en to-minutters lås.
@@ -118,28 +124,33 @@ app/.env.example viser de delbare variabelnavne:
 
 Kun offentlige browserkeys må have VITE_-prefix. Servermiljøet bruger SUPABASE_URL, SUPABASE_ANON_KEY og SUPABASE_SERVICE_ROLE_KEY, som Supabase normalt leverer til Edge Functions. CALENDAR_FEED_ALLOWED_HOSTS er valgfri. .env, dependencies, build-output og Supabase .temp er ignoreret i Git.
 
-## Kontrolleret rollout til live
+## Release gennemført og resterende aktivering
 
-Dette er en releaseprocedure, **ikke noget der allerede er udført**. Der anvendes ingen blind db push.
+Database og Edge Function er live. Der skal **ikke** anvendes migrationer igen for denne release. Migrationshistorikken indeholder 20260928093825, 20260928093827 og 20260928093828.
 
-1. Bekræft projekt **oyyqniwppytipdktzwsy**, og kontrollér en aktuel, gendannelsesegnet databasebackup i Dashboard. Backup/eksport med persondata/private feeds skal opbevares uden for Git. Auth-brugere og Storage-objekter skal indgå i en reel recovery-plan; katalog-snapshottet erstatter dem ikke.
-2. Kør capture.sql read-only og sammenlign med snapshot. Undersøg nye/ændrede felter, policies, grants, helpers og Storage-policies. Særligt: migration 2 erstatter policies på de seks app-tabeller, og eksisterende globale Storage-policies må ikke give bredere adgang til den nye bucket. Stop og tilpas migrationen ved drift. Prøv rollout mod en testkopi med repræsentative eksisterende data før live.
-3. I et kort import-/releasevindue: anvend de tre SQL-filer i navneorden i Dashboard SQL Editor. Baseline beholder eksisterende tabeller; efterfølgerne tilføjer felter og ændrer rettigheder/RPC'er. Hver fil er transaktionel. Anvend ikke baseline alene. Kør aldrig rodens legacy-setup. Stop ved første SQL-fejl.
-4. Deploy den matchende Edge Function straks efter migrationerne, og publicer den nye app i samme release. Den gamle Edge Function er ikke kompatibel med den nye serverstyrede importstatus. Deploy-kommando:
+Den eksisterende offentlige kiosk ligger på https://rasmusgunnar.github.io/webkiosk-app/. Oprettelse af en ny Pages-build for /app afventer udtrykkelig hostinggodkendelse. Ingen hostingindstillinger er ændret, og ingen ny Pages-workflow er oprettet.
 
-```powershell
-npx.cmd --yes supabase@2.118.0 functions deploy import-calendar-feed --project-ref oyyqniwppytipdktzwsy --no-verify-jwt
-```
+Auth-check: email/password og signup er aktiveret, emailbekræftelse kræves. Site URL er stadig http://localhost:3000 og redirect-listen er tom. Når appens placering er valgt, skal kun Site URL/redirects ændres til den faktiske adresse; lokale config.toml må ikke pushes samlet til live. Signup-emaillevering/SMTP er ikke testet. Password-reset-endpointet findes i Supabase Auth, men appen har endnu intet reset-UI; den del er ikke release-testet. Leaked password protection kan aktiveres under Authentication → Sign In / Providers → Email → Password security ([Supabase-vejledning](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection)).
 
-5. I Dashboard Auth: kontrollér Site URL og redirect-allowlist for appens faktiske HTTPS-adresse, emailbekræftelse og fungerende SMTP. Indstil kun ekstra ICS-hosts hvis de faktisk bruges. Bucket og Storage-policies leveres af migrationen.
-6. Kontrollér login, eksisterende personer/DataURL-avatarer, ny avatar, navneskift, multi-person-aftale og et aktivt feed som admin. Kontrollér en anden familie/almindeligt medlem, fejlet import uden tab og Security Advisor. Der er endnu ikke kørt en live acceptancetest.
-7. Efter vellykket manuel anvendelse registreres alle tre migrationer som applied (ændrer kun migrationshistorik, ikke app-tabeller):
+### Reproducerbar live-smoketest
+
+Kør kun efter bevidst valg af live-miljø. Scriptet er låst til projektet oyyqniwppytipdktzwsy og kræver flaget --allow-live-tests. Det læser serverkey via den eksisterende CLI-login i hukommelsen og gemmer aldrig nøgler/sessioner. Det genererer en midlertidig login-session for den eksisterende owner uden at ændre password eller sende email. Det opretter/rydder isolerede testitems, en testbruger/familie, et testfeed og et testupload.
 
 ```powershell
-npx.cmd --yes supabase@2.118.0 migration repair 20260928093825 20260928093827 20260928093828 --status applied --project-ref oyyqniwppytipdktzwsy
+node scripts/live-smoke.mjs --allow-live-tests --browser
+# Kun når et eksisterende feed også skal hentes:
+node scripts/live-smoke.mjs --allow-live-tests --import-existing
 ```
 
-Ved fejl: lad import være stoppet og ret fremad på den berørte migration/funktion. En Git-rollback alene gendanner ikke databasepolicies eller import-RPC'er. Undgå destruktive down-migrationer; brug den verificerede databasebackup ved behov og tag højde for data skrevet efter backup.
+Browservarianten forventer den byggede app på http://127.0.0.1:5179 eller RELEASE_APP_URL. Rapporten gemmes i Git-ignoreret supabase/.temp/live-release/. Importvarianten sender preserveExisting:true og kan opdatere/tilføje importerede aftaler, men sletter ingen eksisterende aftaler. Den gennemførte Aula-smoketest gav 0 forekomster i det aktuelle vindue og 0 sletninger. Gyldig tom import og upserts med faktiske forekomster dækkes også af SQL-/parser-tests.
+
+### Recovery og fremtidige releases
+
+Før en ny migration: læs live-schema, undersøg drift, verificér en aktuel backup og sammenlign relevante tællinger. Publicér matchende app og Edge Function i samme release. Brug ingen blind db push og aldrig rodens legacy-setup.
+
+Ved behov kan schema/policies før denne release genskabes ud fra live-before-foundation.json og baseline-koden. En Git-rollback alene ændrer ikke live RLS eller RPC'er. Brug fremadrettede rettelser, eller den verificerede backup med planlagt nedetid og hensyn til senere skriverier. Storage-objekter indgår ikke i databasebackuppen; der var ingen før denne release.
+
+Supabase/.temp/live-release/recovery/ indeholder lokalt hentet kildekode for den tidligere Edge Function version 8 og en kopi af live-konfigurationen. Den mappe er ikke committed. Version 8 må ikke sættes tilbage alene, fordi importrettighederne er ændret af den nye model.
 
 ## Afgrænsning
 

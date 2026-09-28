@@ -26,7 +26,7 @@ begin
 end $$;
 
 create or replace function public.apply_calendar_feed_import(
- p_feed_id uuid,p_actor_id uuid,p_token uuid,p_rows jsonb,p_range_start date,p_range_end date
+ p_feed_id uuid,p_actor_id uuid,p_token uuid,p_rows jsonb,p_range_start date,p_range_end date,p_cleanup boolean default true
 ) returns jsonb language plpgsql security definer set search_path='' as $$
 declare f public.calendar_feeds; row_data jsonb; payload jsonb; ek text; ids uuid[]; person_name text;
  inserted integer:=0; updated integer:=0; deleted integer:=0; skipped integer:=0;
@@ -73,12 +73,12 @@ begin
     on conflict(household_id,source,external_id) do update set
       title=excluded.title,date=excluded.date,time=excluded.time,person=excluded.person,person_ids=excluded.person_ids,
       type=excluded.type,note=excluded.note,calendar_id=excluded.calendar_id,location=excluded.location,duration_min=excluded.duration_min,
-      data=excluded.data || jsonb_build_object('done',calendar_items.done)
+      data=calendar_items.data || excluded.data || jsonb_build_object('done',calendar_items.done)
     where not calendar_items.detached_from_feed and coalesce(calendar_items.data->>'detachedFromFeed','false')<>'true';
     get diagnostics touched=row_count;
     if touched>0 then if existing_id is null then inserted:=inserted+1; else updated:=updated+1; end if; end if;
   end loop;
-  delete from public.calendar_items c where c.household_id=f.household_id and c.source=f.source
+  delete from public.calendar_items c where p_cleanup is true and c.household_id=f.household_id and c.source=f.source
     and coalesce(c.calendar_id,c.data->>'calendarId',c.data->>'feedId')=f.id::text
     and not c.detached_from_feed and coalesce(c.data->>'detachedFromFeed','false')<>'true'
     and c.date between p_range_start and p_range_end
@@ -90,7 +90,7 @@ begin
   return jsonb_build_object('insertedCount',inserted,'updatedCount',updated,'deletedCount',deleted,'skippedCount',skipped,'importedCount',inserted+updated);
 end $$;
 revoke all on function public.begin_calendar_feed_import(uuid,uuid),public.fail_calendar_feed_import(uuid,uuid,text),
- public.apply_calendar_feed_import(uuid,uuid,uuid,jsonb,date,date) from public,anon,authenticated;
+ public.apply_calendar_feed_import(uuid,uuid,uuid,jsonb,date,date,boolean) from public,anon,authenticated;
 grant execute on function public.begin_calendar_feed_import(uuid,uuid),public.fail_calendar_feed_import(uuid,uuid,text),
- public.apply_calendar_feed_import(uuid,uuid,uuid,jsonb,date,date) to service_role;
+ public.apply_calendar_feed_import(uuid,uuid,uuid,jsonb,date,date,boolean) to service_role;
 commit;

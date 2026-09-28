@@ -1,0 +1,1699 @@
+{
+  "captured_at": "2026-09-28T10:56:27.547Z",
+  "project_ref": "oyyqniwppytipdktzwsy",
+  "scope": "Catalog only; no user rows, tokens or private feed URLs.",
+  "schema": {
+    "columns": [
+      {
+        "column_default": "gen_random_uuid()",
+        "column_name": "id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "ordinal_position": 1,
+        "table_name": "calendar_feeds",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": null,
+        "column_name": "household_id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "ordinal_position": 2,
+        "table_name": "calendar_feeds",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": null,
+        "column_name": "source",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "ordinal_position": 3,
+        "table_name": "calendar_feeds",
+        "udt_name": "text"
+      },
+      {
+        "column_default": null,
+        "column_name": "name",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "ordinal_position": 4,
+        "table_name": "calendar_feeds",
+        "udt_name": "text"
+      },
+      {
+        "column_default": null,
+        "column_name": "feed_url",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "ordinal_position": 5,
+        "table_name": "calendar_feeds",
+        "udt_name": "text"
+      },
+      {
+        "column_default": null,
+        "column_name": "assigned_person_name",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "ordinal_position": 6,
+        "table_name": "calendar_feeds",
+        "udt_name": "text"
+      },
+      {
+        "column_default": "true",
+        "column_name": "is_active",
+        "data_type": "boolean",
+        "is_nullable": "NO",
+        "ordinal_position": 7,
+        "table_name": "calendar_feeds",
+        "udt_name": "bool"
+      },
+      {
+        "column_default": null,
+        "column_name": "last_sync_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "ordinal_position": 8,
+        "table_name": "calendar_feeds",
+        "udt_name": "timestamptz"
+      },
+      {
+        "column_default": null,
+        "column_name": "last_sync_status",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "ordinal_position": 9,
+        "table_name": "calendar_feeds",
+        "udt_name": "text"
+      },
+      {
+        "column_default": null,
+        "column_name": "last_sync_message",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "ordinal_position": 10,
+        "table_name": "calendar_feeds",
+        "udt_name": "text"
+      },
+      {
+        "column_default": "now()",
+        "column_name": "created_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "ordinal_position": 11,
+        "table_name": "calendar_feeds",
+        "udt_name": "timestamptz"
+      },
+      {
+        "column_default": "now()",
+        "column_name": "updated_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "ordinal_position": 12,
+        "table_name": "calendar_feeds",
+        "udt_name": "timestamptz"
+      },
+      {
+        "column_default": null,
+        "column_name": "assigned_person_id",
+        "data_type": "uuid",
+        "is_nullable": "YES",
+        "ordinal_position": 13,
+        "table_name": "calendar_feeds",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": null,
+        "column_name": "last_import_count",
+        "data_type": "integer",
+        "is_nullable": "YES",
+        "ordinal_position": 14,
+        "table_name": "calendar_feeds",
+        "udt_name": "int4"
+      },
+      {
+        "column_default": null,
+        "column_name": "import_token",
+        "data_type": "uuid",
+        "is_nullable": "YES",
+        "ordinal_position": 15,
+        "table_name": "calendar_feeds",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": null,
+        "column_name": "import_started_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "ordinal_position": 16,
+        "table_name": "calendar_feeds",
+        "udt_name": "timestamptz"
+      },
+      {
+        "column_default": "gen_random_uuid()",
+        "column_name": "id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "ordinal_position": 1,
+        "table_name": "calendar_items",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": null,
+        "column_name": "household_id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "ordinal_position": 2,
+        "table_name": "calendar_items",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": null,
+        "column_name": "title",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "ordinal_position": 3,
+        "table_name": "calendar_items",
+        "udt_name": "text"
+      },
+      {
+        "column_default": null,
+        "column_name": "date",
+        "data_type": "date",
+        "is_nullable": "YES",
+        "ordinal_position": 4,
+        "table_name": "calendar_items",
+        "udt_name": "date"
+      },
+      {
+        "column_default": null,
+        "column_name": "time",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "ordinal_position": 5,
+        "table_name": "calendar_items",
+        "udt_name": "text"
+      },
+      {
+        "column_default": null,
+        "column_name": "person",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "ordinal_position": 6,
+        "table_name": "calendar_items",
+        "udt_name": "text"
+      },
+      {
+        "column_default": null,
+        "column_name": "type",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "ordinal_position": 7,
+        "table_name": "calendar_items",
+        "udt_name": "text"
+      },
+      {
+        "column_default": null,
+        "column_name": "note",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "ordinal_position": 8,
+        "table_name": "calendar_items",
+        "udt_name": "text"
+      },
+      {
+        "column_default": "false",
+        "column_name": "done",
+        "data_type": "boolean",
+        "is_nullable": "NO",
+        "ordinal_position": 9,
+        "table_name": "calendar_items",
+        "udt_name": "bool"
+      },
+      {
+        "column_default": "'{}'::jsonb",
+        "column_name": "data",
+        "data_type": "jsonb",
+        "is_nullable": "NO",
+        "ordinal_position": 10,
+        "table_name": "calendar_items",
+        "udt_name": "jsonb"
+      },
+      {
+        "column_default": null,
+        "column_name": "created_by",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "ordinal_position": 11,
+        "table_name": "calendar_items",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": "now()",
+        "column_name": "created_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "ordinal_position": 12,
+        "table_name": "calendar_items",
+        "udt_name": "timestamptz"
+      },
+      {
+        "column_default": "now()",
+        "column_name": "updated_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "ordinal_position": 13,
+        "table_name": "calendar_items",
+        "udt_name": "timestamptz"
+      },
+      {
+        "column_default": null,
+        "column_name": "source",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "ordinal_position": 14,
+        "table_name": "calendar_items",
+        "udt_name": "text"
+      },
+      {
+        "column_default": null,
+        "column_name": "external_id",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "ordinal_position": 15,
+        "table_name": "calendar_items",
+        "udt_name": "text"
+      },
+      {
+        "column_default": null,
+        "column_name": "calendar_id",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "ordinal_position": 16,
+        "table_name": "calendar_items",
+        "udt_name": "text"
+      },
+      {
+        "column_default": "false",
+        "column_name": "detached_from_feed",
+        "data_type": "boolean",
+        "is_nullable": "NO",
+        "ordinal_position": 17,
+        "table_name": "calendar_items",
+        "udt_name": "bool"
+      },
+      {
+        "column_default": null,
+        "column_name": "location",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "ordinal_position": 18,
+        "table_name": "calendar_items",
+        "udt_name": "text"
+      },
+      {
+        "column_default": null,
+        "column_name": "duration_min",
+        "data_type": "integer",
+        "is_nullable": "YES",
+        "ordinal_position": 19,
+        "table_name": "calendar_items",
+        "udt_name": "int4"
+      },
+      {
+        "column_default": "'{}'::uuid[]",
+        "column_name": "person_ids",
+        "data_type": "ARRAY",
+        "is_nullable": "NO",
+        "ordinal_position": 20,
+        "table_name": "calendar_items",
+        "udt_name": "_uuid"
+      },
+      {
+        "column_default": "gen_random_uuid()",
+        "column_name": "id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "ordinal_position": 1,
+        "table_name": "household_invitations",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": null,
+        "column_name": "household_id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "ordinal_position": 2,
+        "table_name": "household_invitations",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": null,
+        "column_name": "email",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "ordinal_position": 3,
+        "table_name": "household_invitations",
+        "udt_name": "text"
+      },
+      {
+        "column_default": null,
+        "column_name": "role",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "ordinal_position": 4,
+        "table_name": "household_invitations",
+        "udt_name": "text"
+      },
+      {
+        "column_default": null,
+        "column_name": "token_hash",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "ordinal_position": 5,
+        "table_name": "household_invitations",
+        "udt_name": "text"
+      },
+      {
+        "column_default": null,
+        "column_name": "invited_by",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "ordinal_position": 6,
+        "table_name": "household_invitations",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": "(now() + '7 days'::interval)",
+        "column_name": "expires_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "ordinal_position": 7,
+        "table_name": "household_invitations",
+        "udt_name": "timestamptz"
+      },
+      {
+        "column_default": null,
+        "column_name": "accepted_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "ordinal_position": 8,
+        "table_name": "household_invitations",
+        "udt_name": "timestamptz"
+      },
+      {
+        "column_default": null,
+        "column_name": "revoked_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "ordinal_position": 9,
+        "table_name": "household_invitations",
+        "udt_name": "timestamptz"
+      },
+      {
+        "column_default": "now()",
+        "column_name": "created_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "ordinal_position": 10,
+        "table_name": "household_invitations",
+        "udt_name": "timestamptz"
+      },
+      {
+        "column_default": null,
+        "column_name": "household_id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "ordinal_position": 1,
+        "table_name": "household_members",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": null,
+        "column_name": "user_id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "ordinal_position": 2,
+        "table_name": "household_members",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": null,
+        "column_name": "role",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "ordinal_position": 3,
+        "table_name": "household_members",
+        "udt_name": "text"
+      },
+      {
+        "column_default": "now()",
+        "column_name": "created_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "ordinal_position": 4,
+        "table_name": "household_members",
+        "udt_name": "timestamptz"
+      },
+      {
+        "column_default": "gen_random_uuid()",
+        "column_name": "id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "ordinal_position": 1,
+        "table_name": "household_people",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": null,
+        "column_name": "household_id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "ordinal_position": 2,
+        "table_name": "household_people",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": null,
+        "column_name": "name",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "ordinal_position": 3,
+        "table_name": "household_people",
+        "udt_name": "text"
+      },
+      {
+        "column_default": "'child'::text",
+        "column_name": "role",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "ordinal_position": 4,
+        "table_name": "household_people",
+        "udt_name": "text"
+      },
+      {
+        "column_default": null,
+        "column_name": "color",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "ordinal_position": 5,
+        "table_name": "household_people",
+        "udt_name": "text"
+      },
+      {
+        "column_default": null,
+        "column_name": "avatar_url",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "ordinal_position": 6,
+        "table_name": "household_people",
+        "udt_name": "text"
+      },
+      {
+        "column_default": "0",
+        "column_name": "sort_order",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "ordinal_position": 7,
+        "table_name": "household_people",
+        "udt_name": "int4"
+      },
+      {
+        "column_default": "true",
+        "column_name": "is_active",
+        "data_type": "boolean",
+        "is_nullable": "NO",
+        "ordinal_position": 8,
+        "table_name": "household_people",
+        "udt_name": "bool"
+      },
+      {
+        "column_default": "now()",
+        "column_name": "created_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "ordinal_position": 9,
+        "table_name": "household_people",
+        "udt_name": "timestamptz"
+      },
+      {
+        "column_default": "now()",
+        "column_name": "updated_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "ordinal_position": 10,
+        "table_name": "household_people",
+        "udt_name": "timestamptz"
+      },
+      {
+        "column_default": null,
+        "column_name": "avatar_path",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "ordinal_position": 11,
+        "table_name": "household_people",
+        "udt_name": "text"
+      },
+      {
+        "column_default": "'{}'::text[]",
+        "column_name": "name_aliases",
+        "data_type": "ARRAY",
+        "is_nullable": "NO",
+        "ordinal_position": 12,
+        "table_name": "household_people",
+        "udt_name": "_text"
+      },
+      {
+        "column_default": "gen_random_uuid()",
+        "column_name": "id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "ordinal_position": 1,
+        "table_name": "households",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": null,
+        "column_name": "name",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "ordinal_position": 2,
+        "table_name": "households",
+        "udt_name": "text"
+      },
+      {
+        "column_default": null,
+        "column_name": "created_by",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "ordinal_position": 3,
+        "table_name": "households",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": "now()",
+        "column_name": "created_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "ordinal_position": 4,
+        "table_name": "households",
+        "udt_name": "timestamptz"
+      },
+      {
+        "column_default": null,
+        "column_name": "id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "ordinal_position": 1,
+        "table_name": "profiles",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": null,
+        "column_name": "display_name",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "ordinal_position": 2,
+        "table_name": "profiles",
+        "udt_name": "text"
+      },
+      {
+        "column_default": null,
+        "column_name": "avatar_url",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "ordinal_position": 3,
+        "table_name": "profiles",
+        "udt_name": "text"
+      },
+      {
+        "column_default": "now()",
+        "column_name": "created_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "ordinal_position": 4,
+        "table_name": "profiles",
+        "udt_name": "timestamptz"
+      },
+      {
+        "column_default": "now()",
+        "column_name": "updated_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "ordinal_position": 5,
+        "table_name": "profiles",
+        "udt_name": "timestamptz"
+      }
+    ],
+    "constraints": [
+      {
+        "definition": "PRIMARY KEY (id)",
+        "name": "profiles_pkey",
+        "table": "profiles"
+      },
+      {
+        "definition": "FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE",
+        "name": "profiles_id_fkey",
+        "table": "profiles"
+      },
+      {
+        "definition": "PRIMARY KEY (id)",
+        "name": "households_pkey",
+        "table": "households"
+      },
+      {
+        "definition": "FOREIGN KEY (created_by) REFERENCES auth.users(id)",
+        "name": "households_created_by_fkey",
+        "table": "households"
+      },
+      {
+        "definition": "CHECK ((role = ANY (ARRAY['owner'::text, 'admin'::text, 'adult'::text, 'child'::text])))",
+        "name": "household_members_role_check",
+        "table": "household_members"
+      },
+      {
+        "definition": "PRIMARY KEY (household_id, user_id)",
+        "name": "household_members_pkey",
+        "table": "household_members"
+      },
+      {
+        "definition": "FOREIGN KEY (household_id) REFERENCES households(id) ON DELETE CASCADE",
+        "name": "household_members_household_id_fkey",
+        "table": "household_members"
+      },
+      {
+        "definition": "FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE",
+        "name": "household_members_user_id_fkey",
+        "table": "household_members"
+      },
+      {
+        "definition": "PRIMARY KEY (id)",
+        "name": "calendar_items_pkey",
+        "table": "calendar_items"
+      },
+      {
+        "definition": "FOREIGN KEY (household_id) REFERENCES households(id) ON DELETE CASCADE",
+        "name": "calendar_items_household_id_fkey",
+        "table": "calendar_items"
+      },
+      {
+        "definition": "FOREIGN KEY (created_by) REFERENCES auth.users(id)",
+        "name": "calendar_items_created_by_fkey",
+        "table": "calendar_items"
+      },
+      {
+        "definition": "FOREIGN KEY (household_id, assigned_person_id) REFERENCES household_people(household_id, id)",
+        "name": "calendar_feeds_person_household_fk",
+        "table": "calendar_feeds"
+      },
+      {
+        "definition": "CHECK ((role = ANY (ARRAY['adult'::text, 'child'::text, 'other'::text])))",
+        "name": "household_people_role_check",
+        "table": "household_people"
+      },
+      {
+        "definition": "PRIMARY KEY (id)",
+        "name": "household_people_pkey",
+        "table": "household_people"
+      },
+      {
+        "definition": "FOREIGN KEY (household_id) REFERENCES households(id) ON DELETE CASCADE",
+        "name": "household_people_household_id_fkey",
+        "table": "household_people"
+      },
+      {
+        "definition": "CHECK ((source = ANY (ARRAY['aula'::text, 'google'::text, 'ics'::text])))",
+        "name": "calendar_feeds_source_check",
+        "table": "calendar_feeds"
+      },
+      {
+        "definition": "PRIMARY KEY (id)",
+        "name": "calendar_feeds_pkey",
+        "table": "calendar_feeds"
+      },
+      {
+        "definition": "FOREIGN KEY (household_id) REFERENCES households(id) ON DELETE CASCADE",
+        "name": "calendar_feeds_household_id_fkey",
+        "table": "calendar_feeds"
+      },
+      {
+        "definition": "CHECK ((role = ANY (ARRAY['admin'::text, 'adult'::text, 'child'::text])))",
+        "name": "household_invitations_role_check",
+        "table": "household_invitations"
+      },
+      {
+        "definition": "PRIMARY KEY (id)",
+        "name": "household_invitations_pkey",
+        "table": "household_invitations"
+      },
+      {
+        "definition": "UNIQUE (token_hash)",
+        "name": "household_invitations_token_hash_key",
+        "table": "household_invitations"
+      },
+      {
+        "definition": "FOREIGN KEY (household_id) REFERENCES households(id) ON DELETE CASCADE",
+        "name": "household_invitations_household_id_fkey",
+        "table": "household_invitations"
+      },
+      {
+        "definition": "FOREIGN KEY (invited_by) REFERENCES auth.users(id)",
+        "name": "household_invitations_invited_by_fkey",
+        "table": "household_invitations"
+      }
+    ],
+    "functions": [
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "authenticated=X/postgres",
+          "service_role=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION public.create_household(p_name text)\n RETURNS uuid\n LANGUAGE sql\n SET search_path TO ''\nAS $function$ select private.create_household(p_name); $function$\n",
+        "name": "create_household"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "authenticated=X/postgres",
+          "service_role=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION public.is_household_member(hid uuid, uid uuid)\n RETURNS boolean\n LANGUAGE sql\n STABLE\n SET search_path TO ''\nAS $function$\n  select uid=(select auth.uid()) and private.is_household_member(hid);\n$function$\n",
+        "name": "is_household_member"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "authenticated=X/postgres",
+          "service_role=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION public.is_household_admin(hid uuid, uid uuid)\n RETURNS boolean\n LANGUAGE sql\n STABLE\n SET search_path TO ''\nAS $function$\n  select uid=(select auth.uid()) and private.is_household_admin(hid);\n$function$\n",
+        "name": "is_household_admin"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "authenticated=X/postgres",
+          "service_role=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION public.invite_household_member(p_household_id uuid, p_email text, p_role text DEFAULT 'adult'::text)\n RETURNS text\n LANGUAGE sql\n SET search_path TO ''\nAS $function$ select private.invite_household_member(p_household_id,p_email,p_role); $function$\n",
+        "name": "invite_household_member"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "authenticated=X/postgres",
+          "service_role=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION public.accept_household_invitation(p_token text)\n RETURNS uuid\n LANGUAGE sql\n SET search_path TO ''\nAS $function$ select private.accept_household_invitation(p_token); $function$\n",
+        "name": "accept_household_invitation"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "service_role=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION public.begin_calendar_feed_import(p_feed_id uuid, p_actor_id uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare f public.calendar_feeds;\nbegin\n  select * into f from public.calendar_feeds where id=p_feed_id for update;\n  if f.id is null or not exists(select 1 from public.household_members where household_id=f.household_id and user_id=p_actor_id and role in ('owner','admin')) then\n    raise exception 'Feed unavailable' using errcode='42501';\n  end if;\n  if not f.is_active then raise exception 'Feed inactive'; end if;\n  if f.import_token is not null and f.import_started_at>now()-interval '2 minutes' then raise exception 'Import already running'; end if;\n  update public.calendar_feeds set import_token=gen_random_uuid(),import_started_at=now(),\n    last_sync_status='syncing',last_sync_message=null where id=f.id returning * into f;\n  return to_jsonb(f);\nend $function$\n",
+        "name": "begin_calendar_feed_import"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "service_role=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION public.fail_calendar_feed_import(p_feed_id uuid, p_token uuid, p_message text)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\nbegin\n  update public.calendar_feeds set last_sync_status='error',\n    last_sync_message=case when p_message in ('FETCH_FAILED','INVALID_ICS','IMPORT_LIMIT','IMPORT_FAILED','URL_NOT_ALLOWED')\n      then p_message else 'IMPORT_FAILED' end,\n    import_token=null,import_started_at=null\n    where id=p_feed_id and import_token=p_token;\nend $function$\n",
+        "name": "fail_calendar_feed_import"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "service_role=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION public.apply_calendar_feed_import(p_feed_id uuid, p_actor_id uuid, p_token uuid, p_rows jsonb, p_range_start date, p_range_end date, p_cleanup boolean DEFAULT true)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare f public.calendar_feeds; row_data jsonb; payload jsonb; ek text; ids uuid[]; person_name text;\n inserted integer:=0; updated integer:=0; deleted integer:=0; skipped integer:=0;\n existing_id uuid; incoming text[]:='{}'; touched integer; effective_ids uuid[];\nbegin\n  select * into f from public.calendar_feeds where id=p_feed_id for update;\n  if f.id is null or not exists(select 1 from public.household_members where household_id=f.household_id and user_id=p_actor_id and role in ('owner','admin')) then\n    raise exception 'Feed unavailable' using errcode='42501';\n  end if;\n  if not f.is_active or f.import_token is distinct from p_token or p_token is null then raise exception 'Import is no longer current'; end if;\n  if jsonb_typeof(p_rows) is distinct from 'array' then raise exception 'Invalid import batch'; end if;\n  if jsonb_array_length(p_rows)>10000 or p_range_start is null or p_range_end is null or p_range_end<p_range_start then\n    raise exception 'Invalid import batch';\n  end if;\n  ids:='{}';\n  person_name:=coalesce(nullif(f.assigned_person_name,''),'Alle');\n  if f.assigned_person_id is not null then\n    select name into person_name from public.household_people where id=f.assigned_person_id and household_id=f.household_id;\n    ids:=array[f.assigned_person_id];\n  else\n    select array_agg(id) into effective_ids from public.household_people\n      where household_id=f.household_id and (lower(name)=lower(person_name) or lower(person_name)=any(select lower(unnest(name_aliases))));\n    if cardinality(effective_ids)=1 then ids:=effective_ids; end if;\n  end if;\n  for row_data in select value from jsonb_array_elements(p_rows) loop\n    ek:=row_data->>'externalKey'; payload:=row_data->'payload';\n    if ek is null or ek='' or jsonb_typeof(payload) is distinct from 'object' or payload->>'date' is null\n      or (payload->>'date')::date not between p_range_start and p_range_end\n      or (payload ? 'data' and jsonb_typeof(payload->'data') is distinct from 'object') then raise exception 'Invalid calendar row'; end if;\n    if ek=any(incoming) then raise exception 'Duplicate external key'; end if;\n    incoming:=array_append(incoming,ek);\n    -- Preserve detached edits, including when the source title/time changes the old external key.\n    if exists(select 1 from public.calendar_items c\n      where c.household_id=f.household_id and c.source=f.source\n      and coalesce(c.calendar_id,c.data->>'calendarId',c.data->>'feedId')=f.id::text\n      and (c.detached_from_feed or c.data->>'detachedFromFeed'='true')\n      and (c.external_id=ek or (c.data->>'uid'=payload->'data'->>'uid' and c.data->>'occurrenceDate'=payload->'data'->>'occurrenceDate'))\n    ) then skipped:=skipped+1; continue; end if;\n    select id into existing_id from public.calendar_items where household_id=f.household_id and source=f.source and external_id=ek;\n    insert into public.calendar_items(household_id,title,date,time,person,person_ids,type,note,done,created_by,source,external_id,calendar_id,location,duration_min,data)\n    values(f.household_id,coalesce(nullif(payload->>'title',''),'(uden titel)'),(payload->>'date')::date,payload->>'time',person_name,ids,\n      'Aktivitet',payload->>'note',false,p_actor_id,f.source,ek,f.id::text,payload->'data'->>'location',(payload->'data'->>'durationMin')::integer,\n      coalesce(payload->'data','{}'::jsonb) || jsonb_build_object('source',f.source,'feedId',f.id,'calendarId',f.id,'externalId',ek,'externalKey',ek,'person',person_name,'people',jsonb_build_array(person_name),'personIds',to_jsonb(ids)))\n    on conflict(household_id,source,external_id) do update set\n      title=excluded.title,date=excluded.date,time=excluded.time,person=excluded.person,person_ids=excluded.person_ids,\n      type=excluded.type,note=excluded.note,calendar_id=excluded.calendar_id,location=excluded.location,duration_min=excluded.duration_min,\n      data=calendar_items.data || excluded.data || jsonb_build_object('done',calendar_items.done)\n    where not calendar_items.detached_from_feed and coalesce(calendar_items.data->>'detachedFromFeed','false')<>'true';\n    get diagnostics touched=row_count;\n    if touched>0 then if existing_id is null then inserted:=inserted+1; else updated:=updated+1; end if; end if;\n  end loop;\n  delete from public.calendar_items c where p_cleanup is true and c.household_id=f.household_id and c.source=f.source\n    and coalesce(c.calendar_id,c.data->>'calendarId',c.data->>'feedId')=f.id::text\n    and not c.detached_from_feed and coalesce(c.data->>'detachedFromFeed','false')<>'true'\n    and c.date between p_range_start and p_range_end\n    and not(coalesce(c.external_id,c.data->>'externalKey','')=any(incoming));\n  get diagnostics deleted=row_count;\n  update public.calendar_feeds set last_sync_at=now(),last_sync_status='success',\n    last_sync_message=null,last_import_count=inserted+updated,import_token=null,import_started_at=null\n    where id=f.id;\n  return jsonb_build_object('insertedCount',inserted,'updatedCount',updated,'deletedCount',deleted,'skippedCount',skipped,'importedCount',inserted+updated);\nend $function$\n",
+        "name": "apply_calendar_feed_import"
+      }
+    ],
+    "grants": [
+      {
+        "grantee": "service_role",
+        "privilege_type": "INSERT",
+        "table_name": "profiles"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "SELECT",
+        "table_name": "profiles"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "UPDATE",
+        "table_name": "profiles"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "DELETE",
+        "table_name": "profiles"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "TRUNCATE",
+        "table_name": "profiles"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "REFERENCES",
+        "table_name": "profiles"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "TRIGGER",
+        "table_name": "profiles"
+      },
+      {
+        "grantee": "authenticated",
+        "privilege_type": "INSERT",
+        "table_name": "profiles"
+      },
+      {
+        "grantee": "authenticated",
+        "privilege_type": "SELECT",
+        "table_name": "profiles"
+      },
+      {
+        "grantee": "authenticated",
+        "privilege_type": "UPDATE",
+        "table_name": "profiles"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "INSERT",
+        "table_name": "households"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "SELECT",
+        "table_name": "households"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "UPDATE",
+        "table_name": "households"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "DELETE",
+        "table_name": "households"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "TRUNCATE",
+        "table_name": "households"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "REFERENCES",
+        "table_name": "households"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "TRIGGER",
+        "table_name": "households"
+      },
+      {
+        "grantee": "authenticated",
+        "privilege_type": "SELECT",
+        "table_name": "households"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "INSERT",
+        "table_name": "household_members"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "SELECT",
+        "table_name": "household_members"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "UPDATE",
+        "table_name": "household_members"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "DELETE",
+        "table_name": "household_members"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "TRUNCATE",
+        "table_name": "household_members"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "REFERENCES",
+        "table_name": "household_members"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "TRIGGER",
+        "table_name": "household_members"
+      },
+      {
+        "grantee": "authenticated",
+        "privilege_type": "SELECT",
+        "table_name": "household_members"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "INSERT",
+        "table_name": "household_people"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "SELECT",
+        "table_name": "household_people"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "UPDATE",
+        "table_name": "household_people"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "DELETE",
+        "table_name": "household_people"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "TRUNCATE",
+        "table_name": "household_people"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "REFERENCES",
+        "table_name": "household_people"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "TRIGGER",
+        "table_name": "household_people"
+      },
+      {
+        "grantee": "authenticated",
+        "privilege_type": "INSERT",
+        "table_name": "household_people"
+      },
+      {
+        "grantee": "authenticated",
+        "privilege_type": "SELECT",
+        "table_name": "household_people"
+      },
+      {
+        "grantee": "authenticated",
+        "privilege_type": "UPDATE",
+        "table_name": "household_people"
+      },
+      {
+        "grantee": "authenticated",
+        "privilege_type": "DELETE",
+        "table_name": "household_people"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "INSERT",
+        "table_name": "calendar_items"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "SELECT",
+        "table_name": "calendar_items"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "UPDATE",
+        "table_name": "calendar_items"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "DELETE",
+        "table_name": "calendar_items"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "TRUNCATE",
+        "table_name": "calendar_items"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "REFERENCES",
+        "table_name": "calendar_items"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "TRIGGER",
+        "table_name": "calendar_items"
+      },
+      {
+        "grantee": "authenticated",
+        "privilege_type": "INSERT",
+        "table_name": "calendar_items"
+      },
+      {
+        "grantee": "authenticated",
+        "privilege_type": "SELECT",
+        "table_name": "calendar_items"
+      },
+      {
+        "grantee": "authenticated",
+        "privilege_type": "UPDATE",
+        "table_name": "calendar_items"
+      },
+      {
+        "grantee": "authenticated",
+        "privilege_type": "DELETE",
+        "table_name": "calendar_items"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "INSERT",
+        "table_name": "calendar_feeds"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "SELECT",
+        "table_name": "calendar_feeds"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "UPDATE",
+        "table_name": "calendar_feeds"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "DELETE",
+        "table_name": "calendar_feeds"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "TRUNCATE",
+        "table_name": "calendar_feeds"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "REFERENCES",
+        "table_name": "calendar_feeds"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "TRIGGER",
+        "table_name": "calendar_feeds"
+      },
+      {
+        "grantee": "authenticated",
+        "privilege_type": "SELECT",
+        "table_name": "calendar_feeds"
+      },
+      {
+        "grantee": "authenticated",
+        "privilege_type": "DELETE",
+        "table_name": "calendar_feeds"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "INSERT",
+        "table_name": "household_invitations"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "SELECT",
+        "table_name": "household_invitations"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "UPDATE",
+        "table_name": "household_invitations"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "DELETE",
+        "table_name": "household_invitations"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "TRUNCATE",
+        "table_name": "household_invitations"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "REFERENCES",
+        "table_name": "household_invitations"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "TRIGGER",
+        "table_name": "household_invitations"
+      },
+      {
+        "grantee": "authenticated",
+        "privilege_type": "SELECT",
+        "table_name": "household_invitations"
+      },
+      {
+        "grantee": "authenticated",
+        "privilege_type": "DELETE",
+        "table_name": "household_invitations"
+      }
+    ],
+    "indexes": [
+      {
+        "indexdef": "CREATE UNIQUE INDEX profiles_pkey ON public.profiles USING btree (id)",
+        "indexname": "profiles_pkey",
+        "schemaname": "public",
+        "tablename": "profiles",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE UNIQUE INDEX households_pkey ON public.households USING btree (id)",
+        "indexname": "households_pkey",
+        "schemaname": "public",
+        "tablename": "households",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE INDEX households_created_by ON public.households USING btree (created_by)",
+        "indexname": "households_created_by",
+        "schemaname": "public",
+        "tablename": "households",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE UNIQUE INDEX household_members_pkey ON public.household_members USING btree (household_id, user_id)",
+        "indexname": "household_members_pkey",
+        "schemaname": "public",
+        "tablename": "household_members",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE INDEX household_members_user_household ON public.household_members USING btree (user_id, household_id)",
+        "indexname": "household_members_user_household",
+        "schemaname": "public",
+        "tablename": "household_members",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE UNIQUE INDEX household_people_pkey ON public.household_people USING btree (id)",
+        "indexname": "household_people_pkey",
+        "schemaname": "public",
+        "tablename": "household_people",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE INDEX household_people_household_idx ON public.household_people USING btree (household_id)",
+        "indexname": "household_people_household_idx",
+        "schemaname": "public",
+        "tablename": "household_people",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE UNIQUE INDEX household_people_household_id_id ON public.household_people USING btree (household_id, id)",
+        "indexname": "household_people_household_id_id",
+        "schemaname": "public",
+        "tablename": "household_people",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE UNIQUE INDEX calendar_items_pkey ON public.calendar_items USING btree (id)",
+        "indexname": "calendar_items_pkey",
+        "schemaname": "public",
+        "tablename": "calendar_items",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE INDEX calendar_items_household_idx ON public.calendar_items USING btree (household_id)",
+        "indexname": "calendar_items_household_idx",
+        "schemaname": "public",
+        "tablename": "calendar_items",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE INDEX calendar_items_date_idx ON public.calendar_items USING btree (date)",
+        "indexname": "calendar_items_date_idx",
+        "schemaname": "public",
+        "tablename": "calendar_items",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE INDEX calendar_items_source_idx ON public.calendar_items USING btree (household_id, source)",
+        "indexname": "calendar_items_source_idx",
+        "schemaname": "public",
+        "tablename": "calendar_items",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE UNIQUE INDEX calendar_items_external_unique ON public.calendar_items USING btree (household_id, source, external_id)",
+        "indexname": "calendar_items_external_unique",
+        "schemaname": "public",
+        "tablename": "calendar_items",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE INDEX calendar_items_household_date ON public.calendar_items USING btree (household_id, date)",
+        "indexname": "calendar_items_household_date",
+        "schemaname": "public",
+        "tablename": "calendar_items",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE INDEX calendar_items_household_calendar ON public.calendar_items USING btree (household_id, calendar_id)",
+        "indexname": "calendar_items_household_calendar",
+        "schemaname": "public",
+        "tablename": "calendar_items",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE INDEX calendar_items_person_ids ON public.calendar_items USING gin (person_ids)",
+        "indexname": "calendar_items_person_ids",
+        "schemaname": "public",
+        "tablename": "calendar_items",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE INDEX calendar_items_created_by ON public.calendar_items USING btree (created_by)",
+        "indexname": "calendar_items_created_by",
+        "schemaname": "public",
+        "tablename": "calendar_items",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE UNIQUE INDEX calendar_feeds_pkey ON public.calendar_feeds USING btree (id)",
+        "indexname": "calendar_feeds_pkey",
+        "schemaname": "public",
+        "tablename": "calendar_feeds",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE INDEX calendar_feeds_household_idx ON public.calendar_feeds USING btree (household_id)",
+        "indexname": "calendar_feeds_household_idx",
+        "schemaname": "public",
+        "tablename": "calendar_feeds",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE INDEX calendar_feeds_assigned_person ON public.calendar_feeds USING btree (household_id, assigned_person_id)",
+        "indexname": "calendar_feeds_assigned_person",
+        "schemaname": "public",
+        "tablename": "calendar_feeds",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE UNIQUE INDEX household_invitations_pkey ON public.household_invitations USING btree (id)",
+        "indexname": "household_invitations_pkey",
+        "schemaname": "public",
+        "tablename": "household_invitations",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE UNIQUE INDEX household_invitations_token_hash_key ON public.household_invitations USING btree (token_hash)",
+        "indexname": "household_invitations_token_hash_key",
+        "schemaname": "public",
+        "tablename": "household_invitations",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE INDEX invitations_household ON public.household_invitations USING btree (household_id)",
+        "indexname": "invitations_household",
+        "schemaname": "public",
+        "tablename": "household_invitations",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE INDEX invitations_invited_by ON public.household_invitations USING btree (invited_by)",
+        "indexname": "invitations_invited_by",
+        "schemaname": "public",
+        "tablename": "household_invitations",
+        "tablespace": null
+      }
+    ],
+    "policies": [
+      {
+        "cmd": "DELETE",
+        "permissive": "PERMISSIVE",
+        "policyname": "people_delete",
+        "qual": "private.is_household_member(household_id)",
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "household_people",
+        "with_check": null
+      },
+      {
+        "cmd": "SELECT",
+        "permissive": "PERMISSIVE",
+        "policyname": "items_select",
+        "qual": "private.is_household_member(household_id)",
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "calendar_items",
+        "with_check": null
+      },
+      {
+        "cmd": "SELECT",
+        "permissive": "PERMISSIVE",
+        "policyname": "profiles_select",
+        "qual": "(id = ( SELECT auth.uid() AS uid))",
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "profiles",
+        "with_check": null
+      },
+      {
+        "cmd": "INSERT",
+        "permissive": "PERMISSIVE",
+        "policyname": "profiles_insert",
+        "qual": null,
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "profiles",
+        "with_check": "(id = ( SELECT auth.uid() AS uid))"
+      },
+      {
+        "cmd": "UPDATE",
+        "permissive": "PERMISSIVE",
+        "policyname": "profiles_update",
+        "qual": "(id = ( SELECT auth.uid() AS uid))",
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "profiles",
+        "with_check": "(id = ( SELECT auth.uid() AS uid))"
+      },
+      {
+        "cmd": "SELECT",
+        "permissive": "PERMISSIVE",
+        "policyname": "households_select",
+        "qual": "private.is_household_member(id)",
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "households",
+        "with_check": null
+      },
+      {
+        "cmd": "UPDATE",
+        "permissive": "PERMISSIVE",
+        "policyname": "households_update",
+        "qual": "private.is_household_admin(id)",
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "households",
+        "with_check": "private.is_household_admin(id)"
+      },
+      {
+        "cmd": "SELECT",
+        "permissive": "PERMISSIVE",
+        "policyname": "members_select",
+        "qual": "private.is_household_member(household_id)",
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "household_members",
+        "with_check": null
+      },
+      {
+        "cmd": "SELECT",
+        "permissive": "PERMISSIVE",
+        "policyname": "people_select",
+        "qual": "private.is_household_member(household_id)",
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "household_people",
+        "with_check": null
+      },
+      {
+        "cmd": "INSERT",
+        "permissive": "PERMISSIVE",
+        "policyname": "people_insert",
+        "qual": null,
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "household_people",
+        "with_check": "private.is_household_member(household_id)"
+      },
+      {
+        "cmd": "UPDATE",
+        "permissive": "PERMISSIVE",
+        "policyname": "people_update",
+        "qual": "private.is_household_member(household_id)",
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "household_people",
+        "with_check": "private.is_household_member(household_id)"
+      },
+      {
+        "cmd": "INSERT",
+        "permissive": "PERMISSIVE",
+        "policyname": "items_insert",
+        "qual": null,
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "calendar_items",
+        "with_check": "(private.is_household_member(household_id) AND (created_by = ( SELECT auth.uid() AS uid)))"
+      },
+      {
+        "cmd": "UPDATE",
+        "permissive": "PERMISSIVE",
+        "policyname": "items_update",
+        "qual": "private.is_household_member(household_id)",
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "calendar_items",
+        "with_check": "private.is_household_member(household_id)"
+      },
+      {
+        "cmd": "DELETE",
+        "permissive": "PERMISSIVE",
+        "policyname": "items_delete",
+        "qual": "private.is_household_member(household_id)",
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "calendar_items",
+        "with_check": null
+      },
+      {
+        "cmd": "SELECT",
+        "permissive": "PERMISSIVE",
+        "policyname": "feeds_select",
+        "qual": "private.is_household_admin(household_id)",
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "calendar_feeds",
+        "with_check": null
+      },
+      {
+        "cmd": "INSERT",
+        "permissive": "PERMISSIVE",
+        "policyname": "feeds_insert",
+        "qual": null,
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "calendar_feeds",
+        "with_check": "private.is_household_admin(household_id)"
+      },
+      {
+        "cmd": "UPDATE",
+        "permissive": "PERMISSIVE",
+        "policyname": "feeds_update",
+        "qual": "private.is_household_admin(household_id)",
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "calendar_feeds",
+        "with_check": "private.is_household_admin(household_id)"
+      },
+      {
+        "cmd": "DELETE",
+        "permissive": "PERMISSIVE",
+        "policyname": "feeds_delete",
+        "qual": "private.is_household_admin(household_id)",
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "calendar_feeds",
+        "with_check": null
+      },
+      {
+        "cmd": "ALL",
+        "permissive": "PERMISSIVE",
+        "policyname": "invitations_admin",
+        "qual": "private.is_household_admin(household_id)",
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "household_invitations",
+        "with_check": "private.is_household_admin(household_id)"
+      },
+      {
+        "cmd": "SELECT",
+        "permissive": "PERMISSIVE",
+        "policyname": "household_avatars_select",
+        "qual": "((bucket_id = 'household-avatars'::text) AND private.can_access_avatar(name))",
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "storage",
+        "tablename": "objects",
+        "with_check": null
+      },
+      {
+        "cmd": "INSERT",
+        "permissive": "PERMISSIVE",
+        "policyname": "household_avatars_insert",
+        "qual": null,
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "storage",
+        "tablename": "objects",
+        "with_check": "((bucket_id = 'household-avatars'::text) AND private.can_access_avatar(name))"
+      },
+      {
+        "cmd": "UPDATE",
+        "permissive": "PERMISSIVE",
+        "policyname": "household_avatars_update",
+        "qual": "((bucket_id = 'household-avatars'::text) AND private.can_access_avatar(name))",
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "storage",
+        "tablename": "objects",
+        "with_check": "((bucket_id = 'household-avatars'::text) AND private.can_access_avatar(name))"
+      },
+      {
+        "cmd": "DELETE",
+        "permissive": "PERMISSIVE",
+        "policyname": "household_avatars_delete",
+        "qual": "((bucket_id = 'household-avatars'::text) AND private.can_access_avatar(name))",
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "storage",
+        "tablename": "objects",
+        "with_check": null
+      }
+    ],
+    "rls": [
+      {
+        "enabled": true,
+        "forced": false,
+        "table": "profiles"
+      },
+      {
+        "enabled": true,
+        "forced": false,
+        "table": "households"
+      },
+      {
+        "enabled": true,
+        "forced": false,
+        "table": "household_members"
+      },
+      {
+        "enabled": true,
+        "forced": false,
+        "table": "household_people"
+      },
+      {
+        "enabled": true,
+        "forced": false,
+        "table": "calendar_items"
+      },
+      {
+        "enabled": true,
+        "forced": false,
+        "table": "calendar_feeds"
+      },
+      {
+        "enabled": true,
+        "forced": false,
+        "table": "household_invitations"
+      }
+    ],
+    "triggers": [
+      {
+        "definition": "CREATE TRIGGER guard_tenant BEFORE UPDATE ON public.household_people FOR EACH ROW EXECUTE FUNCTION private.guard_tenant_row()",
+        "table": "household_people"
+      },
+      {
+        "definition": "CREATE TRIGGER guard_tenant BEFORE UPDATE ON public.calendar_items FOR EACH ROW EXECUTE FUNCTION private.guard_tenant_row()",
+        "table": "calendar_items"
+      },
+      {
+        "definition": "CREATE TRIGGER guard_tenant BEFORE UPDATE ON public.calendar_feeds FOR EACH ROW EXECUTE FUNCTION private.guard_tenant_row()",
+        "table": "calendar_feeds"
+      },
+      {
+        "definition": "CREATE TRIGGER touch_updated_at BEFORE UPDATE ON public.profiles FOR EACH ROW EXECUTE FUNCTION private.touch_updated_at()",
+        "table": "profiles"
+      },
+      {
+        "definition": "CREATE TRIGGER touch_updated_at BEFORE UPDATE ON public.household_people FOR EACH ROW EXECUTE FUNCTION private.touch_updated_at()",
+        "table": "household_people"
+      },
+      {
+        "definition": "CREATE TRIGGER touch_updated_at BEFORE UPDATE ON public.calendar_items FOR EACH ROW EXECUTE FUNCTION private.touch_updated_at()",
+        "table": "calendar_items"
+      },
+      {
+        "definition": "CREATE TRIGGER touch_updated_at BEFORE UPDATE ON public.calendar_feeds FOR EACH ROW EXECUTE FUNCTION private.touch_updated_at()",
+        "table": "calendar_feeds"
+      },
+      {
+        "definition": "CREATE TRIGGER keep_person_identity BEFORE INSERT OR UPDATE ON public.household_people FOR EACH ROW EXECUTE FUNCTION private.keep_person_identity()",
+        "table": "household_people"
+      },
+      {
+        "definition": "CREATE TRIGGER validate_item_people BEFORE INSERT OR UPDATE ON public.calendar_items FOR EACH ROW EXECUTE FUNCTION private.validate_item_people()",
+        "table": "calendar_items"
+      },
+      {
+        "definition": "CREATE TRIGGER protect_person_references BEFORE DELETE ON public.household_people FOR EACH ROW EXECUTE FUNCTION private.protect_person_references()",
+        "table": "household_people"
+      },
+      {
+        "definition": "CREATE TRIGGER validate_feed BEFORE INSERT OR UPDATE ON public.calendar_feeds FOR EACH ROW EXECUTE FUNCTION private.validate_feed()",
+        "table": "calendar_feeds"
+      }
+    ]
+  }
+}

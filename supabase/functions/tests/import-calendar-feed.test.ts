@@ -55,8 +55,8 @@ Deno.test("HTTP timeout, response-size limit and safe errors", async () => {
   }), "FETCH_FAILED");
 });
 const feedId = "ffffffff-ffff-4fff-8fff-ffffffffffff";
-function mockHandler(options: {active?:boolean;admin?:boolean;body?:string;fetchError?:boolean;dbError?:boolean} = {}) {
-  const calls: string[] = [], failures: unknown[] = [];
+function mockHandler(options: {active?:boolean;admin?:boolean;body?:string;fetchError?:boolean;dbError?:boolean;thenableWriter?:boolean} = {}) {
+  const calls: string[] = [], failures: unknown[] = [], batches: any[] = [];
   const feed = {id:feedId,household_id:"household-a",source:"aula",feed_url:"https://kalenderlink.aula.dk/?feed=TEST_ONLY",is_active:options.active ?? true,import_token:"token"};
   const user = {
     auth: {getUser:async()=>({data:{user:{id:"user-a"}}})},
@@ -65,19 +65,21 @@ function mockHandler(options: {active?:boolean;admin?:boolean;body?:string;fetch
   };
   const writer = {rpc:async(name:string,args:unknown)=>{
     calls.push(name);
+    if(name==="apply_calendar_feed_import")batches.push(args);
     if(name==="begin_calendar_feed_import")return {data:feed};
     if(name==="fail_calendar_feed_import"){failures.push(args);return {};}
     if(options.dbError)return {error:{message:"PRIVATE DATABASE URL"}};
     return {data:{importedCount:1,insertedCount:1,updatedCount:0,deletedCount:0}};
   }};
+  const rpcWriter = options.thenableWriter ? {rpc:(name:string,args:unknown)=>{const promise=writer.rpc(name,args);return {then:promise.then.bind(promise)};}} : writer;
   const handler=makeHandler({
-    clientFactory:((_url:string,key:string)=>key==="public-key"?user:writer) as any,
+    clientFactory:((_url:string,key:string)=>key==="public-key"?user:rpcWriter) as any,
     env:(key:string)=>({SUPABASE_URL:"https://example.supabase.co",SUPABASE_ANON_KEY:"public-key",SUPABASE_SERVICE_ROLE_KEY:"test-server-key"} as Record<string,string>)[key],
     now:()=>new Date("2026-09-20T12:00:00Z"),
     fetcher:(()=>{if(options.fetchError)throw new Error("PRIVATE FEED URL");return Promise.resolve(new Response(options.body ?? simple));}) as typeof fetch,
   });
   const request=()=>new Request("https://edge.example/import",{method:"POST",headers:{Authorization:"Bearer test-user-token"},body:JSON.stringify({feedId,household_id:"ATTACKER_IGNORED"})});
-  return {handler,calls,failures,request};
+  return {handler,calls,failures,request,batches};
 }
 Deno.test("Inactive feed and non-admin requests never call service writer",async()=>{
   for(const opts of [{active:false},{admin:false}]){
@@ -100,4 +102,18 @@ Deno.test("Fetch and parse failures persist safe failure status and never clean 
 Deno.test("Database failure is persisted without disclosing raw SQL or credentials",async()=>{
   const mock=mockHandler({dbError:true}),response=await mock.handler(mock.request()),body=await response.json();
   equal(body.error,"IMPORT_FAILED");equal(mock.failures.length,1);
+});
+
+Deno.test("Live smoke preserveExisting disables cleanup without bypassing authorization",async()=>{
+  const mock=mockHandler();
+  const req=new Request("https://edge.example/import",{method:"POST",headers:{Authorization:"Bearer test-user-token"},body:JSON.stringify({feedId,preserveExisting:true})});
+  const response=await mock.handler(req);
+  equal(response.status,200); equal(mock.batches[0].p_cleanup,false);
+  const normal=mockHandler();await normal.handler(normal.request());equal(normal.batches[0].p_cleanup,true);
+});
+
+Deno.test("Failure persistence accepts the actual SDK thenable contract without catch",async()=>{
+  const mock=mockHandler({fetchError:true,thenableWriter:true});
+  const response=await mock.handler(mock.request());
+  equal((await response.json()).error,"FETCH_FAILED");equal(mock.failures.length,1);
 });

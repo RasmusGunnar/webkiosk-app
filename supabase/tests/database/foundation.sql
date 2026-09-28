@@ -133,6 +133,13 @@ select pg_temp.assert_true((:'result'::jsonb->>'updatedCount')::int=1 and (:'res
 select pg_temp.assert_true((select title='After' and done and data->>'done'='true' from public.calendar_items where external_id='update-me'),'Upsert retains task completion state');
 select pg_temp.assert_true((select count(*) from public.calendar_items where external_id in ('historic','other-feed','event-1'))=3,'Cleanup preserves out-of-window, other-feed and detached records');
 
+
+-- Safe release smoke mode upserts normally but never deletes existing rows.
+select public.begin_calendar_feed_import('ffffffff-ffff-4fff-8fff-ffffffffffff','11111111-1111-4111-8111-111111111111')->>'import_token' as import_token \gset
+select public.apply_calendar_feed_import('ffffffff-ffff-4fff-8fff-ffffffffffff','11111111-1111-4111-8111-111111111111',:'import_token',
+ '[]','2026-09-01','2026-10-01',false) as result \gset
+select pg_temp.assert_true((:'result'::jsonb->>'deletedCount')::int=0 and (select count(*) from public.calendar_items where external_id='update-me')=1,'Preserve-existing import never deletes rows');
+
 reset role;
 set local role anon;
 select pg_temp.expect_error('select * from public.calendar_items','Anonymous calendar access denied');

@@ -111,13 +111,14 @@ export function makeHandler(dependencies: {
       const result = await writer.rpc("apply_calendar_feed_import", {
         p_feed_id: claimed.id, p_actor_id: auth.user.id, p_token: claimed.import_token, p_rows: rows,
         p_range_start: formatDate(range.start, DEFAULT_TIME_ZONE), p_range_end: formatDate(range.end, DEFAULT_TIME_ZONE),
+        p_cleanup: body.preserveExisting !== true,
       });
       if (result.error) throw new ImportFailure("IMPORT_FAILED", 500);
       return jsonResponse({ success: true, feedId: claimed.id, ...result.data });
     } catch (error) {
       const failure = error instanceof ImportFailure ? error : new ImportFailure("IMPORT_FAILED", 500);
       if (writer && claimed) {
-        const result = await writer.rpc("fail_calendar_feed_import", { p_feed_id: claimed.id, p_token: claimed.import_token, p_message: failure.code }).catch(() => ({ error: true }));
+        const result = await Promise.resolve(writer.rpc("fail_calendar_feed_import", { p_feed_id: claimed.id, p_token: claimed.import_token, p_message: failure.code })).catch(() => ({ error: true }));
         if (result.error) return jsonResponse({ success: false, error: "IMPORT_FAILED", statusPersisted: false }, 503);
       }
       return jsonResponse({ success: false, error: failure.code }, failure.status);

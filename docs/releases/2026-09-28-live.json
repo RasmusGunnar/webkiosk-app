@@ -1,0 +1,120 @@
+{
+  "project_ref": "oyyqniwppytipdktzwsy",
+  "date": "2026-09-28",
+  "backend_live": true,
+  "public_app_deployment": "Awaiting explicit hosting approval",
+  "backup": {
+    "id": 1805398900,
+    "completed_at": "2026-09-28T03:37:45.625Z",
+    "status": "COMPLETED",
+    "physical": true,
+    "pitr": false
+  },
+  "preflight_schema_drift": [],
+  "migrations": [
+    {
+      "file": "20260928093825_live_schema_baseline.sql",
+      "sha256": "8827f0c612159adae6aa9d46af4f37e2ddbdae37aaf2fd122a76c9650bd11ee7",
+      "applied": true,
+      "existingRowCountsAndFingerprintsUnchanged": true
+    },
+    {
+      "file": "20260928093827_household_foundation.sql",
+      "sha256": "1c052f6c5f097b7356da1beb0a980649abae8d76648417b74af095cf1d1ead40",
+      "applied": true,
+      "existingRowCountsAndFingerprintsUnchanged": true
+    },
+    {
+      "file": "20260928093828_calendar_import_transaction.sql",
+      "sha256": "78c130d51a79df25c0843792af703b72e7f08dc299440f10da9bf40b8b0eb77a",
+      "applied": true,
+      "existingRowCountsAndFingerprintsUnchanged": true
+    }
+  ],
+  "counts": {
+    "before": {
+      "calendar_feeds": 4,
+      "calendar_items": 272,
+      "household_members": 2,
+      "household_people": 5,
+      "households": 2,
+      "profiles": 0
+    },
+    "after": {
+      "calendar_feeds": 4,
+      "calendar_items": 272,
+      "household_members": 2,
+      "household_people": 5,
+      "households": 2,
+      "profiles": 0
+    }
+  },
+  "data_verification": {
+    "unchanged_original_columns": [
+      "profiles",
+      "households",
+      "household_members",
+      "household_people",
+      "calendar_items"
+    ],
+    "calendar_feeds": "Only sync status/timestamps changed by the authorized import smoke test",
+    "auth_users_after": 1,
+    "storage_objects_after": 0,
+    "temporary_data_cleaned": true
+  },
+  "edge": {
+    "version": 10,
+    "verify_jwt": false,
+    "authentication": "Explicit auth.getUser before feed reads and service-role RPCs",
+    "smoke": {
+      "source": "aula",
+      "success": true,
+      "inserted": 0,
+      "updated": 0,
+      "deleted": 0
+    },
+    "private_feed_url_matches_in_checked_function_logs": 0
+  },
+  "acceptance": {
+    "existing_user_login": "PASS",
+    "household_load": "PASS",
+    "existing_people_load": "PASS",
+    "existing_calendar_load": "PASS",
+    "calendar_create": "PASS",
+    "calendar_edit": "PASS",
+    "multi_person": "PASS",
+    "password_login": "PASS",
+    "cross_household_rls": "PASS",
+    "inactive_feed_rejected": "PASS",
+    "edge_authentication": "PASS",
+    "feed_import": "PASS",
+    "existing_feed_import_succeeded": "PASS",
+    "existing_calendar_ids_preserved": "PASS",
+    "calendar_delete": "PASS",
+    "error_status_persistence": "PASS",
+    "private_avatar_storage": "PASS",
+    "browser_live_calendar_and_people": "PASS",
+    "avatars_display": "PASS",
+    "person_colors": "PASS",
+    "reload_session_persistence": "PASS",
+    "browser_no_javascript_errors": "PASS",
+    "browser_password_login_persistence": "PASS"
+  },
+  "regression": {
+    "frontend_tests": 11,
+    "edge_tests": 12,
+    "database_checks": 49,
+    "build": "PASS",
+    "typecheck": "PASS"
+  },
+  "auth": {
+    "email_password": true,
+    "signup": true,
+    "email_confirmation_required": true,
+    "site_url": "http://localhost:3000",
+    "additional_redirect_urls": [],
+    "password_reset_ui": false,
+    "email_delivery_tested": false,
+    "leaked_password_protection": false
+  }
+}

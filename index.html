@@ -1,92 +1,38 @@
-<!DOCTYPE html>
+<!-- /index.html (RasmusGunnar/test) -->
+<!doctype html>
 <html lang="da">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Webkiosk</title>
-
-  <!-- iOS PWA hints -->
-  <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="apple-touch-icon" href="/webkiosk-app/assets/icon-192.png">
-
-  <!-- PWA assets (GitHub Pages path-aware) -->
-  <meta name="theme-color" content="#000000" />
-  <link rel="icon" href="/webkiosk-app/assets/icon-192.png" />
-  <link rel="manifest" href="/webkiosk-app/manifest.webmanifest" />
-  <link rel="stylesheet" href="/webkiosk-app/style.css" />
-</head>
-<body>
-  <div class="main-stage" id="stage"></div>
-
-  <!-- Autodetekter A/B og seed calendar.url til A -->
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="color-scheme" content="light"/>
+  <title>Loader…</title>
+  <meta name="robots" content="noindex"/>
   <script>
-  (function(){
-    const ROOT = '/webkiosk-app/';
+    (function () {
+      // 0) VÆLG DIT FASTE HID HER
+      var FIXED_HID = "FAMILIE01"; // <-- skift til dit ønskede HID, kun A-Z/0-9
 
-    // Kandidatlister: tilpas gerne hvis dine navne er andre
-    const CANDIDATES_A = [
-      'webkiosk_apple_crisp_with_settings_fab.html',
-      'webkiosk.html',
-      'forside.html',
-      'index-a.html'
-    ].map(n => ROOT + n);
-
-    const CANDIDATES_B = [
-      'familieoversigt_index_v11_autosync_READY_UPDATED.html',
-      'familieoversigt_index_v11_autosync.html',
-      'familieoversigt.html',
-      'calendar.html'
-    ].map(n => ROOT + n);
-
-    async function pickFirstOk(urls){
-      for (const u of urls){
-        try{
-          const res = await fetch(u, { method: 'HEAD', cache: 'no-store' });
-          if (res.ok) return u;
-        }catch(_){}
+      // 1) Fjern gamle service workers (forebygger cache-støj)
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister()));
       }
-      return null;
-    }
 
-    async function boot(){
-      const A = await pickFirstOk(CANDIDATES_A);
-      const B = await pickFirstOk(CANDIDATES_B);
+      // 2) Byg mål-URL og T V I N G ?hid=FIXED_HID
+      var target = new URL('./webkiosk_apple_crisp_with_settings_fab.html', location.href);
 
-      // Seed A's calendar-url hvis ikke sat
-      try{
-        const LS_KEY = 'webkioskConfigV2';
-        let cfg = {};
-        const raw = localStorage.getItem(LS_KEY);
-        if (raw) { try{ cfg = JSON.parse(raw)||{} }catch(_){ cfg = {} } }
-        if (!cfg.calendar) cfg.calendar = {};
-        if (B && !cfg.calendar.url && !cfg.calendar.fileData){
-          cfg.calendar.mode = 'url';
-          cfg.calendar.url = B;
-          cfg.calendar.fileName = B.split('/').pop();
-          localStorage.setItem(LS_KEY, JSON.stringify(cfg));
-        }
-      }catch(e){ console.warn('Seed config failed', e); }
+      // Bevar evt. eksisterende query/hash, men overstyr hid
+      var params = new URLSearchParams(location.search);
+      params.set('hid', FIXED_HID); // <- altid dit faste HID
+      target.search = '?' + params.toString();
+      if (location.hash) target.hash = location.hash;
 
-      // Indlæs A i iframe
-      const stage = document.getElementById('stage');
-      const iframe = document.createElement('iframe');
-      iframe.id = 'stage-iframe';
-      iframe.setAttribute('allow', 'clipboard-read; clipboard-write');
-      iframe.style.pointerEvents = 'auto';
-      iframe.src = A || (ROOT + 'webkiosk_apple_crisp_with_settings_fab.html'); // fallback
-      stage.replaceChildren(iframe);
-
-      if (!A) console.warn('Kunne ikke finde A (forside). Tjek filnavn i repoets rod.');
-      if (!B) console.warn('Kunne ikke finde B (kalender). Tjek filnavn i repoets rod.');
-    }
-
-    // Start
-    boot();
-  })();
+      // 3) Redirect
+      location.replace(target.toString());
+    })();
   </script>
-
-  <script src="/webkiosk-app/app.js"></script>
-</body>
+  <noscript>
+    <meta http-equiv="refresh" content="0; url=./webkiosk_apple_crisp_with_settings_fab.html?hid=FAMILIE01">
+  </noscript>
+</head>
+<body>Åbner Webkiosk…</body>
 </html>

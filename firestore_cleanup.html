@@ -1,0 +1,275 @@
+<!-- File: firestore_cleanup.html -->
+<!doctype html>
+<html lang="da">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Firestore Cleanup · Familieoversigt</title>
+  <style>
+    body{margin:0;font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial;background:#f8fafc;color:#0f172a}
+    .wrap{max-width:900px;margin:24px auto;padding:0 16px}
+    h1{font-size:20px;margin:0 0 12px;font-weight:800}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;box-shadow:0 4px 24px rgba(2,6,23,.06);padding:14px 16px;margin-bottom:16px}
+    .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+    .btn{border:1px solid #e5e7eb;background:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;font-weight:700}
+    .btn.primary{background:#0f172a;color:#fff;border-color:transparent}
+    code,kbd{background:#0f172a0d;border:1px solid #e5e7eb;border-radius:6px;padding:0 6px}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+    .ok{color:#16a34a}.warn{color:#ca8a04}.err{color:#dc2626}
+    table{width:100%;border-collapse:collapse}
+    th,td{border-bottom:1px solid #e5e7eb;padding:6px 8px;text-align:left}
+    .pill{display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid #e5e7eb;background:#fff;font-weight:700}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Firestore Cleanup · Familieoversigt</h1>
+    <div class="card">
+      <div class="row">
+        <div>HID:</div>
+        <div id="hid" class="pill">—</div>
+        <div>Status:</div>
+        <div id="status" class="pill">Idle</div>
+      </div>
+      <div style="margin-top:10px" class="row">
+        <label><input type="checkbox" id="dry" checked> Dry-run (kun preview)</label>
+        <button class="btn" id="btnPreview">Preview cleanup</button>
+        <button class="btn primary" id="btnApply">Apply cleanup</button>
+      </div>
+      <div style="margin-top:10px;font-size:13px;color:#475569">
+        Åbn denne side med <code>?hid=FAMILIE01</code>. Dry-run viser ændringer uden at skrive. Apply udfører migrationen i sikre batches.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row"><strong>Opsummering</strong></div>
+      <div id="summary" style="margin-top:8px">—</div>
+    </div>
+
+    <div class="card">
+      <div class="row"><strong>Detaljer</strong></div>
+      <div style="overflow:auto; max-height:55vh; margin-top:8px">
+        <table class="mono" id="tbl"><thead>
+          <tr><th>Action</th><th>DocID</th><th>→ UID</th><th>Title</th><th>Date</th><th>Person</th><th>Type</th></tr>
+        </thead><tbody id="tbody"></tbody></table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Firebase compat -->
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <script>
+  (function(){
+    const HID = (new URLSearchParams(location.search).get("hid")||"DEFAULT").toUpperCase();
+    document.getElementById('hid').textContent = HID;
+
+    // Init Firebase (samme projekt som kalenderen)
+    const cfg = {
+      apiKey: "AIzaSyA_gh8y-V6kkl95hRzb0ldBxpKWFY5bAck",
+      authDomain: "webkiosk-e5d32.firebaseapp.com",
+      projectId: "webkiosk-e5d32",
+      storageBucket: "webkiosk-e5d32.firebasestorage.app",
+      messagingSenderId: "920175197353",
+      appId: "1:920175197353:web:c3520e9a3ab8146ec4fdb8"
+    };
+    if(!firebase.apps.length) firebase.initializeApp(cfg);
+    const db = firebase.firestore();
+    const col = db.collection("households").doc(HID).collection("calendar").doc("v1").collection("items");
+
+    // ---------- helpers ----------
+    const $ = (id)=>document.getElementById(id);
+    const setStatus = (t)=> document.getElementById('status').textContent = t;
+    const tbody = document.getElementById('tbody');
+    function row(action, from, to, title, date, person, type, cls){
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td class="${cls||''}">${action}</td><td>${from}</td><td>${to||""}</td>
+                      <td>${(title||"").replace(/[&<>]/g,s=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[s]))}</td>
+                      <td>${date||""}</td><td>${person||""}</td><td>${type||""}</td>`;
+      tbody.appendChild(tr);
+    }
+    function fmtISO(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+    function fromAnyToLocalISO(x){
+      if(!x) return "";
+      if(/^\d{4}-\d{2}-\d{2}$/.test(x)) return x;
+      const t = new Date(x);
+      return fmtISO(new Date(t.getFullYear(), t.getMonth(), t.getDate())); // strip til lokal dato
+    }
+    function normalizeType(t){
+      if (t==="Anden aftale"||t==="Andre aftaler") return "Aktivitet";
+      if (t==="Fritidsinteresser") return "Fritidsinteresse";
+      return t||"Aktivitet";
+    }
+    function keyOf(it){
+      return [(it.title||"").trim().toLowerCase(),(it.date||"").trim(),(it.time||"").trim(),(it.person||"Alle").trim(),(it.type||"Aktivitet").trim()].join("|");
+    }
+    function djb2(s){let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h)^s.charCodeAt(i);return (h>>>0).toString(36)}
+    function uidFor(it){
+      const date = it.date || "";
+      if(it.id && it.id.startsWith("gcal:")) return "g:"+it.id.slice(5)+"|"+date;
+      if(it.source==="google") return "g:"+(it.id||djb2(keyOf(it)))+"|"+date;
+      return "l:"+djb2(keyOf(it));
+    }
+    function canon(v, docId){
+      const d = v && v.data && typeof v.data==="object" ? v.data : (v||{});
+      const out = {
+        id: d.id || v.id || ("fs:"+docId),
+        title: d.title || v.title || "(uden titel)",
+        type: normalizeType(d.type || v.type),
+        person: (d.person || v.person) || "Alle",
+        date: fromAnyToLocalISO(d.date || v.date || ""),
+        time: (d.time || v.time) || "",
+        durationMin: Number.isFinite(d.durationMin) ? d.durationMin : (v.durationMin||0),
+        location: d.location || v.location || "",
+        note: d.note || v.note || "",
+        repeatWeekly: !!(d.repeatWeekly || v.repeatWeekly),
+        done: !!(d.done || v.done),
+        source: d.source || v.source || "fs",
+        updatedAt: v.updatedAt || null,
+        createdAt: v.createdAt || null
+      };
+      return out;
+    }
+    function pickBest(a, b){
+      // hvorfor: vælg deterministisk "bedste" version
+      const au = a.updatedAt?.toMillis?.() || 0;
+      const bu = b.updatedAt?.toMillis?.() || 0;
+      if (au !== bu) return au > bu ? a : b;
+      const ac = a.createdAt?.toMillis?.() || 0;
+      const bc = b.createdAt?.toMillis?.() || 0;
+      if (ac !== bc) return ac > bc ? a : b;
+      return (a.id||"") > (b.id||"") ? a : b;
+    }
+
+    async function fetchAllDocs(){
+      // fallback: hvis orderBy("createdAt") fejler, henter vi uden sortering
+      try{
+        const s = await col.orderBy("createdAt","asc").get();
+        return s.docs;
+      }catch(_){
+        const s = await col.get();
+        return s.docs;
+      }
+    }
+
+    function chunk(arr, n){ const out=[]; for(let i=0;i<arr.length;i+=n) out.push(arr.slice(i,i+n)); return out; }
+
+    async function preview(){
+      setStatus("Scanner…");
+      tbody.innerHTML = "";
+      const docs = await fetchAllDocs();
+      const byUID = new Map();
+      const moves = [];   // [{fromId, toId, data}]
+      const deletes = []; // [docId]
+
+      // 1) Indsaml & grupper pr. UID
+      for(const d of docs){
+        const v = d.data();
+        const it = canon(v, d.id);
+        const uid = uidFor(it);
+
+        if(!byUID.has(uid)) byUID.set(uid, []);
+        byUID.get(uid).push({doc: d, it, uid});
+      }
+
+      // 2) For hver UID: vælg bedste & planlæg flyt/slet
+      byUID.forEach(list=>{
+        // vælg "best"
+        let best = list[0];
+        for(let i=1;i<list.length;i++){
+          best = pickBest(best.it, list[i].it).id === best.it.id ? best : list[i];
+        }
+        // hvis best.doc.id != best.uid → move
+        if(best.doc.id !== best.uid){
+          moves.push({ fromId: best.doc.id, toId: best.uid, it: best.it });
+          row("MOVE", best.doc.id, best.uid, best.it.title, best.it.date, best.it.person, best.it.type, "warn");
+        } else {
+          row("OK", best.doc.id, "", best.it.title, best.it.date, best.it.person, best.it.type, "ok");
+        }
+        // resten i listen → delete
+        for(const x of list){
+          if(x.doc.id === best.doc.id) continue;
+          deletes.push(x.doc.id);
+          row("DELETE", x.doc.id, best.uid, x.it.title, x.it.date, x.it.person, x.it.type, "err");
+        }
+      });
+
+      // Sum
+      const total = docs.length;
+      const keep = byUID.size;
+      const toMove = moves.length;
+      const toDelete = deletes.length;
+
+      document.getElementById('summary').innerHTML =
+        `<div>Fundet <b>${total}</b> dokumenter → ender som <b>${keep}</b> unikke.</div>
+         <div>Plan: <span class="warn"><b>${toMove}</b> flyt</span> + <span class="err"><b>${toDelete}</b> slet</span>.</div>`;
+
+      setStatus("Preview klar");
+      return {moves, deletes};
+    }
+
+    async function applyChanges(plan){
+      setStatus("Udfører…");
+      const dry = document.getElementById('dry').checked;
+      if(dry){ setStatus("Dry-run – ingen ændringer skrevet"); return; }
+
+      // Kør i batch-chunks
+      const ops = [];
+      // Moves → set(toId, data) + delete(fromId)
+      for(const m of plan.moves){
+        const data = {
+          uid: m.toId,
+          data: m.it,
+          title: m.it.title, date: m.it.date, time: m.it.time,
+          person: m.it.person, type: m.it.type, note: m.it.note, done: !!m.it.done,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        ops.push({kind:"set", id:m.toId, data});
+        ops.push({kind:"del", id:m.fromId});
+      }
+      // Deletes
+      for(const id of plan.deletes){ ops.push({kind:"del", id}); }
+
+      const chunks = chunk(ops, 450); // sikker margin < 500
+      for(let i=0;i<chunks.length;i++){
+        const b = db.batch();
+        for(const op of chunks[i]){
+          if(op.kind==="set") b.set(col.doc(op.id), op.data, {merge:true});
+          else if(op.kind==="del") b.delete(col.doc(op.id));
+        }
+        await b.commit();
+        setStatus(`Batch ${i+1}/${chunks.length}…`);
+      }
+      setStatus("Færdig ✓");
+    }
+
+    let lastPlan = null;
+
+    document.getElementById('btnPreview').onclick = async ()=>{
+      tbody.innerHTML = "";
+      document.getElementById('summary').textContent = "—";
+      try{
+        await firebase.auth().signInAnonymously();
+        lastPlan = await preview();
+      }catch(e){
+        setStatus("Fejl"); console.error(e);
+        alert("Auth/preview fejlede. Se Console.");
+      }
+    };
+
+    document.getElementById('btnApply').onclick = async ()=>{
+      if(!lastPlan){ alert("Kør først Preview."); return; }
+      try{
+        await applyChanges(lastPlan);
+        alert("Cleanup udført. Reload din kalender efter 10–20 sek.");
+      }catch(e){
+        setStatus("Fejl"); console.error(e);
+        alert("Apply fejlede. Se Console.");
+      }
+    };
+
+  })();
+  </script>
+</body>
+</html>

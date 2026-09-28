@@ -1,0 +1,8 @@
+# Local environment files (keep shareable examples)
+.env
+.env.*
+!.env.example
+
+# Dependencies and build output at any level
+node_modules/
+dist/

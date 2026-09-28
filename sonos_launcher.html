@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="da">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Åbner Sonos…</title>
+  <meta name="robots" content="noindex" />
+  <style>
+    :root{--bg:#f6f7f9;--fg:#0f172a;--muted:#5b6575;--border:#e6e8ec;--accent:#0f172a;--shadow:0 20px 50px rgba(2,6,23,.15);--radius:20px}
+    *{box-sizing:border-box}html,body{height:100%}
+    body{margin:0;font:16px/1.5 "Inter",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial;background:var(--bg);color:var(--fg);display:flex;align-items:center;justify-content:center;padding:clamp(16px,4vw,32px)}
+    .card{max-width:min(620px,100%);background:#fff;border-radius:var(--radius);border:1px solid var(--border);box-shadow:var(--shadow);padding:clamp(22px,3vw,32px);display:flex;flex-direction:column;gap:18px}
+    h1{margin:0;font-size:clamp(24px,4vw,30px);font-weight:750}
+    .lead{margin:0;font-size:clamp(15px,2.2vw,17px)}
+    .hint{margin:0;font-size:14px;color:var(--muted)}
+    .actions{display:flex;flex-wrap:wrap;gap:12px}
+    .btn{display:inline-flex;align-items:center;justify-content:center;padding:12px 18px;border-radius:12px;border:1px solid var(--border);background:#fff;color:var(--fg);font-weight:650;text-decoration:none;cursor:pointer;min-width:160px;transition:transform .12s ease,box-shadow .12s ease}
+    .btn:hover{transform:translateY(-1px);box-shadow:0 12px 26px rgba(2,6,23,.12)}
+    .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+    .status{margin:0;font-size:14px;color:var(--muted)}
+    .status strong{color:var(--fg)}
+  </style>
+</head>
+<body>
+  <main class="card" role="main">
+    <h1>Sonos</h1>
+    <p class="lead">Sonos webafspilleren åbnes i en ny fane, fordi vi ikke kunne indlæse den direkte i webkiosken.</p>
+    <p id="hostInfo" class="hint">Mål: <strong>play.sonos.com</strong></p>
+    <p class="hint">Hvis afspilleren ikke dukker op automatisk, klik på “Åbn Sonos”. Husk at tillade pop op-vinduer.</p>
+    <div class="actions">
+      <button id="openBtn" class="btn primary" type="button">Åbn Sonos</button>
+      <a id="backBtn" class="btn" href="#">Tilbage til oversigten</a>
+    </div>
+    <p id="status" class="status" hidden><strong>Tip:</strong> Sonos er forsøgt åbnet i en ny fane. Hvis du ikke kan se den, kan din browser have blokeret pop op-vinduet.</p>
+  </main>
+  <script>
+  (function(){
+    const params=new URLSearchParams(location.search);
+    const defaultTarget='https://play.sonos.com';
+    let target=params.get('target')||defaultTarget;
+    try{
+      const resolved=new URL(target,location.href);
+      if(/^https?:$/i.test(resolved.protocol)){
+        target=resolved.toString();
+      }else{
+        target=defaultTarget;
+      }
+    }catch(_){
+      target=defaultTarget;
+    }
+    let returnPath='./webkiosk_apple_crisp_with_settings_fab.html';
+    const ret=params.get('return');
+    if(ret){
+      try{
+        const here=new URL(location.href);
+        const resolved=new URL(ret,here);
+        if(resolved.origin===here.origin){
+          returnPath=resolved.pathname+resolved.search;
+        }
+      }catch(_){/* noop */}
+    }
+    const hid=params.get('hid');
+    if(hid){
+      try{
+        const r=new URL(returnPath,location.href);
+        if(!r.searchParams.has('hid')){
+          r.searchParams.set('hid',hid);
+          returnPath=r.pathname+r.search;
+        }
+      }catch(_){/* noop */}
+    }
+    const hostInfo=document.getElementById('hostInfo');
+    try{
+      const host=new URL(target).hostname;
+      if(hostInfo){
+        hostInfo.innerHTML='Mål: <strong>'+host+'</strong>';
+      }
+      document.title='Sonos – '+host;
+    }catch(_){
+      document.title='Sonos';
+    }
+    const openBtn=document.getElementById('openBtn');
+    const backBtn=document.getElementById('backBtn');
+    const status=document.getElementById('status');
+    const sessionKey='sonosLauncher:auto:'+target;
+    function markOpened(){
+      if(status) status.hidden=false;
+    }
+    function openSonos(){
+      const win=window.open(target,'_blank','noopener');
+      markOpened();
+      if(!win){
+        location.href=target;
+      }
+    }
+    if(openBtn){
+      openBtn.addEventListener('click',function(){
+        sessionStorage.setItem(sessionKey,'manual');
+        openSonos();
+      });
+    }
+    if(backBtn){
+      backBtn.addEventListener('click',function(ev){
+        ev.preventDefault();
+        sessionStorage.removeItem(sessionKey);
+        location.href=returnPath;
+      });
+    }
+    if(!sessionStorage.getItem(sessionKey)){
+      sessionStorage.setItem(sessionKey,'auto');
+      setTimeout(openSonos,150);
+    }else{
+      markOpened();
+    }
+  })();
+  </script>
+</body>
+</html>

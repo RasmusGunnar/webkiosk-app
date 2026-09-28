@@ -1,0 +1,34 @@
+name: Aula calendar sync
+
+on:
+  schedule:
+    # Kør hver time (minut 5)
+    - cron: "5 * * * *"
+  # Mulighed for at køre den manuelt fra Actions-fanen
+  workflow_dispatch: {}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Aula sync
+        run: node aula-sync.js
+        env:
+          AULA_FEED_URL: ${{ secrets.AULA_FEED_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          HOUSEHOLD_ID: ${{ secrets.HOUSEHOLD_ID }}

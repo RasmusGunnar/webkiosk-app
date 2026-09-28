@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="da">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Åbner Sonos</title>
+  <meta name="robots" content="noindex" />
+  <style>
+    :root { --bg: #0f172a; --fg: #fff; --muted: rgba(255,255,255,.78); --btn: rgba(15,23,42,.18); }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--fg); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: clamp(20px, 4vw, 48px); }
+    .card { width: min(480px, 100%); border-radius: 28px; border: 1px solid rgba(255,255,255,.2); background: rgba(15,23,42,.7); backdrop-filter: blur(18px); box-shadow: 0 25px 60px rgba(2,6,23,.45); padding: clamp(24px, 4vw, 40px); display: flex; flex-direction: column; gap: 18px; text-align: center; }
+    h1 { margin: 0; font-size: clamp(26px, 5vw, 34px); }
+    p { margin: 0; font-size: 16px; color: var(--muted); }
+    .actions { display: flex; flex-direction: column; gap: 12px; }
+    .btn { border: none; border-radius: 14px; padding: 14px 16px; font-size: 16px; font-weight: 650; text-decoration: none; color: #fff; background: rgba(255,255,255,.12); box-shadow: inset 0 1px 0 rgba(255,255,255,.25); transition: transform .12s ease, box-shadow .12s ease; display: inline-flex; align-items: center; justify-content: center; }
+    .btn.primary { background: #22d3ee; color: #0f172a; }
+    .btn:hover { transform: translateY(-1px); box-shadow: 0 15px 25px rgba(0,0,0,.3); }
+    .hint { font-size: 13px; color: rgba(255,255,255,.65); }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <main class="card" role="main">
+    <h1>Åbner Sonos</h1>
+    <p id="status">Forsøger at starte Sonos appen…</p>
+    <div class="actions">
+      <a id="intentBtn" class="btn primary" href="#">Åbn Sonos</a>
+      <a id="storeBtn" class="btn" href="https://play.google.com/store/apps/details?id=com.sonos.acr2">Åbn i Play Butik</a>
+    </div>
+    <p class="hint">Hvis intet sker, tryk på “Åbn Sonos” eller installer appen via Play Butikken.</p>
+  </main>
+  <script>
+    (function() {
+      const PLAY_URL = 'https://play.google.com/store/apps/details?id=com.sonos.acr2';
+      const PKG = 'com.sonos.acr2';
+      const params = new URLSearchParams(location.search);
+      const linkCandidates = [params.get('intent'), params.get('uri'), params.get('url')].filter(Boolean);
+      const rawLink = (linkCandidates[0] || '').trim();
+      function buildIntent(src) {
+        if (!src) {
+          return `intent://now-playing#Intent;scheme=sonos;package=${PKG};S.browser_fallback_url=${encodeURIComponent(PLAY_URL)};end`;
+        }
+        if (/^intent:/i.test(src)) {
+          return src;
+        }
+        if (/^sonos:/i.test(src)) {
+          const payload = src.replace(/^sonos:\/\//i, '');
+          const cleaned = payload || 'now-playing';
+          return `intent://${cleaned}#Intent;scheme=sonos;package=${PKG};S.browser_fallback_url=${encodeURIComponent(PLAY_URL)};end`;
+        }
+        try {
+          const parsed = new URL(src, location.href);
+          if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
+            return `intent://${parsed.host}${parsed.pathname}${parsed.search}#Intent;scheme=https;package=${PKG};S.browser_fallback_url=${encodeURIComponent(parsed.toString())};end`;
+          }
+        } catch (_) { /* noop */ }
+        return `intent://now-playing#Intent;scheme=sonos;package=${PKG};S.browser_fallback_url=${encodeURIComponent(PLAY_URL)};end`;
+      }
+      const intentLink = buildIntent(rawLink);
+      const intentBtn = document.getElementById('intentBtn');
+      if (intentBtn) intentBtn.href = intentLink;
+      const storeBtn = document.getElementById('storeBtn');
+      if (storeBtn) storeBtn.href = PLAY_URL;
+      const status = document.getElementById('status');
+      const isAndroid = /Android/i.test(navigator.userAgent || '');
+      function triggerIntent() {
+        try {
+          window.location.replace(intentLink);
+        } catch (_) {
+          window.location.href = intentLink;
+        }
+      }
+      if (isAndroid) {
+        status.textContent = 'Starter Sonos appen…';
+        setTimeout(triggerIntent, 150);
+      } else {
+        status.textContent = 'Del dette link med din Android-enhed for at åbne Sonos appen.';
+      }
+      intentBtn?.addEventListener('click', function(ev) {
+        ev.preventDefault();
+        triggerIntent();
+      });
+    })();
+  </script>
+</body>
+</html>

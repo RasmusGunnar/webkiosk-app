@@ -1,782 +1,598 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="da">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Familieoversigt – autosync</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Webkiosk</title>
+<meta name="theme-color" content="#f6f7f9" />
+<meta name="color-scheme" content="light" />
+<link rel="manifest" href="./manifest.webmanifest" />
+<link rel="icon" href="./assets/icon-192.png" />
 <style>
-  :root{
-    --bg:#f6f7fb; --panel:#ffffff; --ink:#0f172a; --muted:#475569; --muter:#94a3b8;
-    --shadow:0 8px 30px rgba(2,6,23,.08); --radius:18px;
-    --edge-pad: clamp(8px, 2vw, 20px); --col-gap: clamp(6px, 1.2vw, 14px);
-    --done-bg:#ecfdf5;
-  }
-  *{box-sizing:border-box}
-  html,body{height:100%}
-  body{margin:0; font:16px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial; color:var(--ink); background:var(--bg);}
-  .wrap{max-width:100vw; margin:0 auto; padding:var(--edge-pad)}
-  header{display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;}
-  .title{font-size:22px; font-weight:800; letter-spacing:.2px}
-  .controls{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
-  .btn{border:1px solid #e5e7eb; background:#fff; border-radius:10px; padding:8px 12px; cursor:pointer; font-weight:700; color:#0f172a; box-shadow:0 2px 6px rgba(2,6,23,.05);}
-  .btn.primary{background:var(--ink); color:#fff; border-color:transparent}
-  .btn.icon{width:36px;height:36px;display:inline-grid;place-items:center;padding:0}
-  .btn.small{padding:8px 10px; border-radius:10px; font-size:13px}
-  .btn.ghost{background:#fff; border:1px solid #e5e7eb;}
-  .chipbar{display:flex; gap:8px; flex-wrap:wrap; margin:10px 0}
-  .chip{display:flex; align-items:center; gap:8px; background:#fff; border:1px solid #e5e7eb; color:#334155; font-weight:700; border-radius:999px; padding:6px 10px; cursor:pointer;}
-  .chip .tally{font-size:14px}
-  .chip.active{background:#0f172a;color:#fff;border-color:transparent}
-  .chip.active .tally{filter:brightness(1.4)}
-  .avatar{width:22px; height:22px; border-radius:999px; object-fit:cover; object-position:center;}
+  :root{--bg:#f6f7f9;--panel:#fff;--fg:#0f172a;--muted:#6b7280;--border:#e6e8ec;--accent:#0f172a;--shadow:0 10px 30px rgba(2,6,23,.06);--logoH:clamp(44px,8vw,64px);--logoBoxMin:120px;--logoBoxMax:clamp(140px,24vw,200px)}
+  *{box-sizing:border-box} html,body{height:100%}
+  body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,Helvetica,Arial;background:var(--bg);color:var(--fg);display:flex;min-height:100vh}
+  .wrap{width:min(1200px,100%);padding:clamp(12px,2vw,24px);margin:auto;position:relative;z-index:1}
+  .grid{display:grid;gap:clamp(12px,2vw,18px);grid-template-columns:repeat(12,1fr)}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:20px;box-shadow:var(--shadow)}
+  .widget{padding:clamp(16px,2.2vw,24px)} .widget h2{margin:0 0 6px;font-size:clamp(15px,1.6vw,18px);color:var(--muted);font-weight:600}
+  .clock-time{font-size:clamp(40px,6vw,56px);line-height:1;font-weight:750} .clock-date{margin-top:6px;font-size:clamp(14px,1.8vw,18px);color:var(--muted)}
+  .weather-main{display:flex;align-items:center;gap:14px} .weather-temp{font-size:clamp(40px,6vw,56px);font-weight:750} .weather-line{font-size:clamp(14px,1.8vw,18px);color:var(--muted)}
+  .widget .icon{width:clamp(34px,4.5vw,48px);height:clamp(34px,4.5vw,48px);color:var(--accent)}
+  .tiles{grid-column:1/-1;display:grid;gap:clamp(12px,2vw,18px);grid-template-columns:repeat(3,1fr)}
+  .tile{min-height:140px;padding:clamp(16px,2.4vw,24px);display:grid;grid-template-columns:minmax(0,1fr) minmax(var(--logoBoxMin),var(--logoBoxMax));align-items:center;gap:clamp(12px,2vw,20px);cursor:pointer;user-select:none;transition:transform .12s,box-shadow .12s;text-decoration:none;color:inherit}
+  .tile:hover{transform:translateY(-1px);box-shadow:0 14px 30px rgba(2,6,23,.10)}
+  .meta .label{font-size:clamp(18px,2.2vw,22px);font-weight:750} .meta .sub{color:var(--muted);font-size:clamp(12px,1.8vw,15px);margin-top:6px}
+  .logo-box{height:var(--logoH);display:flex;align-items:center;justify-content:flex-end;width:100%;max-width:var(--logoBoxMax)}
+  .logo-box img{width:100%;height:100%;max-height:100%;object-fit:contain;display:block}
+  .widget.weather{grid-column:span 6} .widget.clock{grid-column:span 6}
+  @media (max-width:900px){.widget.weather,.widget.clock{grid-column:span 12}.tiles{grid-template-columns:1fr}}
 
-  .grid{display:grid; grid-template-columns: repeat(7, minmax(0,1fr)); gap:var(--col-gap); align-items:stretch;}
-  .day{background:var(--panel); border-radius:var(--radius); box-shadow:var(--shadow); padding:10px 10px 14px; min-height:42vh; display:flex; flex-direction:column; width:100%;}
-  .day .head{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px}
-  .day .name{font-weight:800;color:#111827; text-transform:capitalize}
-  .day .date{color:#475569; font-size:12px; font-weight:700}
-  .day.today{outline:2px solid #11182722}
-  .list{display:flex; flex-direction:column; gap:6px; margin-top:6px; flex:1; min-height:100px}
-  .section{margin-top:6px}
-  .section .h{font-size:11px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:.06em; margin:6px 0 2px}
-  .section .items{display:flex; flex-direction:column; gap:6px}
+  /* overlays må ikke fange klik når skjult */
+  [hidden]{display:none !important;}
 
-  .item{background:#fff; border:1px solid #e5e7eb; border-left:6px solid #64748b; border-radius:12px; padding:8px 10px; display:flex; gap:8px; align-items:flex-start; box-shadow:0 4px 14px rgba(2,6,23,.06); cursor:pointer; width:100%;}
-  .item .left{display:flex; align-items:center; justify-content:center; min-width:52px; font-weight:800; color:#0f172a}
-  .item .meta{display:flex; flex-direction:column; gap:2px; min-width:0; flex:1}
-  .item .title{font-weight:800; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-  .item .note{color:#475569; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-  .item.done{background:var(--done-bg)}
-  .item.done .title{text-decoration:line-through}
+  /* Kalender-overlay */
+  .calendar-view{position:fixed;inset:0;padding:clamp(12px,2vw,20px);background:rgba(246,247,249,.92);backdrop-filter:blur(8px);z-index:60}
+  .calendar-inner{height:100%;display:flex;flex-direction:column;gap:12px}
+  .topbar{display:flex;align-items:center;gap:12px}
+  .back-btn{display:inline-flex;align-items:center;gap:10px;padding:10px 14px;border-radius:12px;background:#fff;border:1px solid var(--border);color:#0f172a;cursor:pointer;font-weight:650;box-shadow:var(--shadow)}
+  .calframe.panel{position:relative;flex:1;min-height:0;overflow:hidden;display:flex}
+  iframe{width:100%;height:100%;border:0;display:block}
 
-  .floating{position:fixed; right:16px; bottom:16px; display:flex; gap:8px; align-items:center; z-index:999; flex-wrap:wrap; justify-content:flex-end;}
-  .gcal-badge{background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:8px 12px; font-weight:700; color:#334155; box-shadow:var(--shadow);}
+  /* FAB */
+  .fab{position:fixed;right:20px;bottom:20px;z-index:90}
+  .fab button{width:56px;height:56px;border-radius:50%;border:1px solid var(--border);background:#fff;color:#0f172a;display:inline-flex;align-items:center;justify-content:center;box-shadow:var(--shadow);cursor:pointer}
 
-  /* Modal (opret/rediger) */
-  .modal-backdrop{position:fixed; inset:0; background:rgba(2,6,23,.28); display:none; align-items:flex-start; justify-content:center; padding:32px; z-index:2000}
-  .modal{width:min(860px, 92vw); max-height: min(92vh, 92dvh); overflow:auto; background:#fff; border-radius:16px; box-shadow:var(--shadow); padding:16px 16px 12px}
-  .modal h3{margin:0 0 10px 0; font-size:18px; font-weight:800}
-  .form{display:grid; grid-template-columns: 1fr 1fr; gap:10px}
-  .form .full{grid-column:1 / -1}
-  label{display:block; font-size:12px; font-weight:800; color:#334155; margin-bottom:6px}
-  input[type="text"], input[type="date"], input[type="time"], input[type="number"], textarea, select{width:100%; border:1px solid #e5e7eb; border-radius:10px; padding:10px 12px; font:inherit; background:#fff;}
-  textarea{min-height:80px; resize:vertical}
-  .row{display:flex; gap:12px; align-items:center}
-  .row label{margin:0; font-weight:700}
-  .row input[type="checkbox"]{transform: translateY(1px)}
-  .modal .actions{display:flex; justify-content:flex-end; gap:8px; margin-top:10px}
+  /* Webpanel */
+  .wk-panel{position:fixed;inset:0;background:#0001;backdrop-filter:saturate(1.1) blur(4px);z-index:80}
+  .wk-shell{position:absolute;inset:0;background:#fff;box-shadow:0 12px 60px rgba(2,6,23,.25)}
+  .wk-topbar{position:absolute;left:0;right:0;top:0;height:52px;display:flex;align-items:center;gap:10px;padding:0 12px;border-bottom:1px solid var(--border);background:linear-gradient(#fff,#fafafa);z-index:2}
+  .wk-topbar .btn{border:1px solid var(--border);border-radius:10px;background:#fff;padding:8px 10px;cursor:pointer}
+  .wk-topbar .title{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .wk-iframe{position:absolute;left:0;right:0;top:52px;bottom:0;width:100%;height:calc(100% - 52px);border:0;display:block;pointer-events:auto;z-index:1}
+  .wk-blocked{position:absolute;inset:52px 0 0;background:linear-gradient(#fff,#f8f9fb);display:flex;align-items:center;justify-content:center;padding:24px;z-index:2}
+  .wk-blocked[hidden]{display:none !important}
+  .wk-blocked-card{max-width:420px;width:min(100%,420px);background:#fff;border:1px solid var(--border);border-radius:18px;box-shadow:var(--shadow);padding:24px;text-align:center;display:flex;flex-direction:column;gap:12px}
+  .wk-blocked-card h4{margin:0;font-size:18px;color:var(--fg)}
+  .wk-blocked-card p{margin:0;color:var(--muted);font-size:14px;line-height:1.5}
+  .wk-blocked-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:6px}
 
-  /* Indstillinger */
-  .settings-backdrop{position:fixed; inset:0; background:rgba(2,6,23,.28); display:none; align-items:flex-start; justify-content:center; padding:32px; z-index:2000}
-  .settings{width:min(860px, 92vw); max-height:min(92vh, 92dvh); overflow:auto; background:#fff; border-radius:16px; box-shadow:var(--shadow); padding:16px}
-  .settings h3{margin:0 0 10px; font-size:18px; font-weight:800}
-  .row-s{display:grid; grid-template-columns: 44px 1fr 1fr 64px 32px; gap:12px; align-items:center; padding:8px; border:1px solid #e5e7eb; border-radius:12px; margin-bottom:8px}
-  .initial{width:36px; height:36px; border-radius:999px; display:grid; place-items:center; background:#eef2ff; font-weight:800}
-  .swatch{width:14px; height:14px; border-radius:999px; border:1px solid #e5e7eb; justify-self:end}
-  .tip{color:#64748b; font-size:12px; margin-top:8px}
-  .settings .actions{display:flex; justify-content:flex-end; gap:8px; margin-top:10px}
-
-  @media (max-width:1200px){ .day{min-height:38vh} }
-  @media (max-width:980px){ .grid{grid-template-columns: repeat(2, minmax(0,1fr))} .day{min-height:auto} }
-  @media (max-width:640px){ .grid{grid-template-columns: 1fr} .form{grid-template-columns: 1 fr} }
-</style>
-
-<!-- iOS/mobil scroll-fix + overlap-fix -->
-<style id="wk-b-scroll-fix">
-  /* Sørg for at modal-indhold kan scrolles på mobil */
-  .modal, .settings { -webkit-overflow-scrolling: touch !important; overscroll-behavior: contain !important; }
-  .modal .form, .settings { max-height: calc(100dvh - 140px) !important; overflow: auto !important; }
-  /* Lås baggrund når modal er åben */
-  body.modal-open { overflow: hidden !important; }
-  /* Skjul/hæv flydende knapper når modal er åben */
-  body.modal-open .floating { display: none !important; }
+  /* Modal/indstillinger */
+  .modal{position:fixed;inset:0;background:rgba(15,23,42,.35);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px}
+  .dialog{width:min(980px,96vw);max-height:92vh;overflow:hidden;background:#fff;border:1px solid var(--border);border-radius:18px;box-shadow:0 22px 60px rgba(2,6,23,.18);display:flex;flex-direction:column;position:relative;z-index:5}
+  .dlg-head{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+  .dlg-head h3{margin:0;font-size:20px}
+  .tabs{display:flex;gap:4px;flex-wrap:wrap;position:relative;z-index:4}
+  .tab{padding:8px 12px;border:1px solid var(--border);border-radius:10px;background:#fbfbfb;cursor:pointer;font-weight:600;color:#334155;pointer-events:auto}
+  .tab.active{background:#0f172a;color:#fff;border-color:#0f172a}
+  .dlg-body{padding:16px 20px 6px;overflow:auto}
+  .section{display:none}.section.active{display:block}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .form-grid .full{grid-column:1/-1}
+  .field{display:flex;flex-direction:column;gap:8px}
+  .field label{font-weight:600;font-size:14px;color:#334155}
+  .hint{font-size:12px;color:#6b7280}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  input[type="text"],input[type="url"],select,input[type="color"],input[type="search"],input[type="checkbox"]{padding:10px 12px;border-radius:12px;border:1px solid var(--border);font-size:14px}
+  input[type="file"]{font-size:13px}
+  .dlg-foot{padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:space-between;background:#fafafa;position:sticky;bottom:0}
+  .left-note{color:#6b7280;font-size:12px;display:flex;align-items:center;gap:8px}
+  .actions{display:flex;gap:10px}
+  .btn{padding:10px 14px;border-radius:12px;border:1px solid var(--border);background:#fff;cursor:pointer;font-weight:650}
+  .btn.primary{background:#0f172a;color:#fff;border-color:#0f172a}
+  .sync-badge{position:fixed;left:12px;bottom:12px;z-index:95;background:#fff;border:1px solid #e6e8ec;border-radius:14px;padding:8px 12px;font:13px/1.2 ui-sans-serif;box-shadow:0 8px 24px rgba(2,6,23,.08);display:flex;gap:8px;align-items:center;color:#0f172a}
+  .sync-badge .dot{width:10px;height:10px;border-radius:50%}
+  .sync-online .dot{background:#10b981}.sync-syncing .dot{background:#f59e0b}.sync-offline .dot{background:#9ca3af}.sync-error .dot{background:#ef4444}
+  .sync-badge .note{margin-left:6px;color:#6b7280;font-size:12px}
 </style>
 </head>
 <body>
+
   <div class="wrap">
-    <header>
-      <div class="title">Familieoversigt <span class="muted">– uge <span id="weekNo">?</span></span></div>
-      <div class="controls">
-        <button class="btn icon" id="btnPrev" title="Forrige uge">⟨</button>
-        <button class="btn" id="btnWeek">—</button>
-        <button class="btn icon" id="btnNext" title="Næste uge">⟩</button>
-        <button class="btn primary" id="btnNew">+ Ny</button>
-        <button class="btn" id="btnSettings">Indstillinger</button>
-      </div>
-    </header>
+    <div class="grid">
+      <section class="panel widget weather" aria-label="Vejr">
+        <h2>Vejr</h2>
+        <div class="weather-main">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 16.5a4.5 4.5 0 0 1 4.5-4.5h.5A6.5 6.5 0 1 1 20 14.5a3.5 3.5 0 0 1-3.5 3.5H8.5A5.5 5.5 0 0 1 3 16.5z"/></svg>
+          <div>
+            <div class="weather-temp" id="weatherTemp">--°</div>
+            <div class="weather-line" id="weatherCond">—</div>
+            <div class="weather-line" id="weatherCity">—</div>
+          </div>
+        </div>
+      </section>
 
-    <div class="chipbar" id="peopleBar"></div>
-    <section class="grid" id="grid"></section>
-  </div>
+      <section class="panel widget clock" aria-label="Ur">
+        <h2>Ur</h2>
+        <div class="clock-time" id="clockTime">--:--</div>
+        <div class="clock-date" id="clockDate">--</div>
+      </section>
 
-  <!-- Flydende status + knapper nederst til højre -->
-  <div class="floating">
-    <div class="gcal-badge" id="syncBadge">Google sync: —</div>
-    <button class="btn small" id="btnSync">Sync nu</button>
-    <button class="btn small ghost" id="btnSyncHard">Nulstil &amp; sync</button>
-  </div>
+      <div class="tiles">
+        <a class="panel tile" id="tileCalendar" data-tile="calendar" href="#">
+          <div class="meta"><div class="label" id="labelCalendar">Kalender</div><div class="sub" id="subCalendar">Familieoversigt</div></div>
+          <div class="logo-box"><img id="logoCalendar" alt="Kalender"></div>
+        </a>
 
-  <!-- Modal (opret/rediger) -->
-  <div class="modal-backdrop" id="backdrop" aria-hidden="true">
-    <div class="modal">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px">
-        <h3 id="dlgTitle">Tilføj</h3>
-        <button class="btn ghost" id="dlgClose">Luk</button>
-      </div>
-      <div class="form" id="form">
-        <div class="full">
-          <label for="f_title">Titel</label>
-          <input id="f_title" type="text" placeholder="Titel">
-        </div>
-        <div>
-          <label for="f_type">Type</label>
-          <select id="f_type">
-            <option>Aktivitet</option>
-            <option>Opgave</option>
-            <option>Fritidsinteresse</option>
-          </select>
-        </div>
-        <div>
-          <label for="f_person">Person</label>
-          <select id="f_person"><option>Alle</option></select>
-        </div>
-        <div>
-          <label for="f_date">Dato</label>
-          <input id="f_date" type="date">
-        </div>
-        <div>
-          <label for="f_time">Tid (valgfri)</label>
-          <input id="f_time" type="time" step="900" placeholder="--:--">
-        </div>
-        <div>
-          <label for="f_duration">Varighed (min, valgfri)</label>
-          <input id="f_duration" type="number" min="0" step="5" placeholder="30">
-        </div>
-        <div>
-          <label for="f_location">Sted (valgfri)</label>
-          <input id="f_location" type="text" placeholder="Adresse/sted">
-        </div>
-        <div class="full">
-          <label for="f_note">Note (valgfri)</label>
-          <textarea id="f_note" placeholder="Noter"></textarea>
-        </div>
-        <div class="full row">
-          <input id="f_repeat" type="checkbox"><label for="f_repeat">Gentag hver uge</label>
-          <input id="f_done" type="checkbox" style="margin-left:16px"><label for="f_done">Marker som udført</label>
-        </div>
-      </div>
-      <div class="actions">
-        <button class="btn ghost" id="btnDelete" style="display:none">Slet</button>
-        <button class="btn primary" id="btnSave">Gem</button>
+        <a class="panel tile" id="tileHomey" data-tile="homey" href="#">
+          <div class="meta"><div class="label" id="labelHomey">Homey</div><div class="sub" id="subHomey">Dashboard</div></div>
+          <div class="logo-box"><img id="logoHomey" alt="Homey"></div>
+        </a>
+
+        <a class="panel tile" id="tileSonos" data-tile="sonos" href="#">
+          <div class="meta"><div class="label" id="labelSonos">Sonos</div><div class="sub" id="subSonos">Lyd</div></div>
+          <div class="logo-box"><img id="logoSonos" alt="Sonos"></div>
+        </a>
       </div>
     </div>
+  </div>
+
+  <!-- Kalender overlay -->
+  <section class="calendar-view" id="calendarView" aria-hidden="true" hidden>
+    <div class="calendar-inner">
+      <div class="topbar">
+        <button class="back-btn" id="closeCalendar" type="button">⬅ Tilbage</button>
+      </div>
+      <div class="calframe panel">
+        <iframe id="calendarFrame" title="Kalender"></iframe>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAB: Indstillinger -->
+  <div class="fab">
+    <button id="openSettings" title="Indstillinger" aria-label="Indstillinger" type="button">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0  0 0-.33-1.82l-.06-.06a2 2 0  1 1 2.83-2.83l.06.06a1.65 1.65 0  0 0 1.82.33H9a1.65 1.65 0  0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0  0 0 1 1.51 1.65 1.65 0  0 0 1.82-.33l.06.06a2 2 0  1 1 2.83 2.83l-.06.06a1.65 1.65 0  0 0-.33 1.82V9c0 .66.26 1.3.73 1.77.47.47 1.11.73 1.77.73h.09a2 2 0  1 1 0 4h-.09a1.65 1.65 0  0 0-1.51 1Z"/></svg>
+    </button>
   </div>
 
   <!-- Indstillinger -->
-  <div class="settings-backdrop" id="settingsBackdrop">
-    <div class="settings">
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <h3>Indstillinger · Familie</h3>
-        <button class="btn ghost" id="btnSettingsClose">Luk</button>
+  <div class="modal" id="settingsModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" hidden>
+    <div class="dialog" onclick="event.stopPropagation()">
+      <div class="dlg-head">
+        <h3 id="settingsTitle">Indstillinger</h3>
+        <div class="tabs" role="tablist">
+          <button class="tab active" data-tab="tab-appearance" type="button">Udseende</button>
+          <button class="tab" data-tab="tab-entries" type="button">Indgange</button>
+          <button class="tab" data-tab="tab-sync" type="button">Synkronisering</button>
+          <button class="tab" data-tab="tab-screen" type="button">Skærm</button>
+        </div>
       </div>
-      <div id="settingsRows"></div>
-      <div class="tip">Tip: Billeder gemmes lokalt i browseren (ingen upload til internettet).</div>
-      <div class="actions">
-        <button class="btn primary" id="btnSettingsSave">Gem ændringer</button>
+
+      <div class="dlg-body">
+        <section id="tab-appearance" class="section active">
+          <div class="form-grid">
+            <div class="field"><label for="themeColor">Primærfarve</label><input type="color" id="themeColor"/></div>
+            <div class="field"><label for="bgColor">Baggrundsfarve</label><input type="color" id="bgColor"/></div>
+          </div>
+        </section>
+
+        <section id="tab-entries" class="section">
+          <div class="form-grid">
+            <div class="field full">
+              <label>Kalenderkilde</label>
+              <div class="row">
+                <label class="row"><input type="radio" name="calendarMode" value="url" checked> URL</label>
+                <label class="row"><input type="radio" name="calendarMode" value="upload"> Upload HTML (lokal)</label>
+              </div>
+              <input type="url" id="calendarUrl" placeholder="https://rasmusgunnar.github.io/kiosk-calendar/"/>
+              <div class="row" id="calendarUploadRow" style="display:none;">
+                <input type="file" id="calendarFile" accept="text/html,.html"/>
+                <span class="hint">Upload gemmes kun lokalt. Deling kræver URL (GitHub Pages).</span>
+              </div>
+            </div>
+
+            <div class="field"><label for="homeyUrl">Homey dashboard URL</label><input type="url" id="homeyUrl" placeholder="https://my.homey.app/..."/></div>
+            <div class="field"><label for="sonosUrl">Sonos link</label><input type="text" id="sonosUrl" placeholder="com.sonos.acr2/com.sonos.passport.ui.launcheractivity.LauncherActivity" inputmode="url"/><span class="hint">Indsæt Sonos app-link eller pakke/aktivitet (f.eks. com.sonos.acr2/com.sonos.passport.ui.launcheractivity.LauncherActivity).</span></div>
+          </div>
+        </section>
+
+        <section id="tab-sync" class="section">
+          <div class="form-grid">
+            <div class="field"><label for="householdId">Husstands-ID</label><input id="householdId" placeholder="auto-genereres"/></div>
+            <div class="field"><label>Status</label><div class="left-note"><span id="lastSync">—</span></div></div>
+          </div>
+        </section>
+
+        <section id="tab-screen" class="section">
+          <div class="form-grid">
+            <div class="field"><label for="keepAwake">Hold skærm vågen</label><div class="row"><input type="checkbox" id="keepAwake"/><span class="hint">Aktiveres efter første tryk.</span></div></div>
+          </div>
+        </section>
+      </div>
+
+      <div class="dlg-foot">
+        <div class="left-note"><strong>Synk:</strong> <span id="syncNote">—</span></div>
+        <div class="actions">
+          <button class="btn" id="resetConfig" type="button">Nulstil</button>
+          <button class="btn" id="closeSettings" type="button">Luk</button>
+          <button class="btn primary" id="saveSettings" type="button">Gem</button>
+        </div>
       </div>
     </div>
   </div>
 
-<script>
-  /* ========= Konfiguration ========= */
-  const GAS_URL = "https://script.google.com/macros/s/AKfycbyQeS_NvMVv4A3IImB6S3AsRt67aSpeKuaoHHSf8K4xRE9sx3zSZS8zHlvZFL_WDIKl/exec";
-  const SYNC_MS = 120000; // 2 min
-  const LS_ITEMS = "fam_items_v1";
-  const LS_GCAL_INDEX = "gcal_index";
-  const LS_PREFS = "fam_people_prefs_v1";
-
-  // ---------- Type-normalisering ----------
-  function normalizeType(t){
-    if (t === "Anden aftale" || t === "Andre aftaler") return "Aktivitet";
-    if (t === "Fritidsinteresser") return "Fritidsinteresse";
-    return t || "Aktivitet";
-  }
-
-  // Default personer
-  const DEFAULT_PEOPLE = [
-    {name:"Alle",  color:"#0f172a"},
-    {name:"Far",   color:"#ef4444"},
-    {name:"Mor",   color:"#8b5cf6"},
-    {name:"Carl",  color:"#22c55e"},
-    {name:"Jakob", color:"#0ea5e9"},
-    {name:"Ida",   color:"#f59e0b"},
-  ];
-
-  /* ========= Preferences (farver + avatar) ========= */
-  function loadPrefs(){ try{ return JSON.parse(localStorage.getItem(LS_PREFS)) || {}; } catch(_){ return {}; } }
-  function savePrefs(p){ localStorage.setItem(LS_PREFS, JSON.stringify(p)); }
-  function getPeople(){
-    const prefs = loadPrefs();
-    return DEFAULT_PEOPLE.map(p=>{
-      const pp = prefs[p.name] || {};
-      return {...p, color: pp.color || p.color, avatar: pp.avatar || ""};
-    });
-  }
-
-  /* ========= Model ========= */
-  let items = loadItems();
-  let PEOPLE = getPeople();
-  let currentPerson = "Alle";
-  let editingId = null;
-
-  function startOfWeek(d=new Date()){
-    const day = (d.getDay()+6)%7; // Mon=0
-    const monday = new Date(d); monday.setDate(d.getDate()-day); monday.setHours(0,0,0,0);
-    return monday;
-  }
-  let weekStart = startOfWeek();
-
-  function fmtDateISO(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,'0')+"-"+String(d.getDate()).padStart(2,'0'); }
-  function pad(n){ return (n<10?'0':'')+n; }
-  function monthName(m){
-    return ["januar","februar","marts","april","maj","juni","juli","august","september","oktober","november","december"][m];
-  }
-  function weekNumber(d){
-    d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-    const dayNum = d.getUTCDay() || 7;
-    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-    const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
-    return Math.ceil((((d - yearStart) / 86400000) + 1)/7);
-  }
-  function loadItems(){
-    try{
-      const arr = JSON.parse(localStorage.getItem(LS_ITEMS)||"[]");
-      const migrated = arr.map(it => ({
-        ...it,
-        type: normalizeType(it.type),
-        person: it.person || "Alle"
-      }));
-      localStorage.setItem(LS_ITEMS, JSON.stringify(migrated));
-      return migrated;
-    }catch(_){ return []; }
-  }
-  function saveItems(){ localStorage.setItem(LS_ITEMS, JSON.stringify(items)); }
-  function upsertItem(obj){
-    obj.type = normalizeType(obj.type);
-    if(!obj.person) obj.person = "Alle";
-    const i = items.findIndex(x => x.id === obj.id);
-    if(i>=0){ items[i]=obj; } else { items.push(obj); }
-    saveItems(); render();
-  }
-  function deleteItem(id){
-    items = items.filter(x => x.id !== id);
-    saveItems(); render();
-  }
-
-  /* ========= Helpers for gentagelser (robust base-opslag) ========= */
-  function resolveBaseId(id){
-    if(!id) return id;
-    if(id.startsWith("rpt|")){            // nyt format
-      return id.split("|")[1];
-    }
-    if(id.startsWith("rpt:")){            // gammelt format
-      return id.split(":")[1];
-    }
-    return id; // allerede base
-  }
-  function getBaseItemFromAnyId(anyId){
-    const baseId = resolveBaseId(anyId);
-    let it = items.find(x=>x.id===baseId);
-    if(it) return it;
-
-    const el = document.querySelector(`.item[data-id="${escapeCss(anyId)}"]`);
-    if(el && el.dataset.baseId){
-      return items.find(x=>x.id===el.dataset.baseId) || null;
-    }
-    return null;
-  }
-  function escapeCss(s){ return String(s).replace(/(["\\.#:[\]()])/g,"\\$1"); }
-
-  /* ========= UI refs ========= */
-  const grid = document.getElementById('grid');
-  const weekNoEl = document.getElementById('weekNo');
-  const peopleBar = document.getElementById('peopleBar');
-  const badge = document.getElementById('syncBadge');
-  const btnWeek = document.getElementById('btnWeek');
-
-  function setBadge(t){ badge.textContent = "Google sync: " + t; }
-
-  function personColor(name){ const p = PEOPLE.find(x=>x.name===name); return p ? p.color : "#64748b"; }
-  function personAvatar(name){ const p = PEOPLE.find(x=>x.name===name); return p?.avatar || ""; }
-
-  function weekRangeLabel(){
-    const s = new Date(weekStart);
-    const e = new Date(weekStart); e.setDate(weekStart.getDate()+6);
-    const sameMonth = s.getMonth()===e.getMonth();
-    return sameMonth
-      ? `${s.getDate()}.–${e.getDate()}. ${monthName(e.getMonth())}`
-      : `${s.getDate()}. ${monthName(s.getMonth())} – ${e.getDate()}. ${monthName(e.getMonth())}`;
-  }
-
-  function buildPeople(){
-    peopleBar.innerHTML = "";
-    for(const p of PEOPLE){
-      const chip = document.createElement('button');
-      chip.className = "chip" + (p.name===currentPerson?" active":"");
-      chip.style.borderColor = p.name!=="Alle" ? personColor(p.name) : "";
-      const media = p.name!=="Alle" && personAvatar(p.name)
-        ? `<img class="avatar" src="${personAvatar(p.name)}" alt="${p.name}">`
-        : `<span class="avatar" style="background:${personColor(p.name)}22; display:grid; place-items:center; font-weight:800; color:#111;">${p.name[0]}</span>`;
-      const tally = p.name!=="Alle" ? `<span class="tally" data-person="${p.name}"></span>` : "";
-      chip.innerHTML = `${media}<span>${p.name}</span>${tally}`;
-      chip.addEventListener('click', ()=>{ currentPerson = p.name; buildPeople(); render(); });
-      peopleBar.appendChild(chip);
-    }
-  }
-
-  function buildGrid(){
-    grid.innerHTML = "";
-    const names = ["mandag","tirsdag","onsdag","torsdag","fredag","lørdag","søndag"];
-    for(let i=0;i<7;i++){
-      const d = new Date(weekStart); d.setDate(weekStart.getDate()+i);
-      const iso = fmtDateISO(d);
-      const card = document.createElement('div');
-      card.className = "day" + (fmtDateISO(new Date())===iso ? " today":"");
-      card.setAttribute('data-date', iso);
-      const head = document.createElement('div'); head.className="head";
-      const name = document.createElement('div'); name.className="name"; name.textContent = names[i];
-      const date = document.createElement('div'); date.className="date"; date.textContent = pad(d.getDate()) + ". " + pad(d.getMonth()+1) + ".";
-      head.appendChild(name); head.appendChild(date);
-      const list = document.createElement('div'); list.className="list";
-      list.innerHTML = `
-        <div class="section" data-section="Aktivitet">
-          <div class="h">Aktiviteter</div>
-          <div class="items"></div>
+  <!-- Webpanel -->
+  <div id="wkPanel" class="wk-panel" aria-hidden="true" hidden>
+    <div class="wk-shell">
+      <div class="wk-topbar">
+        <button id="wkBack" class="btn" type="button">← Tilbage</button>
+        <div id="wkTitle" class="title">Indlæser…</div>
+      </div>
+      <iframe id="wkFrame" class="wk-iframe" sandbox="allow-forms allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer" allow="autoplay; fullscreen; picture-in-picture"></iframe>
+      <div id="wkBlocked" class="wk-blocked" hidden>
+        <div class="wk-blocked-card">
+          <h4>Kan ikke indlæse siden</h4>
+          <p>Vi kunne ikke indlæse <strong id="wkBlockedHost">den valgte side</strong> her i panelet.</p>
+          <p id="wkBlockedHint">Siden kan være blokeret for indlejring. Åbn den evt. direkte i en ny fane.</p>
+          <div class="wk-blocked-actions">
+            <button id="wkBlockedClose" class="btn" type="button">Tilbage</button>
+            <button id="wkBlockedOpen" class="btn primary" type="button">Åbn fuld side</button>
+          </div>
         </div>
-        <div class="section" data-section="Fritidsinteresse">
-          <div class="h">Fritidsinteresser</div>
-          <div class="items"></div>
-        </div>
-        <div class="section" data-section="Opgave">
-          <div class="h">Opgaver</div>
-          <div class="items"></div>
-        </div>`;
-      card.appendChild(head); card.appendChild(list);
-      grid.appendChild(card);
-    }
+      </div>
+    </div>
+  </div>
+
+  <!-- Synk badge -->
+  <div id="syncBadge" class="sync-badge sync-offline" aria-live="polite">
+    <span class="dot"></span><span id="syncBadgeText">Offline</span><span id="syncBadgeNote" class="note"></span>
+  </div>
+
+  <!-- SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/nosleep/0.12.0/NoSleep.min.js"></script>
+
+  <script>
+  const $=id=>document.getElementById(id);
+  const on=(el,ev,fn)=>el&&el.addEventListener(ev,fn,false);
+  const nowStr=()=>new Date().toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'});
+  const debounced=(ms,fn)=>{let t;return function(){clearTimeout(t);t=setTimeout(()=>fn.apply(this,arguments),ms);};};
+
+  /* Ur */
+  function updateClock(){
+    const t=$('clockTime'),d=$('clockDate');const n=new Date();
+    t.textContent=n.toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'});
+    const s=n.toLocaleDateString('da-DK',{weekday:'long',day:'2-digit',month:'long'});
+    d.textContent=s.charAt(0).toUpperCase()+s.slice(1);
   }
+  setInterval(updateClock,1000);updateClock();
 
-  function withinWeekDate(dateISO){
-    const [Y,M,D] = dateISO.split('-').map(Number);
-    const d = new Date(Y, M-1, D);
-    const end = new Date(weekStart); end.setDate(weekStart.getDate()+7);
-    return d >= weekStart && d < end;
-  }
+  /* Vejr (Open-Meteo) */
+  (function(){
+    const T=$('weatherTemp'), C=$('weatherCity'), D=$('weatherCond'); if(!T||!C||!D) return;
+    const WMAP={0:'Klart',1:'Mest klart',2:'Delvist skyet',3:'Overskyet',45:'Tåge',48:'Isslud/tåge',51:'Finregn',53:'Regn',55:'Kraftig regn',56:'Isfinregn',57:'Isregn',61:'Let regn',63:'Regn',65:'Kraftig regn',66:'Isregn',67:'Kraftig isregn',71:'Let sne',73:'Snefald',75:'Kraftig sne',77:'Snebyger',80:'Lette byger',81:'Byger',82:'Kraftige byger',85:'Snebyger',86:'Kraftige snebyger',95:'Tordenvejr',96:'Torden/hagl',99:'Torden/kraftig hagl'};
+    function pos(timeout=7000){return new Promise(r=>{let d=false;const fb=()=>{if(d)return;d=true;r({coords:{latitude:55.6761,longitude:12.5683},fallback:true});};if(!navigator.geolocation){fb();return;}const to=setTimeout(fb,timeout);navigator.geolocation.getCurrentPosition(p=>{if(d)return;d=true;clearTimeout(to);r(p);},fb,{maximumAge:900000,timeout:timeout-500});});}
+    async function wx(){try{const p=await pos();const la=+p.coords.latitude.toFixed(4),lo=+p.coords.longitude.toFixed(4);const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}&current=temperature_2m,weather_code&timezone=auto`);const j=await r.json();const t=Math.round(j?.current?.temperature_2m);const code=j?.current?.weather_code;if(Number.isFinite(t))T.textContent=t+'°';D.textContent=WMAP[code]||'—';if(p.fallback)C.textContent='København';}catch{D.textContent='—';}}
+    wx(); setInterval(wx,20*60*1000);
+  })();
 
-  function escapeHtml(str){ return String(str).replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]); }
+  /* Config */
+  const TILE_HANDLERS={calendar:'openCalendar',homey:'openHomey',sonos:'openSonos'};
+  const LS_KEY='webkioskConfigV2';
+  const DEFAULT_CAL_PATH='familieoversigt_index_v11_autosync_READY_UPDATED.html';
+  const DEFAULT_CAL_URL=(()=>{try{return new URL('./'+DEFAULT_CAL_PATH,location.href).toString();}catch{return DEFAULT_CAL_PATH;}})();
+  const defaults={calendar:{mode:'url',url:DEFAULT_CAL_URL,fileName:'',fileData:''},homeyUrl:'',sonosUrl:'',theme:{color:'#0f172a',background:'#f6f7f9'},keepAwake:true,householdId:'',_ts:0};
+  function load(){try{const o=JSON.parse(localStorage.getItem(LS_KEY)||'{}');const deep=(m,d)=>{const r=Array.isArray(d)?[]:{};for(const k in d){if(d[k]&&typeof d[k]==='object'&&!Array.isArray(d[k]))r[k]=deep((m||{})[k]||{},d[k]);else r[k]=(m||{})[k]!==undefined?(m||{})[k]:d[k];}return r;};return deep(o,defaults);}catch{return JSON.parse(JSON.stringify(defaults));}}
+  function save(c){try{localStorage.setItem(LS_KEY,JSON.stringify(c));}catch{}}
+  let config=load();
 
-  function materializeRepeats(base){
-    const out = [...base];
-    const weekISO = fmtDateISO(weekStart);
-    for(const it of base){
-      if(!it.repeatWeekly) continue;
-      if(withinWeekDate(it.date)) continue;
-      const [y,m,dd] = it.date.split('-').map(Number);
-      const src = new Date(y, m-1, dd);
-      const srcDow = (src.getDay()+6)%7; // Mon=0
-      const target = new Date(weekStart); target.setDate(weekStart.getDate()+srcDow);
-      const clone = {...it};
-      clone.baseId = it.id;
-      clone.id = "rpt|"+it.id+"|"+weekISO;
-      clone.date = fmtDateISO(target);
-      out.push(clone);
-    }
-    return out;
-  }
-
-  function symbolsForCount(n){
-    if(n<=0) return "";
-    if(n===1) return "🪙";
-    if(n===2) return "🪙🪙";
-    if(n===3) return "🟨";
-    if(n===4) return "🟨🟨";
-    if(n===5) return "💎";
-    if(n===6) return "💎💎";
-    return "👑";
-  }
-
-  function render(){
-    weekNoEl.textContent = weekNumber(weekStart);
-    btnWeek.textContent = weekRangeLabel();
-
-    buildGrid();
-
-    const materialized = materializeRepeats(items);
-
-    const doneCounts = {};
-    for(const p of PEOPLE){ if(p.name!=="Alle") doneCounts[p.name]=0; }
-    for(const it of materialized){
-      if(it.type==="Opgave" && it.done && it.person && withinWeekDate(it.date)){
-        doneCounts[it.person] = (doneCounts[it.person]||0)+1;
-      }
-    }
-    for(const p of PEOPLE){
-      if(p.name==="Alle") continue;
-      const span = document.querySelector(`.tally[data-person="${p.name}"]`);
-      if(span){ span.textContent = symbolsForCount(doneCounts[p.name]||0); }
-    }
-
-    const visible = materialized
-      .filter(it => withinWeekDate(it.date))
-      .filter(it => currentPerson==="Alle" ? true : (it.person === currentPerson))
-      .sort((a,b)=> (a.date.localeCompare(b.date) || (a.time||"").localeCompare(b.time||"")));
-
-    for(const it of visible){
-      const day = document.querySelector(`.day[data-date="${it.date}"]`);
-      if(!day) continue;
-
-      const type = normalizeType(it.type);
-      const section = day.querySelector(`.section[data-section="${type}"] .items`);
-      if(!section) continue;
-
-      const div = document.createElement('div');
-      const color = personColor(it.person);
-      div.className = "item" + (it.done ? " done" : "");
-      div.style.borderLeftColor = color;
-      div.setAttribute('data-id', it.id);
-      div.setAttribute('data-base-id', it.baseId || resolveBaseId(it.id));
-
-      const leftHTML = (type==="Opgave")
-        ? `<input type="checkbox" ${it.done?'checked':''} data-opgave="${it.id}" title="Marker som udført">`
-        : (it.time ? escapeHtml(it.time) : '<span class="muted">Heldag</span>');
-
-      div.innerHTML = `
-        <div class="left">${leftHTML}</div>
-        <div class="meta">
-          <div class="title">${escapeHtml(it.title||"(uden titel)")}${it.repeatWeekly?' · <span class="muted">↻ uge</span>':''}</div>
-          ${it.location? `<div class="note">${escapeHtml(it.location)}</div>`:""}
-          ${it.note? `<div class="note">${escapeHtml(it.note)}</div>`:""}
-        </div>`;
-
-      div.addEventListener('click', (e)=>{
-        if(e.target && (e.target.matches('input[type="checkbox"]') || e.target.hasAttribute('data-opgave'))) return;
-        openEditor(div.getAttribute('data-id'));
-      });
-
-      section.appendChild(div);
-    }
-
-    document.querySelectorAll('.day').forEach(d=>{
-      d.querySelectorAll('.section').forEach(sec=>{
-        const has = sec.querySelector('.items').children.length>0;
-        sec.style.display = has ? '' : 'none';
-      });
-    });
-
-    document.querySelectorAll('input[type="checkbox"][data-opgave]').forEach(cb=>{
-      cb.addEventListener('click', (e)=>{ e.stopPropagation(); });
-      cb.addEventListener('change', (e)=>{
-        const anyId = e.target.getAttribute('data-opgave');
-        const item = getBaseItemFromAnyId(anyId);
-        if(!item) return;
-        item.done = e.target.checked;
-        upsertItem(item);
+  function setupTileInteractions(){
+    document.querySelectorAll('[data-tile]').forEach(el=>{
+      if(el._tileBound) return;
+      el._tileBound=true;
+      el.addEventListener('click',evt=>{
+        evt.preventDefault();
+        const tile=el.dataset.tile;
+        if(!tile) return;
+        const handlerName=TILE_HANDLERS[tile];
+        const fn=handlerName && window.__handlers && window.__handlers[handlerName];
+        if(typeof fn==='function') fn();
       });
     });
   }
 
-  /* ========= Editor ========= */
-  const backdrop = document.getElementById('backdrop');
-  const dlgClose = document.getElementById('dlgClose');
-  const btnSave = document.getElementById('btnSave');
-  const btnDelete = document.getElementById('btnDelete');
-  const dlgTitle = document.getElementById('dlgTitle');
-
-  const f_title = document.getElementById('f_title');
-  const f_type = document.getElementById('f_type');
-  const f_person = document.getElementById('f_person');
-  const f_date = document.getElementById('f_date');
-  const f_time = document.getElementById('f_time');
-  const f_duration = document.getElementById('f_duration');
-  const f_location = document.getElementById('f_location');
-  const f_note = document.getElementById('f_note');
-  const f_repeat = document.getElementById('f_repeat');
-  const f_done = document.getElementById('f_done');
-
-  function buildPersonOptions(){
-    const opts = PEOPLE.map(p=>`<option${p.name==="Alle"?' selected':''}>${p.name}</option>`).join('');
-    f_person.innerHTML = opts;
-  }
-
-  function openNew(dateISO){
-    editingId = null;
-    dlgTitle.textContent = "Tilføj";
-    f_title.value = "";
-    f_type.value = "Aktivitet";
-    f_person.value = "Alle";
-    f_date.value = dateISO || fmtDateISO(new Date());
-    f_time.value = "";
-    f_duration.value = "";
-    f_location.value = "";
-    f_note.value = "";
-    f_repeat.checked = false;
-    f_done.checked = false;
-    btnDelete.style.display = "none";
-    backdrop.style.display = "flex";
-    document.body.classList.add('modal-open');
-  }
-
-  function openEditor(anyId){
-    const base = getBaseItemFromAnyId(anyId);
-    if(!base) return;
-
-    editingId = base.id;
-    dlgTitle.textContent = "Rediger";
-    f_title.value = base.title||"";
-    f_type.value = normalizeType(base.type)||"Aktivitet";
-    f_person.value = base.person || "Alle";
-    f_date.value = base.date || fmtDateISO(new Date());
-    f_time.value = base.time || "";
-    f_duration.value = base.durationMin || "";
-    f_location.value = base.location || "";
-    f_note.value = base.note || "";
-    f_repeat.checked = !!base.repeatWeekly;
-    f_done.checked = !!base.done;
-
-    btnDelete.style.display = "inline-flex";
-    backdrop.style.display = "flex";
-    document.body.classList.add('modal-open');
-  }
-
-  document.getElementById('dlgClose').addEventListener('click', ()=> { backdrop.style.display="none"; document.body.classList.remove('modal-open'); });
-  btnDelete.addEventListener('click', ()=>{ if(editingId){ deleteItem(editingId); backdrop.style.display="none"; document.body.classList.remove('modal-open'); }});
-  btnSave.addEventListener('click', ()=>{
-    const obj = {
-      id: editingId || ("loc:"+Date.now().toString(36)+Math.random().toString(36).slice(2)),
-      title: f_title.value.trim() || "(uden titel)",
-      type: normalizeType(f_type.value),
-      person: f_person.value || "Alle",
-      date: f_date.value,
-      time: f_time.value || "",
-      durationMin: f_duration.value ? parseInt(f_duration.value,10) : 0,
-      location: f_location.value.trim(),
-      note: f_note.value.trim(),
-      repeatWeekly: !!f_repeat.checked,
-      done: !!f_done.checked,
-      source: editingId && String(editingId).startsWith("gcal") ? "google" : "local"
-    };
-    upsertItem(obj);
-    backdrop.style.display="none";
-    document.body.classList.remove('modal-open');
-  });
-
-  document.getElementById('btnNew').addEventListener('click', ()=> openNew());
-  document.getElementById('btnPrev').addEventListener('click', ()=>{ weekStart.setDate(weekStart.getDate()-7); render(); });
-  document.getElementById('btnNext').addEventListener('click', ()=>{ weekStart.setDate(weekStart.getDate()+7); render(); });
-  document.getElementById('btnWeek').addEventListener('click', ()=>{ weekStart = startOfWeek(new Date()); render(); });
-
-  /* ========= Google Apps Script sync ========= */
-  function toLocalDateISO(ev){
-    if (ev.startISO){
-      const d = new Date(ev.startISO);
-      return fmtDateISO(d);
-    }
-    return ev.date;
-  }
-  function weekdayFromEv(ev){
-    const d = new Date(ev.startISO || (ev.date+"T00:00:00"));
-    return (d.getDay()+6)%7; // Mon=0
-  }
-  function recurrenceKey(ev){
-    if (ev.recurringEventId) return "weekly:"+ev.recurringEventId;
-    const recArr = Array.isArray(ev.recurrence) ? ev.recurrence.join(';') : (ev.rrule || ev.recurrence || "");
-    if (/FREQ=WEEKLY/i.test(recArr) || ev.isRecurring === true) return null;
-    return null;
-  }
-  async function fetchEvents(){
-    const url = GAS_URL + (GAS_URL.includes("?") ? "&" : "?") + "t=" + Date.now();
-    const res = await fetch(url, { cache: "no-store" });
-    if(!res.ok) throw new Error("Apps Script fejl: " + res.status);
-    const data = await res.json();
-    return Array.isArray(data.items) ? data.items : [];
-  }
-  function loadIndex(){ try{ return JSON.parse(localStorage.getItem(LS_GCAL_INDEX) || "{}"); }catch(_){ return {}; } }
-  function saveIndex(o){ localStorage.setItem(LS_GCAL_INDEX, JSON.stringify(o)); }
-
-  async function syncNow(){
+  /* HID lås fra ?hid=... (stabil efter cache-rydning) */
+  (function lockHIDFromQuery(){
     try{
-      setBadge("henter…");
-      const events = await fetchEvents();
-      const idx = loadIndex();
-      let created = 0;
-
-      const groups = new Map();
-      for(const ev of events){
-        let key = recurrenceKey(ev);
-        if(!key){
-          const title = (ev.summary||"").trim().toLowerCase();
-          const wd = weekdayFromEv(ev);
-          const time = (ev.time||"").trim();
-          key = `heur:${title}|${wd}|${time}`;
-        }
-        if(!groups.has(key)) groups.set(key, []);
-        groups.get(key).push(ev);
+      const qs=new URLSearchParams(location.search);
+      const hidQ=(qs.get('hid')||'').toUpperCase().trim();
+      if(hidQ && (!config.householdId || config.householdId.toUpperCase()!==hidQ)){
+        config.householdId=hidQ;
+        save(config);
       }
+    }catch{}
+  })();
 
-      const processed = new Set();
-      for(const [key, list] of groups){
-        const latestUpdated = list.reduce((a,b)=> (a.updated>b.updated?a:b)).updated;
+  if(!config.householdId){config.householdId=Math.random().toString(36).slice(2,10).toUpperCase();save(config);}
 
-        const isOfficialRepeat = key.startsWith("weekly:");
-        let isHeuristicRepeat = false;
-        if (!isOfficialRepeat) {
-          if (list.length >= 2) {
-            const titleOk = (list[0].summary || "").trim().length >= 3;
-            if (titleOk) {
-              const ms = list.map(ev => new Date(toLocalDateISO(ev)).getTime()).sort((a,b)=>a-b);
-              const spanDays = (ms[ms.length-1] - ms[0]) / (1000*60*60*24);
-              const distinctDates = new Set(ms.map(x => new Date(x).toDateString())).size;
-              isHeuristicRepeat = (distinctDates >= 2) && (spanDays >= 6);
-            }
-          }
-        }
+  function applyTheme(){document.documentElement.style.setProperty('--accent',config.theme?.color||'#0f172a');document.documentElement.style.setProperty('--bg',config.theme?.background||'#f6f7f9');}
+  function applyForm(){ $('themeColor').value=config.theme?.color||'#0f172a'; $('bgColor').value=config.theme?.background||'#f6f7f9'; $('keepAwake').checked=!!config.keepAwake; $('calendarUrl').value=config.calendar?.url||DEFAULT_CAL_URL; $('homeyUrl').value=config.homeyUrl||''; $('sonosUrl').value=config.sonosUrl||''; $('householdId').value=(config.householdId||'').toUpperCase(); const mode=config.calendar?.mode||'url'; [...document.querySelectorAll('input[name="calendarMode"]')].forEach(r=>r.checked=(r.value===mode)); $('calendarUploadRow').style.display=(mode==='upload')?'':'none'; }
+  function applyLogos(){
+    const builtIn={calendar:'assets/Kalender',homey:'assets/Homey',sonos:'assets/Sonos'};
+    $('logoCalendar').src=builtIn.calendar;
+    $('logoHomey').src=builtIn.homey;
+    $('logoSonos').src=builtIn.sonos;
+  }
+  function applySonosSubtitle(){ const el=$('subSonos'); if(!el) return; const url=(config.sonosUrl||'').trim(); el.textContent=url?'Åbner Sonos':'Lyd'; }
+  function applyAll(){applyTheme();applyForm();applyLogos();applySonosSubtitle();} applyAll();
 
-        if (isOfficialRepeat || isHeuristicRepeat){
-          const storageId = "gcalr:"+key;
-          if (idx[storageId] !== latestUpdated){
-            list.sort((a,b)=> (toLocalDateISO(a)).localeCompare(toLocalDateISO(b)));
-            const anchor = list[0];
-            const item = {
-              id: storageId,
-              title: anchor.summary || "(uden titel)",
-              type: "Aktivitet",
-              person: "Alle",
-              date: toLocalDateISO(anchor),
-              time: anchor.time || "",
-              durationMin: anchor.durationMin || 30,
-              location: anchor.location || "",
-              note: anchor.description || "",
-              repeatWeekly: true,
-              done: false,
-              source: "google"
-            };
-            upsertItem(item);
-            idx[storageId] = latestUpdated;
-            created++;
-          }
-          list.forEach(ev=> processed.add(ev.id));
-        }
+  /* Tabs */
+  function setupTabs(){
+    const dlg=document.querySelector('#settingsModal .dialog'); if(!dlg) return;
+    const tabs=[...dlg.querySelectorAll('.tab')];
+    const sections=[...dlg.querySelectorAll('.section')];
+    const act=(id)=>{ tabs.forEach(t=>t.classList.toggle('active',t.dataset.tab===id));
+                      sections.forEach(s=>s.classList.toggle('active',s.id===id)); };
+    tabs.forEach(btn=>{ btn.onclick=(e)=>{e.preventDefault();e.stopPropagation();act(btn.dataset.tab);} });
+    const first=tabs.find(t=>t.classList.contains('active'))||tabs[0]; if(first) act(first.dataset.tab);
+  }
+
+  /* Bind UI */
+  const writeSoon=debounced(300,queueWriteFirestore);
+  function bind(){
+    on($('themeColor'),'input',function(){config.theme.color=this.value;save(config);applyTheme();writeSoon();});
+    on($('bgColor'),'input',function(){config.theme.background=this.value;save(config);applyTheme();writeSoon();});
+    on($('keepAwake'),'change',function(){config.keepAwake=!!this.checked;save(config);writeSoon();});
+
+    ;[...document.querySelectorAll('input[name="calendarMode"]')].forEach(r=>on(r,'change',function(){config.calendar.mode=r.value;save(config);applyForm();writeSoon();}));
+    on($('calendarUrl'),'input',function(){config.calendar.url=this.value.trim()||DEFAULT_CAL_URL;save(config);writeSoon();});
+    on($('calendarFile'),'change',async function(){if(this.files&&this.files[0]){const f=this.files[0];const txt=await f.text();config.calendar.fileName=f.name;config.calendar.fileData="data:text/html;base64,"+btoa(unescape(encodeURIComponent(txt)));config.calendar.mode='upload';save(config);writeSoon();alert('Kalender gemt lokalt. For deling: brug URL (GitHub Pages).');}});
+
+    on($('homeyUrl'),'input',function(){config.homeyUrl=this.value.trim();save(config);writeSoon();});
+    on($('sonosUrl'),'input',function(){config.sonosUrl=this.value.trim();save(config);applySonosSubtitle();writeSoon();});
+
+    on($('householdId'),'input',function(){const v=this.value.trim().toUpperCase();if(v){config.householdId=v;save(config);startRealtime();writeSoon();}});
+
+    on($('saveSettings'),'click',()=>{config._ts=Date.now();save(config);queueWriteFirestore();hideSettings();});
+    on($('resetConfig'),'click',()=>{if(confirm('Nulstil alle indstillinger?')){localStorage.removeItem(LS_KEY);config=load();if(!config.householdId){config.householdId=Math.random().toString(36).slice(2,10).toUpperCase()}save(config);applyAll();startRealtime();queueWriteFirestore();}});
+    on($('closeSettings'),'click',hideSettings);
+    on($('openSettings'),'click',showSettings);
+  }
+  bind();
+  setupTileInteractions();
+
+  /* Overlays */
+  function showSettings(){const m=$('settingsModal');m.removeAttribute('hidden');m.setAttribute('aria-hidden','false');setupTabs();}
+  function hideSettings(){const m=$('settingsModal');m.setAttribute('hidden','');m.setAttribute('aria-hidden','true');}
+
+  /* Kalender – self-iframe guard */
+  function getCalendarViewParam(){
+    try{
+      const view=(new URLSearchParams(location.search).get('view')||'').trim();
+      return view || '';
+    }catch{return '';}
+  }
+  function openCalendar(){
+    const hid=(config.householdId||'DEFAULT').toUpperCase();
+    const viewParam=getCalendarViewParam();
+    // Luk evt. tidligere overlay for at undgå stacking
+    const v0=$('calendarView'), f0=$('calendarFrame');
+    if(v0 && !v0.hasAttribute('hidden')){ try{f0.src='about:blank';}catch{} v0.setAttribute('hidden',''); v0.setAttribute('aria-hidden','true'); }
+
+    let base='';
+    if(config.calendar?.mode==='upload' && config.calendar?.fileData){ base=config.calendar.fileData; }
+    else { base=(config.calendar?.url||DEFAULT_CAL_URL).trim()||DEFAULT_CAL_URL; }
+
+    try{
+      const here=new URL(location.href);
+      const target=new URL(base,location.href);
+      const samePath=here.pathname.replace(/\/+$/,'')===target.pathname.replace(/\/+$/,'');
+      const looksLikeSelf=/webkiosk_apple_crisp_with_settings_fab\.html/i.test(target.pathname)||/\/test\/?$/i.test(target.pathname);
+      if((here.origin===target.origin && samePath) || looksLikeSelf){
+        alert('Kalender-URL peger på Webkiosk-siden. Sæt URL til: '+DEFAULT_CAL_URL);
+        return;
       }
+    }catch{}
 
-      for(const ev of events){
-        if(processed.has(ev.id)) continue;
-        const storageId = "gcal:"+ev.id;
-        if (idx[storageId] === ev.updated) continue;
-
-        const item = {
-          id: storageId,
-          title: ev.summary || "(uden titel)",
-          type: "Aktivitet",
-          person: "Alle",
-          date: toLocalDateISO(ev),
-          time: ev.time || "",
-          durationMin: ev.durationMin || 30,
-          location: ev.location || "",
-          note: ev.description || "",
-          repeatWeekly: false,
-          done: false,
-          source: "google"
-        };
-        upsertItem(item);
-        idx[storageId] = ev.updated;
-        created++;
+    let src=base;
+    if(!/^data:/i.test(base)){
+      try{ const u=new URL(base,location.href); u.searchParams.set('hid',hid); src=u.toString(); }
+      catch{ src=base+(base.includes('?')?'&':'?')+'hid='+encodeURIComponent(hid); }
+    }
+    if(viewParam && !/^data:/i.test(src)){
+      try{
+        const u=new URL(src,location.href);
+        u.searchParams.set('view',viewParam);
+        src=u.toString();
+      }catch{
+        src=src+(src.includes('?')?'&':'?')+'view='+encodeURIComponent(viewParam);
       }
+    }
 
-      saveIndex(idx);
-      setBadge(created ? `+${created} oprettet` : "ingen ændringer");
-    }catch(e){
-      console.error(e);
-      setBadge("fejl");
+    const frame=$('calendarFrame'), view=$('calendarView');
+    if(!frame||!view){ alert('Kalender-visning mangler i HTML.'); return; }
+    frame.src=src; view.removeAttribute('hidden'); view.setAttribute('aria-hidden','false');
+  }
+  window.__handlers={openCalendar};
+  on($('closeCalendar'),'click',()=>{ $('calendarFrame').src='about:blank'; const v=$('calendarView'); v.setAttribute('hidden',''); v.setAttribute('aria-hidden','true'); });
+
+  /* Webpanel (Homey) */
+
+  const WK_IFRAME_SANDBOX_DEFAULT='allow-forms allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox';
+  const WK_IFRAME_ALLOW_DEFAULT='autoplay; fullscreen; picture-in-picture';
+  let panelLoadTimer=null;
+
+  function stopPanelWatch(){ if(panelLoadTimer){clearTimeout(panelLoadTimer);panelLoadTimer=null;} }
+  function showPanel(url,title){
+    const frame=$('wkFrame');
+    const panel=$('wkPanel');
+    const blocked=$('wkBlocked');
+    stopPanelWatch();
+    if(blocked){blocked.dataset.url=url||'';blocked.setAttribute('hidden','');}
+    if(frame){
+      if(frame._loadHandler){try{frame.removeEventListener('load',frame._loadHandler);}catch{} frame._loadHandler=null;}
+      frame.setAttribute('sandbox',WK_IFRAME_SANDBOX_DEFAULT);
+      frame.setAttribute('allow',WK_IFRAME_ALLOW_DEFAULT);
+      frame.dataset.loading='1';
+      const onLoad=()=>{frame.dataset.loading='0';if(blocked){blocked.setAttribute('hidden','');}stopPanelWatch();};
+      frame._loadHandler=onLoad;
+      frame.addEventListener('load',onLoad,{once:true});
+      try{frame.src='about:blank';}catch{}
+      frame.src=url;
+    }
+    if(panel){panel.removeAttribute('hidden');panel.setAttribute('aria-hidden','false');}
+    $('wkTitle').textContent=title||url;
+    panelLoadTimer=setTimeout(()=>{const frame=$('wkFrame');if(frame&&frame.dataset.loading==='1'){showBlocked(url,title);}},5000);
+  }
+  function hidePanel(){
+    const panel=$('wkPanel');
+    const frame=$('wkFrame');
+    const blocked=$('wkBlocked');
+    stopPanelWatch();
+    if(frame){
+      if(frame._loadHandler){try{frame.removeEventListener('load',frame._loadHandler);}catch{} frame._loadHandler=null;}
+      try{frame.src='about:blank';}catch{}
+      frame.dataset.loading='0';
+    }
+    if(blocked){blocked.dataset.url='';blocked.setAttribute('hidden','');}
+    if(panel){panel.setAttribute('hidden','');panel.setAttribute('aria-hidden','true');}
+  }
+  on($('wkBack'),'click',hidePanel);
+  on($('wkBlockedClose'),'click',hidePanel);
+  on($('wkBlockedOpen'),'click',()=>{const blocked=$('wkBlocked');const target=blocked&&blocked.dataset?blocked.dataset.url:'';hidePanel();if(target){const opened=window.open(target,'_blank','noopener');if(!opened){location.href=target;}}});
+
+  function showBlocked(url,title){
+    stopPanelWatch();
+    const blocked=$('wkBlocked');
+    if(blocked){blocked.dataset.url=url||'';blocked.removeAttribute('hidden');}
+    const hostLabel=$('wkBlockedHost');
+    if(hostLabel){ try{hostLabel.textContent=new URL(url,location.href).hostname;}catch{hostLabel.textContent=url;} }
+    const hint=$('wkBlockedHint');
+    if(hint){ hint.textContent='Siden kan være blokeret for indlejring. Åbn den evt. direkte i en ny fane.'; }
+    $('wkTitle').textContent=title||url;
+    const panel=$('wkPanel');
+    if(panel){panel.removeAttribute('hidden');panel.setAttribute('aria-hidden','false');}
+    const frame=$('wkFrame');
+    if(frame){
+      if(frame._loadHandler){try{frame.removeEventListener('load',frame._loadHandler);}catch{} frame._loadHandler=null;}
+      frame.dataset.loading='blocked';
+      try{frame.src='about:blank';}catch{}
     }
   }
 
-  document.getElementById('btnSync').addEventListener('click', async ()=>{ try{ setBadge('henter…'); await syncNow(); }catch(e){ console.error(e); }});
-  document.getElementById('btnSyncHard').addEventListener('click', async ()=>{ try{
-    localStorage.removeItem('gcal_index');
-    setBadge('nulstiller…');
-    await syncNow();
-  }catch(e){ console.error(e); }});
+  // Bygger et robust intent-link ud fra enten "pkg/Activity" eller et allerede formateret intent/http(s)
+  function buildSonosLink(raw) {
+    const input = (raw || '').trim();
+    if (!input) return '';
 
-  /* ========= Indstillinger (farver + avatar) ========= */
-  const settingsBackdrop = document.getElementById('settingsBackdrop');
-  const btnSettings = document.getElementById('btnSettings');
-  const btnSettingsClose = document.getElementById('btnSettingsClose');
-  const btnSettingsSave = document.getElementById('btnSettingsSave');
-  const settingsRows = document.getElementById('settingsRows');
+    // Hvis det allerede er et intent- eller http(s)-link, brug det som er
+    if (/^(intent:|https?:)/i.test(input)) return input;
 
-  btnSettings.addEventListener('click', ()=>{ buildSettingsUI(); settingsBackdrop.style.display='flex'; document.body.classList.add('modal-open'); });
-  btnSettingsClose.addEventListener('click', ()=>{ settingsBackdrop.style.display='none'; document.body.classList.remove('modal-open'); });
+    // Tillad format "com.sonos.acr2/com.sonos.passport.ui.launcheractivity.LauncherActivity"
+    const m = input.match(/^([A-Za-z0-9_.]+)\/([A-Za-z0-9_.]+)$/);
+    if (!m) return input;
 
-  function buildSettingsUI(){
-    settingsRows.innerHTML = "";
-    for(const p of PEOPLE){
-      const row = document.createElement('div');
-      row.className = 'row-s';
-      row.innerHTML = `
-        <div class="initial">${(p.name[0]||'?').toUpperCase()}</div>
-        <input type="text" value="${p.name}" data-field="name" data-for="${p.name}">
-        <input type="file" accept="image/*" data-field="avatar" data-for="${p.name}">
-        <input type="color" value="${p.color}" data-field="color" data-for="${p.name}">
-        <span class="swatch" style="background:${p.color}"></span>
-      `;
-      settingsRows.appendChild(row);
-      row.querySelector('input[type="color"]').addEventListener('input', e=>{
-        row.querySelector('.swatch').style.background = e.target.value;
-      });
-    }
+    const pkg = m[1];
+    let activity = m[2];
+    if (activity.startsWith('.')) activity = pkg + activity;
+
+    // Mest kompatibel syntaks i WebView/Chrome: "intent:#Intent;...;end" (uden "//")
+    return `intent:#Intent;component=${pkg}/${activity};package=${pkg};end`;
   }
 
-  btnSettingsSave.addEventListener('click', async ()=>{
-    const prefs = loadPrefs();
-    const rows = settingsRows.querySelectorAll('.row-s');
-    rows.forEach(r=>{
-      const nameOld = r.querySelector('input[data-field="name"]').getAttribute('data-for');
-      const nameNew = r.querySelector('input[data-field="name"]').value.trim() || nameOld;
-      const color = r.querySelector('input[data-field="color"]').value;
-      const fileInput = r.querySelector('input[data-field="avatar"]');
-      if (fileInput.files && fileInput.files[0]){
-        const fr = new FileReader();
-        fr.onload = ()=>{ prefs[nameNew] = {color, avatar: fr.result}; savePrefs(prefs); refreshPeopleFromPrefs(); };
-        fr.readAsDataURL(fileInput.files[0]);
-      } else {
-        prefs[nameNew] = {color, avatar: (prefs[nameOld]?.avatar || "")};
-        savePrefs(prefs);
-        refreshPeopleFromPrefs();
+  function openHomey(){
+    const u=(config.homeyUrl||'').trim();
+    if(!u){alert('Ingen Homey URL.');return;}
+    if(/^https?:\/\//i.test(u)) showPanel(u,'Homey'); else location.href=u;
+  }
+  // Åbner Sonos via "rigtigt" <a href="intent:..."> klik, som WebView typisk respekterer
+  function openSonos() {
+    const raw = (config.sonosUrl || '').trim();
+    const link = buildSonosLink(raw);
+    if (!link) { alert('Ingen Sonos link.'); return; }
+
+    // 1) Hvis http(s), vis i panel eller ny fane
+    if (/^https?:\/\//i.test(link)) {
+      try {
+        const opened = window.open(link, '_blank', 'noopener');
+        if (!opened) location.href = link;
+      } catch {
+        try { location.href = link; } catch { try { location.assign(link); } catch {} }
       }
-    });
-    settingsBackdrop.style.display='none';
-    document.body.classList.remove('modal-open');
-  });
+      return;
+    }
 
-  function refreshPeopleFromPrefs(){
-    PEOPLE = getPeople();
-    buildPersonOptions();
-    buildPeople();
-    render();
+    // 2) intent: via anker-klik (kræves ofte i Android WebView/Fully Kiosk)
+    try {
+      const a = document.createElement('a');
+      a.href = link;
+      a.rel = 'noopener';
+      a.target = '_self';            // vigtig for Fully WebView
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch {
+      // 3) Fallback: JS navigation
+      try { location.href = link; }
+      catch { try { location.assign(link); } catch {} }
+    }
+
+    // 4) Ekstra fallback: start kun på package, hvis component skulle fejle
+    //    Fully/Chrome vælger ofte default LAUNCHER activity for pakken
+    setTimeout(() => {
+      try {
+        const pkgOnly = link.includes(';package=') ? link.match(/;package=([^;]+)/)?.[1] : null;
+        if (!pkgOnly) return;
+        const pkgIntent = `intent:#Intent;package=${pkgOnly};end`;
+        const a2 = document.createElement('a');
+        a2.href = pkgIntent;
+        a2.target = '_self';
+        a2.style.display = 'none';
+        document.body.appendChild(a2);
+        a2.click();
+        document.body.removeChild(a2);
+      } catch {}
+    }, 150);
   }
+  window.__handlers.openHomey=openHomey;
+  window.__handlers.openSonos=openSonos;
 
-  /* ========= Init ========= */
-  function buildPersonOptions(){
-    const opts = PEOPLE.map(p=>`<option${p.name==="Alle"?' selected':''}>${p.name}</option>`).join('');
-    document.getElementById('f_person').innerHTML = opts;
+
+  /* NoSleep */
+  let noSleep=null; window.addEventListener('click',()=>{try{if(config.keepAwake&&!noSleep&&window.NoSleep){noSleep=new NoSleep();noSleep.enable();}}catch{}});
+
+  /* Firebase (anon + Firestore) */
+  const firebaseConfig = {
+    apiKey: "AIzaSyA_gh8y-V6kkl95hRzb0ldBxpKWFY5bAck",
+    authDomain: "webkiosk-e5d32.firebaseapp.com",
+    projectId: "webkiosk-e5d32",
+    storageBucket: "webkiosk-e5d32.firebasestorage.app",
+    messagingSenderId: "920175197353",
+    appId: "1:920175197353:web:c3520e9a3ab8146ec4fdb8",
+    measurementId: "G-X6LHDEPS8H"
+  };
+  const fb=firebase.initializeApp(firebaseConfig), auth=firebase.auth(), db=firebase.firestore();
+
+  function badge(state,note){const b=$('syncBadge'),t=$('syncBadgeText'),n=$('syncBadgeNote');['sync-online','sync-syncing','sync-offline','sync-error'].forEach(c=>b.classList.remove(c));b.classList.add('sync-'+state);t.textContent={online:'Online',syncing:'Synkroniserer…',offline:'Offline',error:'Fejl'}[state]||'Offline';n.textContent=note?('· '+note):'';$('syncNote')&&($('syncNote').textContent=t.textContent+(note?(' '+note):''));$('lastSync')&&($('lastSync').textContent=note||'—');}
+  window.addEventListener('online',()=>badge('online',nowStr())); window.addEventListener('offline',()=>badge('offline',''));
+  auth.signInAnonymously().then(()=>badge(navigator.onLine?'online':'offline',nowStr())).catch(e=>{console.error('[auth]',e);badge('error','auth');});
+
+  let unsub=null, writeTimer=null;
+  const docRef=()=>db.collection('webkiosk').doc((config.householdId||'DEFAULT').toUpperCase());
+  async function writeFirestore(){
+    try{
+      const toSave=JSON.parse(JSON.stringify(config));
+      if(toSave.calendar) toSave.calendar.fileData='';
+      toSave._ts=Date.now(); save(Object.assign(config,{_ts:toSave._ts}));
+      await docRef().set(toSave,{merge:true}); badge('online',nowStr());
+    }catch(e){console.error('[write]',e);badge('error',e.code||e.message||'write');}
   }
-
-  function buildAll(){ buildPersonOptions(); buildPeople(); render(); }
-  buildAll();
-  syncNow();
-  setInterval(syncNow, SYNC_MS);
-
-  grid.addEventListener('dblclick', (e)=>{ const day = e.target.closest('.day'); if(day){ openNew(day.getAttribute('data-date')); }});
-</script>
+  function queueWriteFirestore(){if(writeTimer)clearTimeout(writeTimer);badge('syncing','…');writeTimer=setTimeout(writeFirestore,300);}
+  function startRealtime(){
+    try{
+      if(unsub)unsub();
+      unsub=docRef().onSnapshot(s=>{
+        if(!s||!s.exists) return;
+        const r=s.data()||{}, l=load();
+        if(r._ts && (!l._ts || r._ts>l._ts)){ config=Object.assign({},l,r); save(config); applyAll(); }
+      }, e=>{console.error('[listen]',e);badge('error',e.code||'snapshot');});
+    }catch(e){console.error('[listen-outer]',e);badge('error','listen');}
+  }
+  startRealtime();
+  </script>
 </body>
 </html>

@@ -1,760 +1,1662 @@
 <!doctype html>
 <html lang="da">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Familieoversigt – autosync</title>
-<style>
-  :root{
-    --bg:#f6f7fb; --panel:#ffffff; --ink:#0f172a; --muted:#475569; --muter:#94a3b8;
-    --shadow:0 8px 30px rgba(2,6,23,.08); --radius:18px;
-    --edge-pad: clamp(8px, 2vw, 20px); --col-gap: clamp(6px, 1.2vw, 14px);
-    --done-bg:#ecfdf5;
-  }
-  *{box-sizing:border-box}
-  html,body{height:100%}
-  body{margin:0; font:16px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial; color:var(--ink); background:var(--bg);}
-  .wrap{max-width:100vw; margin:0 auto; padding:var(--edge-pad)}
-  header{display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;}
-  .title{font-size:22px; font-weight:800; letter-spacing:.2px}
-  .controls{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
-  .btn{border:1px solid #e5e7eb; background:#fff; border-radius:10px; padding:8px 12px; cursor:pointer; font-weight:700; color:#0f172a; box-shadow:0 2px 6px rgba(2,6,23,.05);}
-  .btn.primary{background:var(--ink); color:#fff; border-color:transparent}
-  .btn.icon{width:36px;height:36px;display:inline-grid;place-items:center;padding:0}
-  .btn.small{padding:8px 10px; border-radius:10px; font-size:13px}
-  .btn.ghost{background:#fff; border:1px solid #e5e7eb;}
-  .chipbar{display:flex; gap:8px; flex-wrap:wrap; margin:10px 0}
-  .chip{display:flex; align-items:center; gap:8px; background:#fff; border:1px solid #e5e7eb; color:#334155; font-weight:700; border-radius:999px; padding:6px 10px; cursor:pointer;}
-  .chip .tally{font-size:14px}
-  .chip.active{background:#0f172a;color:#fff;border-color:transparent}
-  .chip.active .tally{filter:brightness(1.4)}
-  .avatar{width:22px; height:22px; border-radius:999px; object-fit:cover; object-position:center;}
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Familieoversigt – autosync</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='28' fill='%230f172a'/%3E%3Ctext x='32' y='40' text-anchor='middle' font-size='28' fill='white' font-family='Arial'%3EF%3C/text%3E%3C/svg%3E">
+  <style>
+    :root{--bg:#f6f7fb;--panel:#fff;--ink:#0f172a;--muted:#475569;--shadow:0 8px 30px rgba(2,6,23,.08);--radius:18px;--edge:clamp(8px,2vw,20px);--gap:clamp(6px,1.2vw,14px);--done:#ecfdf5}
+    *{box-sizing:border-box}html,body{height:100%}body{margin:0;font:16px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial;color:var(--ink);background:var(--bg)}
+    .wrap{max-width:100vw;margin:0 auto;padding:var(--edge)}
+    header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+    .title{font-size:22px;font-weight:800}.controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .btn{border:1px solid #e5e7eb;background:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;font-weight:700;color:#0f172a;box-shadow:0 2px 6px rgba(2,6,23,.05)}
+    .btn.primary{background:#0f172a;color:#fff;border-color:transparent}.btn.icon{width:36px;height:36px;display:grid;place-items:center;padding:0}
+    .btn.small{padding:8px 10px;border-radius:10px;font-size:13px}.btn.ghost{background:#fff;border:1px solid #e5e7eb}
+    .chipbar{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+    .chip{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #e5e7eb;color:#334155;font-weight:700;border-radius:999px;padding:6px 14px;cursor:pointer}
+    .chip .tally{font-size:18px;line-height:1;letter-spacing:2px}
+    .chip.active{background:#0f172a;color:#fff;border-color:transparent}
+    .chip .avatar{width:44px;height:44px;border-radius:999px;flex-shrink:0;overflow:hidden;display:grid;place-items:center;font-size:14px}
+    .chip .avatar img{width:100%;height:100%;display:block;object-fit:cover;border-radius:inherit}
+    .grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:var(--gap)}
+    .grid.day-mode{grid-template-columns:1fr}
+    .day{background:var(--panel);border-radius:var(--radius);box-shadow:var(--shadow);padding:10px 10px 14px;min-height:42vh;display:flex;flex-direction:column}
+    .head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}.name{font-weight:800}.date{color:#475569;font-size:12px;font-weight:700}.today{outline:2px solid #11182722}
+    .list{display:flex;flex-direction:column;gap:6px;margin-top:6px;flex:1;min-height:100px}.section{margin-top:6px}
+    .section .h{font-size:11px;font-weight:900;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;margin:6px 0 2px}
+    .items{display:flex;flex-direction:column;gap:6px}
+    .item{background:#fff;border:1px solid #e5e7eb;border-left:6px solid #64748b;border-radius:12px;padding:clamp(8px,1.3vw,12px);display:flex;gap:clamp(8px,1.2vw,12px);align-items:flex-start;box-shadow:0 4px 14px rgba(2,6,23,.06);cursor:pointer;min-width:0}
+    .item .left{display:flex;align-items:center;justify-content:center;min-width:clamp(36px,4.6vw,48px);font-weight:800;color:#0f172a}
+    .item .left .birthday-flag{display:block;width:clamp(28px,4.6vw,36px)}
+    .item .left .milestone-icon{display:grid;place-items:center;width:clamp(28px,4.6vw,36px);aspect-ratio:1;border-radius:12px;background:linear-gradient(135deg,#fcd34d,#f59e0b);box-shadow:inset 0 0 0 1px rgba(15,23,42,.08),0 6px 14px rgba(15,23,42,.18)}
+    .milestone-icon__star{width:60%;aspect-ratio:1;display:block;background:#fff;clip-path:polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);box-shadow:0 1px 2px rgba(15,23,42,.25)}
+    .birthday-flag .flag{display:block;width:100%}
+    .flag{position:relative;display:block}
+    .flag--dannebrog{aspect-ratio:28/22;background:#c8102e;border-radius:4px;box-shadow:inset 0 0 0 1px rgba(15,23,42,.12)}
+    .flag--dannebrog::before,.flag--dannebrog::after{content:"";position:absolute;background:#fff}
+    .flag--dannebrog::before{top:0;bottom:0;left:32%;width:16%}
+    .flag--dannebrog::after{left:0;right:0;top:44%;height:18%}
+    .meta{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1}
+    .title-row{display:flex;align-items:baseline;gap:clamp(6px,1vw,10px);min-width:0;flex-wrap:wrap}
+    .titlex{font-weight:800;font-size:clamp(12px,1.5vw,15px);line-height:1.2;min-width:0;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;line-clamp:2;word-break:break-word}
+    .time{margin-left:auto;font-weight:650;font-size:clamp(12px,1.3vw,14px);line-height:1.2;color:var(--muted);flex-shrink:0;white-space:nowrap}
+    .muted{color:var(--muted)}
+    .note{color:var(--muted);font-size:clamp(11px,1.3vw,13px);line-height:1.2;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;line-clamp:2;word-break:break-word}
+    .done{background:var(--done)}.done .titlex{text-decoration:line-through}
+    .floating{position:fixed;right:16px;bottom:16px;display:flex;flex-direction:column;gap:8px;z-index:999;align-items:flex-end}
+    .sync-group{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end;max-width:320px}
+    .badge{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:8px 12px;font-weight:700;color:#334155;box-shadow:var(--shadow)}
+    .backdrop{position:fixed;inset:0;background:rgba(2,6,23,.28);display:none;align-items:flex-start;justify-content:center;padding:32px;z-index:2000}
+    .modal{width:min(860px,92vw);max-height:min(92vh,92dvh);overflow:auto;background:#fff;border-radius:16px;box-shadow:var(--shadow);padding:16px 16px 12px}
+    .modal h3{margin:0 0 10px;font-size:18px;font-weight:800}.form{display:grid;grid-template-columns:1fr 1fr;gap:10px}.full{grid-column:1/-1}
+    label{display:block;font-size:12px;font-weight:800;color:#334155;margin-bottom:6px}
+    input,textarea,select{width:100%;border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px;font:inherit;background:#fff}textarea{min-height:80px;resize:vertical}
+    .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.row label{margin:0;font-weight:700}
+    .repeat-row .option{display:inline-flex;align-items:center;gap:6px;margin:0;font-weight:700}
+    .repeat-row .option input{margin:0}
+    .repeat-row .option.disabled{opacity:.5;pointer-events:none}
+    .personList{display:flex;flex-wrap:wrap;gap:8px}
+    .personList label{display:flex;align-items:center;gap:6px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:999px;padding:6px 10px;font-weight:700;color:#334155}
+    .personList input{margin:0}
+    .hint{font-size:12px;color:#6b7280;margin:4px 0 0}
+    .note.people{color:#0f172a;font-weight:700}
+    .settings{width:min(860px,92vw);max-height:min(92vh,92dvh);overflow:auto;background:#fff;border-radius:16px;box-shadow:var(--shadow);padding:16px}
+    .settings-sections{display:grid;gap:18px;margin-top:16px}
+    .settings-block{background:#f8fafc;border-radius:14px;padding:16px;border:1px solid #e2e8f0}
+    .settings-block h4{margin:0;font-size:16px;font-weight:800;color:#0f172a}
+    .settings-block .subtitle{display:block;margin-top:4px;font-size:13px;color:#64748b;font-weight:600}
+    .tip{font-size:12px;color:#64748b;line-height:1.5}
+    .sync-card{margin-top:14px;padding:14px;border-radius:12px;background:#fff;border:1px solid #e5e7eb;box-shadow:0 6px 20px rgba(15,23,42,.06)}
+    .sync-card:first-of-type{margin-top:18px}
+    .sync-card + .sync-card{margin-top:12px}
+    .sync-card__header{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:12px}
+    .sync-card__title{font-weight:800;font-size:15px;color:#0f172a}
+    .sync-card__status{font-weight:700;color:#0f172a;margin-top:4px}
+    .sync-card__status[data-state="error"]{color:#b91c1c}
+    .sync-card__status[data-state="warn"]{color:#b45309}
+    .sync-card__status[data-state="ok"]{color:#047857}
+    .sync-card__status[data-state="loading"]{color:#0f172a}
+    .sync-card__meta{font-size:12px;color:#64748b;margin-top:4px}
+    .sync-card__actions{display:flex;gap:8px;flex-wrap:wrap}
+    .sync-card__actions .btn.small{padding:8px 12px}
+    .sync-card__form{margin-top:12px;display:grid;gap:10px}
+    .sync-card__form label{font-size:12px;font-weight:800;color:#334155}
+    .sync-card__form input{width:100%;border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px;font:inherit;background:#fff}
+    .sync-card__form .hint{margin:0;font-size:12px;color:#6b7280}
+    .sync-card__form-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:4px}
+    @media (max-width:720px){.sync-card__header{flex-direction:column;align-items:flex-start}}
+    .row-s{display:grid;grid-template-columns:44px 1fr 1fr 64px 32px;gap:12px;align-items:center;padding:8px;border:1px solid #e5e7eb;border-radius:12px;margin-bottom:8px}
+    .initial{width:36px;height:36px;border-radius:999px;display:grid;place-items:center;background:#eef2ff;font-weight:800;overflow:hidden}.initial img{width:100%;height:100%;object-fit:cover;border-radius:inherit}.swatch{width:14px;height:14px;border-radius:999px;border:1px solid #e5e7eb;justify-self:end}
+    @media (max-width:980px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media (max-width:640px){.grid{grid-template-columns:1fr}}
+    @media (max-width:900px){.item{flex-direction:column;align-items:flex-start;gap:10px}.item .left{min-width:0}.titlex{-webkit-line-clamp:3;line-clamp:3;font-size:clamp(13px,3.8vw,16px)}.note{-webkit-line-clamp:3;line-clamp:3;font-size:clamp(12px,3.6vw,14px)}.time{margin-left:0;width:100%;order:2}.title-row{align-items:flex-start}}
+    @media (max-width:560px){.item{padding:12px}.titlex{-webkit-line-clamp:4;line-clamp:4}.note{-webkit-line-clamp:4;line-clamp:4}}
 
-  .grid{display:grid; grid-template-columns: repeat(7, minmax(0,1fr)); gap:var(--col-gap); align-items:stretch;}
-  .day{background:var(--panel); border-radius:var(--radius); box-shadow:var(--shadow); padding:10px 10px 14px; min-height:42vh; display:flex; flex-direction:column; width:100%;}
-  .day .head{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px}
-  .day .name{font-weight:800;color:#111827; text-transform:capitalize}
-  .day .date{color:#475569; font-size:12px; font-weight:700}
-  .day.today{outline:2px solid #11182722}
-  .list{display:flex; flex-direction:column; gap:6px; margin-top:6px; flex:1; min-height:100px}
-  .section{margin-top:6px}
-  .section .h{font-size:11px; font-weight:900; color:#94a3b8; text-transform:uppercase; letter-spacing:.06em; margin:6px 0 2px}
-  .section .items{display:flex; flex-direction:column; gap:6px}
-
-  .item{background:#fff; border:1px solid #e5e7eb; border-left:6px solid #64748b; border-radius:12px; padding:8px 10px; display:flex; gap:8px; align-items:flex-start; box-shadow:0 4px 14px rgba(2,6,23,.06); cursor:pointer; width:100%;}
-  .item .left{display:flex; align-items:center; justify-content:center; min-width:52px; font-weight:800; color:#0f172a}
-  .item .meta{display:flex; flex-direction:column; gap:2px; min-width:0; flex:1}
-  .item .title{font-weight:800; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-  .item .note{color:#475569; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-  .item.done{background:var(--done-bg)}
-  .item.done .title{text-decoration:line-through}
-
-  .floating{position:fixed; right:16px; bottom:16px; display:flex; gap:8px; align-items:center; z-index:999; flex-wrap:wrap; justify-content:flex-end;}
-  .gcal-badge{background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:8px 12px; font-weight:700; color:#334155; box-shadow:var(--shadow);}
-
-  .modal-backdrop{position:fixed; inset:0; background:rgba(2,6,23,.28); display:none; align-items:flex-start; justify-content:center; padding:32px; z-index:2000}
-  .modal{width:min(860px, 92vw); max-height: min(92vh, 92dvh); overflow:auto; background:#fff; border-radius:16px; box-shadow:var(--shadow); padding:16px 16px 12px}
-  .modal h3{margin:0 0 10px 0; font-size:18px; font-weight:800}
-  .form{display:grid; grid-template-columns: 1fr 1fr; gap:10px}
-  .form .full{grid-column:1 / -1}
-  label{display:block; font-size:12px; font-weight:800; color:#334155; margin-bottom:6px}
-  input[type="text"], input[type="date"], input[type="time"], input[type="number"], textarea, select{width:100%; border:1px solid #e5e7eb; border-radius:10px; padding:10px 12px; font:inherit; background:#fff;}
-  textarea{min-height:80px; resize:vertical}
-  .row{display:flex; gap:12px; align-items:center}
-  .row label{margin:0; font-weight:700}
-  .row input[type="checkbox"]{transform: translateY(1px)}
-  .modal .actions{display:flex; justify-content:flex-end; gap:8px; margin-top:10px}
-
-  .settings-backdrop{position:fixed; inset:0; background:rgba(2,6,23,.28); display:none; align-items:flex-start; justify-content:center; padding:32px; z-index:2000}
-  .settings{width:min(860px, 92vw); max-height:min(92vh, 92dvh); overflow:auto; background:#fff; border-radius:16px; box-shadow:var(--shadow); padding:16px}
-  .settings h3{margin:0 0 10px; font-size:18px; font-weight:800}
-  .row-s{display:grid; grid-template-columns: 44px 1fr 1fr 64px 32px; gap:12px; align-items:center; padding:8px; border:1px solid #e5e7eb; border-radius:12px; margin-bottom:8px}
-  .initial{width:36px; height:36px; border-radius:999px; display:grid; place-items:center; background:#eef2ff; font-weight:800}
-  .swatch{width:14px; height:14px; border-radius:999px; border:1px solid #e5e7eb; justify-self:end}
-  .tip{color:#64748b; font-size:12px; margin-top:8px}
-  .settings .actions{display:flex; justify-content:flex-end; gap:8px; margin-top:10px}
-
-  @media (max-width:1200px){ .day{min-height:38vh} }
-  @media (max-width:980px){ .grid{grid-template-columns: repeat(2, minmax(0,1fr))} .day{min-height:auto} }
-  @media (max-width:640px){ .grid{grid-template-columns: 1fr} .form{grid-template-columns: 1 fr} }
-</style>
-
-<style id="wk-b-scroll-fix">
-  .modal, .settings { -webkit-overflow-scrolling: touch !important; overscroll-behavior: contain !important; }
-  .modal .form, .settings { max-height: calc(100dvh - 140px) !important; overflow: auto !important; }
-  body.modal-open { overflow: hidden !important; }
-  body.modal-open .floating { display: none !important; }
-</style>
+    /* Celebration popup */
+    .celebration-overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(3,6,20,.75);backdrop-filter:blur(6px);z-index:4000}
+    .celebration-overlay.open{display:flex;animation:celebrationFadeIn .35s both}
+    @keyframes celebrationFadeIn{from{opacity:0}to{opacity:1}}
+    .celebration-modal{position:relative;width:min(92vw,720px);aspect-ratio:16/9;border-radius:24px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.6),inset 0 0 0 1px rgba(255,255,255,.08);background:radial-gradient(1200px 500px at 10% 10%,rgba(255,255,255,.06),transparent 40%),linear-gradient(180deg,#0b0f19,#070a12);color:#fff}
+    .celebration-modal-inner{position:relative;z-index:2;height:100%;display:grid;place-items:center;padding:14px}
+    .celebration-panel{display:grid;gap:12px;padding:0 20px;text-align:center}
+    .celebration-title{font-size:clamp(36px,7.5vw,84px);letter-spacing:.04em;font-weight:900;text-transform:uppercase;color:#fff;text-shadow:0 0 12px rgba(255,255,255,.6),0 0 50px #00f0ff;animation:celebrationPop .6s cubic-bezier(.2,1,.2,1) forwards;margin-bottom:2px}
+    @keyframes celebrationPop{0%{transform:scale(.7) rotate(-2deg);opacity:0}60%{transform:scale(1.05) rotate(2deg);opacity:1}100%{transform:scale(1) rotate(0deg)}}
+    .celebration-sub{margin-top:-2px;font-size:clamp(14px,2.6vw,20px);opacity:.9}
+    .celebration-badge{position:absolute;top:14px;left:14px;background:rgba(255,255,255,.12);padding:8px 12px;border-radius:999px;display:flex;gap:8px;align-items:center;font-weight:700;letter-spacing:.02em}
+    .celebration-close{position:absolute;top:14px;right:14px;width:44px;height:44px;border-radius:12px;background:rgba(255,255,255,.12);display:grid;place-items:center;color:#fff;font-size:20px;border:none;cursor:pointer}
+    .celebration-close:focus-visible{outline:2px solid #fff;outline-offset:2px}
+    .celebration-canvas{position:absolute;inset:0;z-index:1}
+    .celebration-sparkle{position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 20% 30%,rgba(255,255,255,.15),transparent 20%),radial-gradient(circle at 80% 60%,rgba(255,255,255,.08),transparent 30%);mix-blend-mode:screen;z-index:2}
+    .celebration-footer{position:absolute;right:16px;bottom:12px;opacity:.7;font-size:12px;z-index:2}
+    .celebration-level{display:inline-flex;align-items:center;gap:10px;padding:8px 16px;border-radius:999px;background:linear-gradient(135deg,rgba(120,255,200,.2),rgba(255,128,191,.15));border:1px solid rgba(255,255,255,.12);font-weight:700;justify-self:center}
+    .celebration-tasks{margin:6px auto 0;padding:0;list-style:none;display:grid;gap:8px;width:min(90%,520px);text-align:left}
+    .celebration-tasks li{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:14px;opacity:0;transform:translateY(10px)}
+    .celebration-tasks li.reveal{animation:celebrationListIn .48s ease forwards}
+    @keyframes celebrationListIn{to{opacity:1;transform:translateY(0)}}
+    .celebration-task-icon{font-size:20px;line-height:1;margin-top:2px}
+    .celebration-task-check{font-weight:800;color:#78ffc8}
+    .celebration-cta{font-size:12px;opacity:.8}
+    .celebration-trophy{position:absolute;left:6%;bottom:-8%;font-size:clamp(70px,13vw,130px);filter:drop-shadow(0 10px 20px rgba(0,0,0,.4));animation:celebrationTrophyIn 1.1s cubic-bezier(.2,.9,.2,1) .15s both;z-index:2}
+    @keyframes celebrationTrophyIn{0%{transform:translateY(30%) rotate(-8deg) scale(.8);opacity:0}60%{transform:translateY(-10%) rotate(6deg) scale(1.05);opacity:1}100%{transform:translateY(0) rotate(0deg) scale(1)}}
+  </style>
 </head>
 <body>
   <div class="wrap">
     <header>
-      <div class="title">Familieoversigt <span class="muted">– uge <span id="weekNo">?</span></span></div>
+      <div class="title">Familieoversigt · uge <span id="weekNo">?</span></div>
       <div class="controls">
-        <button class="btn icon" id="btnPrev" title="Forrige uge">⟨</button>
-        <button class="btn" id="btnWeek">—</button>
-        <button class="btn icon" id="btnNext" title="Næste uge">⟩</button>
-        <button class="btn primary" id="btnNew">+ Ny</button>
-        <button class="btn" id="btnSettings">Indstillinger</button>
+        <button class="btn icon" id="prev">⟨</button>
+        <button class="btn" id="weekBtn">—</button>
+        <button class="btn" id="viewToggle" type="button">Vis dag</button>
+        <button class="btn icon" id="next">⟩</button>
+        <button class="btn primary" id="newBtn">+ Ny</button>
+        <button class="btn" id="settingsBtn">Indstillinger</button>
       </div>
     </header>
 
-    <div class="chipbar" id="peopleBar"></div>
-    <section class="grid" id="grid"></section>
+    <div id="peopleBar" class="chipbar"></div>
+    <section id="grid" class="grid"></section>
   </div>
 
-  <div class="floating">
-    <div class="gcal-badge" id="syncBadge">Google sync: —</div>
-    <button class="btn small" id="btnSync">Sync nu</button>
-    <button class="btn small ghost" id="btnSyncHard">Nulstil &amp; sync</button>
-  </div>
+  <!-- Google sync-genvejene er skjult, da de nu findes i indstillingerne -->
 
-  <div class="modal-backdrop" id="backdrop" aria-hidden="true">
+  <!-- Editor -->
+  <div id="editorBD" class="backdrop" aria-hidden="true">
     <div class="modal">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
         <h3 id="dlgTitle">Tilføj</h3>
         <button class="btn ghost" id="dlgClose">Luk</button>
       </div>
-      <div class="form" id="form">
-        <div class="full">
-          <label for="f_title">Titel</label>
-          <input id="f_title" type="text" placeholder="Titel">
+      <div class="form">
+        <div class="full"><label for="f_title">Titel</label><input id="f_title" type="text" placeholder="Titel"></div>
+        <div><label for="f_type">Type</label><select id="f_type"><option>Aktivitet</option><option>Opgave</option><option>Fritidsinteresse</option><option>Fødselsdag</option><option>Mærkedag</option></select></div>
+        <div id="taskPresetRow" class="full" style="display:none"><label for="f_taskPreset">Standardopgave</label><select id="f_taskPreset"><option value="">Vælg opgave…</option></select></div>
+        <div class="full"><label>Personer</label><div id="f_person" class="personList"></div></div>
+        <div><label for="f_date">Dato</label><input id="f_date" type="date"></div>
+        <div><label for="f_time">Tid</label><input id="f_time" type="time" step="900" placeholder="--:--"></div>
+        <div id="birthdayFields" class="full" style="display:none"><label for="f_birthYear">Fødselsår (valgfrit)</label><input id="f_birthYear" type="number" min="1900" max="2100" step="1" inputmode="numeric" placeholder="ÅÅÅÅ"><p class="hint">Vi viser automatisk alderen i kalenderen.</p></div>
+        <div><label for="f_dur">Varighed (min)</label><input id="f_dur" type="number" min="0" step="5" placeholder="30"></div>
+        <div><label for="f_loc">Sted</label><input id="f_loc" type="text" placeholder="Adresse/sted"></div>
+        <div class="full"><label for="f_note">Note</label><textarea id="f_note" placeholder="Noter"></textarea></div>
+        <div class="full row repeat-row">
+          <label class="option"><input id="f_rep" type="checkbox">Gentag hver uge</label>
+          <label class="option" id="weekdayOption"><input id="f_weekdays" type="checkbox">Alle hverdage</label>
+          <label class="option"><input id="f_done" type="checkbox">Marker som udført</label>
         </div>
-        <div>
-          <label for="f_type">Type</label>
-          <select id="f_type">
-            <option>Aktivitet</option>
-            <option>Opgave</option>
-            <option>Fritidsinteresse</option>
-          </select>
-        </div>
-        <div>
-          <label for="f_person">Person</label>
-          <select id="f_person"><option>Alle</option></select>
-        </div>
-        <div>
-          <label for="f_date">Dato</label>
-          <input id="f_date" type="date">
-        </div>
-        <div>
-          <label for="f_time">Tid (valgfri)</label>
-          <input id="f_time" type="time" step="900" placeholder="--:--">
-        </div>
-        <div>
-          <label for="f_duration">Varighed (min, valgfri)</label>
-          <input id="f_duration" type="number" min="0" step="5" placeholder="30">
-        </div>
-        <div>
-          <label for="f_location">Sted (valgfri)</label>
-          <input id="f_location" type="text" placeholder="Adresse/sted">
-        </div>
-        <div class="full">
-          <label for="f_note">Note (valgfri)</label>
-          <textarea id="f_note" placeholder="Noter"></textarea>
-        </div>
-        <div class="full row">
-          <input id="f_repeat" type="checkbox"><label for="f_repeat">Gentag hver uge</label>
-          <input id="f_done" type="checkbox" style="margin-left:16px"><label for="f_done">Marker som udført</label>
+        <div class="full" id="repeatScopeRow" style="display:none">
+          <label for="repeatScopeRow">Ændring skal gælde for</label>
+          <div class="row" role="group" aria-labelledby="repeatScopeRow">
+            <label><input type="radio" name="repeatScope" value="one"> Kun denne</label>
+            <label><input type="radio" name="repeatScope" value="future"> Denne og frem</label>
+            <label><input type="radio" name="repeatScope" value="series" checked> Hele serien</label>
+          </div>
         </div>
       </div>
-      <div class="actions">
-        <button class="btn ghost" id="btnDelete" style="display:none">Slet</button>
+      <div class="actions" style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
+        <button class="btn ghost" id="btnDel" style="display:none">Slet</button>
         <button class="btn primary" id="btnSave">Gem</button>
       </div>
     </div>
   </div>
 
-  <div class="settings-backdrop" id="settingsBackdrop">
-    <div class="settings">
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <h3>Indstillinger · Familie</h3>
-        <button class="btn ghost" id="btnSettingsClose">Luk</button>
+  <!-- Settings -->
+  <div id="settBD" class="backdrop" aria-hidden="true">
+    <div class="settings" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h3 id="settingsTitle">Indstillinger · Familie</h3>
+        <button class="btn ghost" id="settClose" type="button">Luk</button>
       </div>
-      <div id="settingsRows"></div>
-      <div class="tip">Tip: Billeder gemmes lokalt i browseren (ingen upload til internettet).</div>
-      <div class="actions">
-        <button class="btn primary" id="btnSettingsSave">Gem ændringer</button>
+      <div class="settings-sections">
+        <section class="settings-block" aria-labelledby="calendarSyncHeading">
+          <div>
+            <h4 id="calendarSyncHeading">Kalendersynkronisering</h4>
+            <span class="subtitle">Se status for Google Kalender-synkronisering</span>
+          </div>
+          <div class="sync-card">
+            <div class="sync-card__header">
+              <div>
+                <div class="sync-card__title">Google Kalender</div>
+                <div id="gStatusText" class="sync-card__status" data-state="idle">—</div>
+                <div id="gStatusMeta" class="sync-card__meta">Ingen synkronisering endnu.</div>
+              </div>
+              <div class="sync-card__actions">
+                <button class="btn small" id="gSyncSettings" type="button">Sync nu</button>
+                <button class="btn small ghost" id="gResetSettings" type="button">Nulstil &amp; sync</button>
+              </div>
+            </div>
+            <p class="hint" style="margin-top:10px">Henter begivenheder fra den delte Google Kalender via Apps Script.</p>
+          </div>
+        </section>
+        <section class="settings-block" aria-labelledby="peopleHeading">
+          <div>
+            <h4 id="peopleHeading">Personer</h4>
+            <span class="subtitle">Opdater navne, farver og avatarer</span>
+          </div>
+          <div id="settRows"></div>
+          <div class="tip" style="margin-top:12px">Farver og avatar-billeder synkroniseres via Supabase til alle enheder, så ændringer vises overalt.</div>
+        </section>
+      </div>
+      <div class="actions" style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
+        <button class="btn primary" id="settSave" type="button">Gem ændringer</button>
       </div>
     </div>
   </div>
+  <div id="celebrationPopup" class="celebration-overlay" role="dialog" aria-modal="true" aria-label="Fejring">
+    <div class="celebration-modal" role="document">
+      <button id="celebrationClose" class="celebration-close" aria-label="Luk pop-up">✕</button>
+      <div class="celebration-badge">🎉 Celebration</div>
+      <canvas id="celebrationCanvas" class="celebration-canvas"></canvas>
+      <div class="celebration-sparkle"></div>
+      <div class="celebration-modal-inner">
+        <div class="celebration-panel">
+          <div id="celebrationHeadline" class="celebration-title">GODT GÅET!</div>
+          <div id="celebrationSub" class="celebration-sub">Fantastisk indsats – du klarede alle opgaverne.</div>
+          <div class="celebration-level">🏅 <span id="celebrationLevel">Niveau: Superstjerne</span></div>
+          <ul id="celebrationTasks" class="celebration-tasks" aria-label="Fuldførte opgaver"></ul>
+          <div class="celebration-cta">Tryk Esc for at lukke</div>
+        </div>
+      </div>
+      <div class="celebration-trophy" aria-hidden="true">🏆</div>
+      <div class="celebration-footer">Fejring aktiveret</div>
+    </div>
+  </div>
 
-<script>
-  const GAS_URL = "https://script.google.com/macros/s/AKfycbyQeS_NvMVv4A3IImB6S3AsRt67aSpeKuaoHHSf8K4xRE9sx3zSZS8zHlvZFL_WDIKl/exec";
-  const SYNC_MS = 120000;
-  const LS_ITEMS = "fam_items_v1";
-  const LS_GCAL_INDEX = "gcal_index";
-  const LS_PREFS = "fam_people_prefs_v1";
+  <script>
+    /* ---------- core utils ---------- */
+    const RAW_HID=(new URLSearchParams(location.search).get("hid")||"").trim();
+    const HID=(RAW_HID||"DEFAULT").toUpperCase();
+    const LS_ITEMS="fam_items_v1", LS_PREFS="fam_people_prefs_v1", LS_GIDX="gcal_index", LS_GSTATE="gcal_state_v1", LS_GSYNC_META="gcal_sync_meta_v1";
+    const LS_VIEW_MODE="fam_view_mode";
+    const CELEBRATION_LS="fam_celebrations_v1";
+    const CELEBRATION_THRESHOLD=7;
+    const CELEBRATION_MAX_TASKS=6;
+    const DEFAULT_PEOPLE=[{name:"Alle",color:"#0f172a"},{name:"Far",color:"#ef4444"},{name:"Mor",color:"#8b5cf6"},{name:"Carl",color:"#22c55e"},{name:"Jakob",color:"#0ea5e9"},{name:"Ida",color:"#f59e0b"}];
+    const DEFAULT_TASK_PRESETS=["Tøm opvaskemaskine","Lektier","Tøm vaskemaskine","Rydde op på værelset","Handle ind","Dæk bordet","Tøm tasker"];
+    const BIRTHDAY_TYPE="Fødselsdag";
+    const MILESTONE_TYPE="Mærkedag";
+    const FLAG_DANNEBROG='<span class="flag flag--dannebrog"></span>';
+    const BIRTHDAY_FLAG=FLAG_DANNEBROG;
+    const MILESTONE_ICON='<span class="milestone-icon" aria-hidden="true"><span class="milestone-icon__star"></span></span>';
+    const AUTO_MILESTONE_SOURCE="auto-milestone";
+    // Nationale/traditionelle mærkedage som vises automatisk (udover brugerens egne)
+    const FIXED_MILESTONES=[
+      {id:"nytarsdag",title:"Nytårsdag",month:1,day:1},
+      {id:"dronningens-foedselsdag",title:"Dronningens fødselsdag",month:4,day:16},
+      {id:"arbejdernes-kampdag",title:"Arbejdernes kampdag",month:5,day:1},
+      {id:"grundlovsdag",title:"Grundlovsdag",month:6,day:5},
+      {id:"sankthans",title:"Sankt Hans aften",month:6,day:23},
+      {id:"mortensaften",title:"Mortens aften",month:11,day:10},
+      {id:"juleaften",title:"Juleaften",month:12,day:24},
+      {id:"foerste-juledag",title:"1. juledag",month:12,day:25},
+      {id:"anden-juledag",title:"2. juledag",month:12,day:26},
+      {id:"nytarsaften",title:"Nytårsaften",month:12,day:31}
+    ];
+    const EASTER_MILESTONES=[
+      {id:"fastelavn",title:"Fastelavn",offset:-49},
+      {id:"palmesoendag",title:"Palmesøndag",offset:-7},
+      {id:"skaertorsdag",title:"Skærtorsdag",offset:-3},
+      {id:"langfredag",title:"Langfredag",offset:-2},
+      {id:"paaskedag",title:"Påskedag",offset:0},
+      {id:"anden-paaskedag",title:"2. påskedag",offset:1},
+      {id:"store-bededag",title:"Store bededag",offset:26},
+      {id:"kristi-himmelfart",title:"Kr. Himmelfartsdag",offset:39},
+      {id:"pinsedag",title:"Pinsedag",offset:49},
+      {id:"anden-pinsedag",title:"2. pinsedag",offset:50}
+    ];
+    const RELATIVE_MILESTONES=[
+      {id:"mors-dag",title:"Mors dag",month:5,weekday:0,occurrence:2},
+      {id:"allehelgensdag",title:"Allehelgensdag",month:11,weekday:0,occurrence:1}
+    ];
 
-  function normalizeType(t){
-    if (t === "Anden aftale" || t === "Andre aftaler") return "Aktivitet";
-    if (t === "Fritidsinteresser") return "Fritidsinteresse";
-    return t || "Aktivitet";
-  }
+    const WEEK_DAY_NAMES=["mandag","tirsdag","onsdag","torsdag","fredag","lørdag","søndag"];
+    const $ = (id)=>document.getElementById(id);
+    const grid = $("grid"), peopleBar = $("peopleBar"), weekNo = $("weekNo"), weekBtn = $("weekBtn"), viewToggle=$("viewToggle");
+    const gBadge=$("gBadge"), gStatusText=$("gStatusText"), gStatusMeta=$("gStatusMeta");
 
-  const DEFAULT_PEOPLE = [
-    {name:"Alle",  color:"#0f172a"},
-    {name:"Far",   color:"#ef4444"},
-    {name:"Mor",   color:"#8b5cf6"},
-    {name:"Carl",  color:"#22c55e"},
-    {name:"Jakob", color:"#0ea5e9"},
-    {name:"Ida",   color:"#f59e0b"},
-  ];
+    function fmtISO(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+    function fromAnyToLocalISO(x){
+      if(!x) return fmtISO(new Date());
+      if(/^\d{4}-\d{2}-\d{2}$/.test(x)) return x;                      // "YYYY-MM-DD"
+      const t=new Date(x);                                             // handles Z/offsets
+      return fmtISO(new Date(t.getFullYear(),t.getMonth(),t.getDate())); // strip time -> local
+    }
+    function startOfWeek(d=new Date()){const n=(d.getDay()+6)%7;const m=new Date(d);m.setDate(d.getDate()-n);m.setHours(0,0,0,0);return m}
+    function weekNumber(d){d=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));const dn=d.getUTCDay()||7;d.setUTCDate(d.getUTCDate()+4-dn);const ys=new Date(Date.UTC(d.getUTCFullYear(),0,1));return Math.ceil((((d-ys)/86400000)+1)/7)}
+    function monthName(m){return["januar","februar","marts","april","maj","juni","juli","august","september","oktober","november","december"][m]}
+    function weekLabel(s){const e=new Date(s);e.setDate(s.getDate()+6);return s.getMonth()===e.getMonth()?`${s.getDate()}.–${e.getDate()}. ${monthName(e.getMonth())}`:`${s.getDate()}. ${monthName(s.getMonth())} – ${e.getDate()}. ${monthName(e.getMonth())}`}
+    function dayLabel(d){const idx=((d.getDay()+6)%7);const name=WEEK_DAY_NAMES[idx]||"";const cap=name?name.charAt(0).toUpperCase()+name.slice(1):"";return `${cap} ${String(d.getDate()).padStart(2,"0")}. ${monthName(d.getMonth())}`}
 
-  function loadPrefs(){ try{ return JSON.parse(localStorage.getItem(LS_PREFS)) || {}; } catch(_){ return {}; } }
-  function savePrefs(p){ localStorage.setItem(LS_PREFS, JSON.stringify(p)); }
-  function getPeople(){
-    const prefs = loadPrefs();
-    return DEFAULT_PEOPLE.map(p=>{
-      const pp = prefs[p.name] || {};
-      return {...p, color: pp.color || p.color, avatar: pp.avatar || ""};
-    });
-  }
+    function loadLS(k,fallback){try{const v=localStorage.getItem(k);return v?JSON.parse(v):fallback}catch(_){return fallback}}
+    function saveLS(k,v){localStorage.setItem(k,JSON.stringify(v))}
+    function renderSyncMeta(el,meta){
+      if(!el)return;
+      if(!meta||!meta.ts){el.textContent="Ingen synkronisering endnu.";return;}
+      const dt=new Date(meta.ts);
+      if(Number.isNaN(dt.getTime())){el.textContent=meta.status||"Ingen synkronisering endnu.";return;}
+      const dateStr=dt.toLocaleDateString('da-DK',{day:'2-digit',month:'short',year:'numeric'});
+      const timeStr=dt.toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'});
+      const detail=(meta.detail||"").trim();
+      const base=(detail||meta.status||"").trim();
+      el.textContent=base?`${base} · ${dateStr} kl. ${timeStr}`:`${dateStr} kl. ${timeStr}`;
+    }
+    function updateGoogleStatus(text,opts={}){
+      if(gBadge)gBadge.textContent='Google sync: '+text;
+      if(gStatusText){gStatusText.textContent=text;gStatusText.dataset.state=opts.state||gStatusText.dataset.state||'idle';}
+      let meta;
+      if(Object.prototype.hasOwnProperty.call(opts,'meta')){meta=opts.meta;}else{meta=loadLS(LS_GSYNC_META,null);}
+      if(opts.persist){
+        meta={status:text,state:opts.state||'info',detail:opts.detail||'',ts:Date.now()};
+        saveLS(LS_GSYNC_META,meta);
+      }
+      renderSyncMeta(gStatusMeta,meta);
+    }
+    function parseISODate(iso){if(typeof iso!=="string")return null;const m=iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);if(!m)return null;const d=new Date(Number(m[1]),Number(m[2])-1,Number(m[3]));return Number.isNaN(d.getTime())?null:d}
+    function weekdayDatesFor(dateIso){const base=parseISODate(dateIso);if(!base){return dateIso?[dateIso]:[];}const monday=startOfWeek(base);const out=[];for(let i=0;i<5;i+=1){const d=new Date(monday);d.setDate(monday.getDate()+i);out.push(fmtISO(d));}return Array.from(new Set(out));}
+    function loadViewMode(){try{return localStorage.getItem(LS_VIEW_MODE)==="day"?"day":"week";}catch(_){return"week";}}
+    function saveViewMode(mode){try{localStorage.setItem(LS_VIEW_MODE,mode);}catch(_){}}
+    function normalizeType(t){if(t==="Anden aftale"||t==="Andre aftaler")return"Aktivitet";if(t==="Fritidsinteresser")return"Fritidsinteresse";if(t==="Mærkedage")return MILESTONE_TYPE;return t||"Aktivitet"}
+    function normalizePersonName(name){const raw=(name??"").toString().trim();if(!raw)return"Alle";const pool=(typeof PEOPLE!=="undefined"&&Array.isArray(PEOPLE)&&PEOPLE.length?PEOPLE:DEFAULT_PEOPLE);const lower=raw.toLowerCase();const match=pool.find(p=>(p.name||"").toLowerCase()===lower);return match?match.name:raw}
+    function normalizePeopleList(raw){let arr=[];if(Array.isArray(raw)){arr=raw;}else if(raw===undefined||raw===null){arr=[];}else if(typeof raw==="string"){arr=raw.split(/[;,]/).map(s=>s.trim()).filter(Boolean);if(arr.length===0)arr=[raw];}else{arr=[raw];}
+      const seen=new Set();let hasAll=false;for(const entry of arr){const normalized=normalizePersonName(entry);if(!normalized)continue;if(normalized==="Alle"){hasAll=true;break;}if(!seen.has(normalized))seen.add(normalized);}if(hasAll||seen.size===0)return["Alle"];return[...seen];}
+    function primaryPersonName(list){const arr=normalizePeopleList(list);return arr.length===1?arr[0]:"Alle";}
+    function peopleKey(list){const arr=normalizePeopleList(list);return arr.slice().sort((a,b)=>a.localeCompare(b,'da',{sensitivity:'base'})).join(",");}
+    function peopleInclude(list,name){const arr=normalizePeopleList(list);const target=normalizePersonName(name);if(target==="Alle")return true;return arr.includes(target)||arr.includes("Alle");}
 
-  let items = loadItems();
-  let PEOPLE = getPeople();
-  let currentPerson = "Alle";
-  let editingId = null;
+    function toISO(dateLike){if(!dateLike)return"";if(dateLike instanceof Date)return fmtISO(dateLike);if(typeof dateLike==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(dateLike))return dateLike;return fromAnyToLocalISO(dateLike)}
+    function addDaysISO(iso,days){if(!iso||!Number.isFinite(days))return"";const [y,m,d]=iso.split("-").map(Number);if([y,m,d].some(n=>Number.isNaN(n)))return"";const dt=new Date(y,m-1,d);dt.setDate(dt.getDate()+days);return fmtISO(dt)}
+    function uniqueISOList(arr){if(!Array.isArray(arr))return[];const out=[];const seen=new Set();for(const entry of arr){const iso=toISO(entry);if(!iso||seen.has(iso))continue;seen.add(iso);out.push(iso);}return out}
+    function sanitizeBirthYear(value){if(value===undefined||value===null||value==='')return'';const n=parseInt(value,10);if(!Number.isFinite(n))return'';if(n<1900||n>3000)return'';return n;}
+    function birthdayAgeOnDate(birthYear,dateIso){const year=sanitizeBirthYear(birthYear);if(!year)return null;const dt=parseISODate(toISO(dateIso));if(!dt)return null;const age=dt.getFullYear()-year;return age>=0?age:null;}
+    function setFocusDate(date){let base=date instanceof Date?date:new Date(date);if(!(base instanceof Date)||Number.isNaN(base.getTime())){base=new Date();}const normalized=new Date(base.getFullYear(),base.getMonth(),base.getDate());if(Number.isNaN(normalized.getTime())){const today=new Date();focusDate=new Date(today.getFullYear(),today.getMonth(),today.getDate());wk=startOfWeek(focusDate);return;}focusDate=normalized;wk=startOfWeek(normalized);}
 
-  function startOfWeek(d=new Date()){
-    const day = (d.getDay()+6)%7;
-    const monday = new Date(d); monday.setDate(d.getDate()-day); monday.setHours(0,0,0,0);
-    return monday;
-  }
-  let weekStart = startOfWeek();
+    const celebration=(()=>{
+      const overlay=document.getElementById("celebrationPopup");
+      if(!overlay){return{maybeCelebrate(){},show(){},hide(){}};}
+      const canvas=overlay.querySelector("#celebrationCanvas");
+      const closeBtn=overlay.querySelector("#celebrationClose");
+      const headlineEl=overlay.querySelector("#celebrationHeadline");
+      const subEl=overlay.querySelector("#celebrationSub");
+      const tasksEl=overlay.querySelector("#celebrationTasks");
+      const levelEl=overlay.querySelector("#celebrationLevel");
+      if(!canvas||!headlineEl||!subEl||!tasksEl||!levelEl){return{maybeCelebrate(){},show(){},hide(){}};}
+      const ctx=canvas.getContext("2d");
+      if(!ctx){return{maybeCelebrate(){},show(){},hide(){}};}
+      let animationId=null,particles=[],startTime=0,autoTimer=null;
+      const duration=3800;
+      const storage=loadLS(CELEBRATION_LS,{});
+      const dayNames=['søndag','mandag','tirsdag','onsdag','torsdag','fredag','lørdag'];
+      function saveState(){saveLS(CELEBRATION_LS,storage);}
+      function storageKey(person,weekISO){return `${HID}|${weekISO}|${person}`;}
+      function wasCelebrated(person,weekISO){if(!person||!weekISO)return false;return !!storage[storageKey(person,weekISO)];}
+      function markCelebrated(person,weekISO){if(!person||!weekISO)return;storage[storageKey(person,weekISO)]=Date.now();saveState();}
+      function sizeCanvas(){const w=overlay.clientWidth||window.innerWidth;const h=overlay.clientHeight||window.innerHeight;canvas.width=w;canvas.height=h;}
+      if(window.ResizeObserver){new ResizeObserver(sizeCanvas).observe(overlay);}
+      function rand(min,max){return Math.random()*(max-min)+min;}
+      function confettiBurst(n=200){const w=canvas.width,h=canvas.height;particles.length=0;for(let i=0;i<n;i++){particles.push({x:rand(0,w),y:rand(-50,-10),w:rand(4,8),h:rand(8,16),vx:rand(-2,2),vy:rand(2,6),rot:rand(0,360),vr:rand(-6,6),hue:rand(0,360),alpha:1});}}
+      function draw(){const now=performance.now(),t=now-startTime,w=canvas.width,h=canvas.height;ctx.clearRect(0,0,w,h);for(const p of particles){p.x+=p.vx;p.y+=p.vy;p.vy+=0.05;p.rot+=p.vr;p.alpha=1-(p.y/(h+60));ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.rot*Math.PI/180);ctx.globalAlpha=Math.max(0,p.alpha);ctx.fillStyle=`hsl(${p.hue}, 90%, 60%)`;ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h);ctx.restore();}if(t<duration){animationId=requestAnimationFrame(draw);}else{stopAnimation();}}
+      function stopAnimation(){if(animationId){cancelAnimationFrame(animationId);animationId=null;}}
+      function closePopup(){overlay.classList.remove('open');stopAnimation();document.removeEventListener('keydown',onKey);if(autoTimer){clearTimeout(autoTimer);autoTimer=null;}}
+      function onKey(e){if(e.key==='Escape')closePopup();}
+      function iconForTask(text){const s=(text||'').toLowerCase();if(s.includes('skoletaske'))return'🎒';if(s.includes('opvask')||(s.includes('tøm')&&s.includes('opvask')))return'🍽️';if(s.includes('værel')||s.includes('rydd'))return'🧹';if(s.includes('bord'))return'🍽️';if(s.includes('skral')||s.includes('affald'))return'🗑️';if(s.includes('madpak')||s.includes('mad'))return'🥪';return'✅';}
+      function formatDay(iso){if(!iso)return'';const dt=new Date(iso+"T00:00:00");if(Number.isNaN(dt.getTime()))return'';return dayNames[dt.getDay()]||'';}
+      function formatTaskEntry(entry){if(!entry)return'';if(typeof entry==='string')return entry;const title=(entry.title||'Opgave').trim()||'Opgave';const parts=[];const day=formatDay(entry.date);if(day)parts.push(day);const time=(entry.time||'').trim();if(time)parts.push(time);return parts.length?`${title} – ${parts.join(' · ')}`:title;}
+      function renderTasks(tasks){tasksEl.innerHTML='';(tasks||[]).forEach((taskText,i)=>{const li=document.createElement('li');li.innerHTML=`<span class="celebration-task-icon">${iconForTask(taskText)}</span><span class="txt">${taskText}</span><span class="celebration-task-check">✔</span>`;li.style.animationDelay=Math.min(i*90,900)+'ms';tasksEl.appendChild(li);requestAnimationFrame(()=>li.classList.add('reveal'));});}
+      function openPopup(opts){const cfg=Object.assign({title:'GODT GÅET!',subtitle:'Højeste niveau låst op! 🥳',levelName:'Superstjerne',childName:'',tasks:[],autoCloseMs:5200},opts||{});headlineEl.textContent=cfg.childName?`${cfg.childName} – ${cfg.title}`:cfg.title;subEl.textContent=cfg.subtitle;levelEl.textContent='Niveau: '+cfg.levelName;const prepared=(cfg.tasks||[]).map(formatTaskEntry).filter(Boolean);renderTasks(prepared);stopAnimation();if(autoTimer){clearTimeout(autoTimer);autoTimer=null;}overlay.classList.add('open');sizeCanvas();startTime=performance.now();confettiBurst();draw();document.addEventListener('keydown',onKey);if(cfg.autoCloseMs){autoTimer=setTimeout(closePopup,cfg.autoCloseMs);} }
+      function maybeCelebrateTrigger(payload){const {weekISO,counts,tasks,weekNo,weekLabel}=payload||{};if(!weekISO||!counts)return;if(overlay.classList.contains('open'))return;for(const [person,count] of Object.entries(counts)){if(!person||person==='Alle')continue;if(count>=CELEBRATION_THRESHOLD&&!wasCelebrated(person,weekISO)){const personTasks=(tasks&&tasks[person])?tasks[person]:[];const chosen=personTasks.slice(-CELEBRATION_MAX_TASKS);const subtitle=weekNo&&weekLabel?`Du klarede ${count} opgaver i uge ${weekNo} (${weekLabel}) – stærkt gået!`:`Du klarede ${count} opgaver i denne uge – stærkt gået!`;const levelName=count>=12?'Legende':(count>=9?'Hverdagshelt':'Superstjerne');openPopup({childName:person,title:'Godt gået!',subtitle,levelName,tasks:chosen.length?chosen:personTasks,autoCloseMs:6500});markCelebrated(person,weekISO);break;}}}
+      if(closeBtn){closeBtn.addEventListener('click',closePopup);}overlay.addEventListener('click',e=>{if(e.target===overlay)closePopup();});
+      return{maybeCelebrate:maybeCelebrateTrigger,show:openPopup,hide:closePopup,wasCelebrated};
+    })();
+    window.showCelebration=celebration.show;
+    window.hideCelebration=celebration.hide;
+    function safeSeriesId(it){if(!it)return"";const id=(it.seriesId||it.id||"").toString();return id||""}
+    function makeOverrideId(baseId,dateIso,kind){const base=(baseId||"serie").toString().replace(/[^a-z0-9]+/gi,"-").replace(/^-+|-+$/g,"").slice(0,40)||"serie";return `loc:${kind||'ovr'}:${base}:${dateIso}`}
 
-  function fmtDateISO(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,'0')+"-"+String(d.getDate()).padStart(2,'0'); }
-  function pad(n){ return (n<10?'0':'')+n; }
-  function monthName(m){
-    return ["januar","februar","marts","april","maj","juni","juli","august","september","oktober","november","december"][m];
-  }
-  function weekNumber(d){
-    d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-    const dayNum = d.getUTCDay() || 7;
-    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-    const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
-    return Math.ceil((((d - yearStart) / 86400000) + 1)/7);
-  }
-  function loadItems(){
-    try{
-      const arr = JSON.parse(localStorage.getItem(LS_ITEMS)||"[]");
-      const migrated = arr.map(it => ({
+    function keyOf(it){const peopleKeyPart=peopleKey(it?.people?.length?it.people:(it.person||"Alle"));return[(it.title||"").trim().toLowerCase(),(it.date||"").trim(),(it.time||"").trim(),peopleKeyPart,(it.type||"Aktivitet").trim()].join("|")}
+    function djb2(s){let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h)^s.charCodeAt(i);return (h>>>0).toString(36)}
+    function uidFor(it){
+      const date = it.date||"";
+      if(it.id && it.id.startsWith("gcal:")) return "g:"+it.id.slice(5)+"|"+date;     // id fra GAS, per forekomst
+      if(it.id && it.id.startsWith("gcalr:"))return "gr:"+it.id.slice(6);             // hvis du senere bruger ugentlige ankre
+      if(it.id && it.id.startsWith("aula:")) return "a:"+it.id.slice(5)+"|"+date;     // Aula feed pr. forekomst
+      if(it.externalId && (it.source||"").toLowerCase()==="aula") return "a:"+it.externalId+"|"+date;
+      if(it.source==="google") return "g:"+(it.id||djb2(keyOf(it)))+"|"+date;
+      return "l:"+djb2(keyOf(it));                                                    // lokale
+    }
+
+    /* ---------- state ---------- */
+    let PEOPLE, items, current="Alle", editContext=null;
+    let focusDate=new Date();
+    let wk=startOfWeek(focusDate);
+    let viewMode=loadViewMode();
+    setFocusDate(focusDate);
+    function loadPrefs(){return loadLS(LS_PREFS,{});}
+    function savePrefs(p){saveLS(LS_PREFS,p)}
+    function getPeople(){const p=loadPrefs();return DEFAULT_PEOPLE.map(x=>({...x,color:p[x.name]?.color||x.color,avatar:p[x.name]?.avatar||""}))}
+    function normalizeItemShape(it){
+      if(!it||typeof it!=="object") return null;
+      const id=(it.id||"").toString();
+      const peopleRaw=(Array.isArray(it.people)&&it.people.length)?it.people:(it.person!==undefined?it.person:undefined);
+      const people=normalizePeopleList(peopleRaw);
+      const person=primaryPersonName(people);
+      const date=toISO(it.date);
+      const repeatUntil=toISO(it.repeatUntil||it.repeat_until||"");
+      const exceptions=uniqueISOList(it.exceptions||it.exceptionDates||[]);
+      const seriesId=safeSeriesId(it)|| (it.id||"");
+      const overrideOf=it.overrideOf||it.override_of||"";
+      const overrideBaseId=it.overrideBaseId||it.override_base_id||"";
+      const repeatYearly=!!(it.repeatYearly||it.repeat_yearly);
+      const birthYear=sanitizeBirthYear(it.birthYear??it.birth_year??"");
+      return {
         ...it,
-        type: normalizeType(it.type),
-        person: it.person || "Alle"
-      }));
-      localStorage.setItem(LS_ITEMS, JSON.stringify(migrated));
-      return migrated;
-    }catch(_){ return []; }
-  }
-  function saveItems(){ localStorage.setItem(LS_ITEMS, JSON.stringify(items)); }
-  function upsertItem(obj){
-    obj.type = normalizeType(obj.type);
-    if(!obj.person) obj.person = "Alle";
-    const i = items.findIndex(x => x.id === obj.id);
-    if(i>=0){ items[i]=obj; } else { items.push(obj); }
-    saveItems(); render();
-  }
-  function deleteItem(id){
-    items = items.filter(x => x.id !== id);
-    saveItems(); render();
-  }
-
-  function resolveBaseId(id){
-    if(!id) return id;
-    if(id.startsWith("rpt|")){ return id.split("|")[1]; }
-    if(id.startsWith("rpt:")){ return id.split(":")[1]; }
-    return id;
-  }
-  function getBaseItemFromAnyId(anyId){
-    const baseId = resolveBaseId(anyId);
-    let it = items.find(x=>x.id===baseId);
-    if(it) return it;
-    const el = document.querySelector(`.item[data-id="${escapeCss(anyId)}"]`);
-    if(el && el.dataset.baseId){
-      return items.find(x=>x.id===el.dataset.baseId) || null;
+        id:id||it.id||"",
+        type:normalizeType(it.type),
+        people,
+        person,
+        date,
+        repeatWeekly:!!it.repeatWeekly,
+        repeatYearly,
+        repeatUntil,
+        exceptions,
+        seriesId:(seriesId||id||it.id||""),
+        overrideOf,
+        overrideBaseId,
+        birthYear
+      };
     }
-    return null;
-  }
-  function escapeCss(s){ return String(s).replace(/(["\.#:[\]()])/g,"\$1"); }
-  function escapeHtml(str){
-    return String(str).replace(/[&<>"']/g, function(s){
-      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s];
-    });
-  }
+    function loadItems(){const arr=loadLS(LS_ITEMS,[]).map(normalizeItemShape).filter(Boolean);saveLS(LS_ITEMS,arr);return arr}
+    function saveItems(){saveLS(LS_ITEMS,items)}
 
-  const grid = document.getElementById('grid');
-  const weekNoEl = document.getElementById('weekNo');
-  const peopleBar = document.getElementById('peopleBar');
-  const badge = document.getElementById('syncBadge');
-  const btnWeek = document.getElementById('btnWeek');
+    PEOPLE=getPeople(); items=loadItems();
 
-  function setBadge(t){ badge.textContent = "Google sync: " + t; }
+    function singlePersonColor(name){const key=(name??"").toString().trim().toLowerCase();if(!key)return"#64748b";const pool=(typeof PEOPLE!=="undefined"&&Array.isArray(PEOPLE)&&PEOPLE.length?PEOPLE:DEFAULT_PEOPLE);const p=pool.find(x=>(x.name||"").toLowerCase()===key);return p?p.color:"#64748b"}
+    function personColor(n){if(Array.isArray(n)){const arr=normalizePeopleList(n);if(arr.length===0)return singlePersonColor("Alle");if(arr.length===1)return singlePersonColor(arr[0]);if(arr.includes("Alle"))return singlePersonColor("Alle");return singlePersonColor("Alle");}
+      return singlePersonColor(n);}
+    function singlePersonAvatar(name){const key=(name??"").toString().trim().toLowerCase();if(!key)return"";const pool=(typeof PEOPLE!=="undefined"&&Array.isArray(PEOPLE)&&PEOPLE.length?PEOPLE:DEFAULT_PEOPLE);const p=pool.find(x=>(x.name||"").toLowerCase()===key);return p?.avatar||""}
+    function personAvatar(n){if(Array.isArray(n)){const arr=normalizePeopleList(n).filter(x=>x!=="Alle");if(arr.length===1)return singlePersonAvatar(arr[0]);return "";}return singlePersonAvatar(n);}
 
-  function personColor(name){ const p = PEOPLE.find(x=>x.name===name); return p ? p.color : "#64748b"; }
-  function personAvatar(name){ const p = PEOPLE.find(x=>x.name===name); return p?.avatar || ""; }
-
-  function weekRangeLabel(){
-    const s = new Date(weekStart);
-    const e = new Date(weekStart); e.setDate(e.getDate()+6);
-    const sameMonth = s.getMonth()===e.getMonth();
-    return sameMonth
-      ? `${s.getDate()}.–${e.getDate()}. ${monthName(e.getMonth())}`
-      : `${s.getDate()}. ${monthName(s.getMonth())} – ${e.getDate()}. ${monthName(e.getMonth())}`;
-  }
-
-  function buildPeople(){
-    peopleBar.innerHTML = "";
-    for(const p of PEOPLE){
-      const chip = document.createElement('button');
-      chip.className = "chip" + (p.name===currentPerson?" active":"");
-      chip.style.borderColor = p.name!=="Alle" ? personColor(p.name) : "";
-      const media = p.name!=="Alle" && personAvatar(p.name)
-        ? `<img class="avatar" src="${personAvatar(p.name)}" alt="${p.name}">`
-        : `<span class="avatar" style="background:${personColor(p.name)}22; display:grid; place-items:center; font-weight:800; color:#111;">${p.name[0]}</span>`;
-      const tally = p.name!=="Alle" ? `<span class="tally" data-person="${p.name}"></span>` : "";
-      chip.innerHTML = `${media}<span>${p.name}</span>${tally}`;
-      chip.addEventListener('click', ()=>{ currentPerson = p.name; buildPeople(); render(); });
-      peopleBar.appendChild(chip);
-    }
-  }
-
-  function buildGrid(){
-    grid.innerHTML = "";
-    const names = ["mandag","tirsdag","onsdag","torsdag","fredag","lørdag","søndag"];
-    for(let i=0;i<7;i++){
-      const d = new Date(weekStart); d.setDate(weekStart.getDate()+i);
-      const iso = fmtDateISO(d);
-      const card = document.createElement('div');
-      card.className = "day" + (fmtDateISO(new Date())===iso ? " today":"");
-      card.setAttribute('data-date', iso);
-      const head = document.createElement('div'); head.className="head";
-      const name = document.createElement('div'); name.className="name"; name.textContent = names[i];
-      const date = document.createElement('div'); date.className="date"; date.textContent = pad(d.getDate()) + ". " + pad(d.getMonth()+1) + ".";
-      head.appendChild(name); head.appendChild(date);
-      const list = document.createElement('div'); list.className="list";
-      list.innerHTML = `
-        <div class="section" data-section="Aktivitet">
-          <div class="h">Aktiviteter</div>
-          <div class="items"></div>
-        </div>
-        <div class="section" data-section="Fritidsinteresse">
-          <div class="h">Fritidsinteresser</div>
-          <div class="items"></div>
-        </div>
-        <div class="section" data-section="Opgave">
-          <div class="h">Opgaver</div>
-          <div class="items"></div>
-        </div>`;
-      card.appendChild(head); card.appendChild(list);
-      grid.appendChild(card);
-    }
-  }
-
-  function withinWeekDate(dateISO){
-    const [Y,M,D] = dateISO.split('-').map(Number);
-    const d = new Date(Y, M-1, D);
-    const end = new Date(weekStart); end.setDate(weekStart.getDate()+7);
-    return d >= weekStart && d < end;
-  }
-
-  function materializeRepeats(base){
-    const out = [...base];
-    const weekISO = fmtDateISO(weekStart);
-    for(const it of base){
-      if(!it.repeatWeekly) continue;
-      if(withinWeekDate(it.date)) continue;
-      const [y,m,dd] = it.date.split('-').map(Number);
-      const src = new Date(y, m-1, dd);
-      const srcDow = (src.getDay()+6)%7;
-      const target = new Date(weekStart); target.setDate(weekStart.getDate()+srcDow);
-      const clone = {...it};
-      clone.baseId = it.id;
-      clone.id = "rpt|"+it.id+"|"+weekISO;
-      clone.date = fmtDateISO(target);
-      out.push(clone);
-    }
-    return out;
-  }
-
-  function symbolsForCount(n){
-    if(n<=0) return "";
-    if(n===1) return "🪙";
-    if(n===2) return "🪙🪙";
-    if(n===3) return "🟨";
-    if(n===4) return "🟨🟨";
-    if(n===5) return "💎";
-    if(n===6) return "💎💎";
-    return "👑";
-  }
-
-  function render(){
-    weekNoEl.textContent = weekNumber(weekStart);
-    btnWeek.textContent = weekRangeLabel();
-
-    buildGrid();
-
-    const materialized = materializeRepeats(items);
-
-    const doneCounts = {};
-    for(const p of PEOPLE){ if(p.name!=="Alle") doneCounts[p.name]=0; }
-    for(const it of materialized){
-      if(it.type==="Opgave" && it.done && it.person && withinWeekDate(it.date)){
-        doneCounts[it.person] = (doneCounts[it.person]||0)+1;
+    function updateViewToggle(){if(!viewToggle)return;const label=viewMode==="week"?"Vis dag":"Vis uge";viewToggle.textContent=label;viewToggle.setAttribute("aria-pressed",viewMode==="day"?"true":"false");viewToggle.title=viewMode==="week"?"Skift til dagsvisning":"Skift til ugevisning";}
+    function buildPeople(){
+      peopleBar.innerHTML="";
+      for(const p of PEOPLE){
+        const b=document.createElement("button");
+        b.className="chip"+(p.name===current?" active":"");
+        b.style.borderColor=p.name!=="Alle"?personColor(p.name):"";
+        const avatarSrc=p.name!=="Alle"?personAvatar(p.name):"";
+        const media=avatarSrc?`<span class="avatar"><img src="${avatarSrc}" alt=""></span>`:`<span class="avatar" style="background:${personColor(p.name)}22;display:grid;place-items:center;font-weight:800;color:#111">${p.name[0]}</span>`;
+        const label=`<span class="chipName">${p.name}</span>`;
+        const tally=p.name!=="Alle"?`<span class="tally" data-person="${p.name}"></span>`:"";
+        b.innerHTML=`${media}${label}${tally}`;
+        b.onclick=()=>{current=p.name;buildPeople();render()};
+        peopleBar.appendChild(b);
       }
     }
-    for(const p of PEOPLE){
-      if(p.name==="Alle") continue;
-      const span = document.querySelector(`.tally[data-person="${p.name}"]`);
-      if(span){ span.textContent = symbolsForCount(doneCounts[p.name]||0); }
-    }
-
-    const visible = materialized
-      .filter(it => withinWeekDate(it.date))
-      .filter(it => currentPerson==="Alle" ? true : (it.person === currentPerson))
-      .sort((a,b)=> (a.date.localeCompare(b.date) || (a.time||"").localeCompare(b.time||"")));
-
-    for(const it of visible){
-      const day = document.querySelector(`.day[data-date="${it.date}"]`);
-      if(!day) continue;
-
-      const type = normalizeType(it.type);
-      const section = day.querySelector(`.section[data-section="${type}"] .items`);
-      if(!section) continue;
-
-      const div = document.createElement('div');
-      const color = personColor(it.person);
-      div.className = "item" + (it.done ? " done" : "");
-      div.style.borderLeftColor = color;
-      div.setAttribute('data-id', it.id);
-      div.setAttribute('data-base-id', it.baseId || resolveBaseId(it.id));
-
-      const leftHTML = (type==="Opgave")
-        ? `<input type="checkbox" ${it.done?'checked':''} data-opgave="${it.id}" title="Marker som udført">`
-        : (it.time ? escapeHtml(it.time) : '<span class="muted">Heldag</span>');
-
-      div.innerHTML = `
-        <div class="left">${leftHTML}</div>
-        <div class="meta">
-          <div class="title">${escapeHtml(it.title||"(uden titel)")}${it.repeatWeekly?' · <span class="muted">↻ uge</span>':''}</div>
-          ${it.location? `<div class="note">${escapeHtml(it.location)}</div>`:""}
-          ${it.note? `<div class="note">${escapeHtml(it.note)}</div>`:""}
+    function buildGrid(){
+      grid.classList.toggle("day-mode",viewMode==="day");
+      grid.innerHTML="";
+      const todayISO=fmtISO(new Date());
+      const appendCard=(dateObj)=>{
+        const iso=fmtISO(dateObj);
+        const idx=((dateObj.getDay()+6)%7);
+        const name=WEEK_DAY_NAMES[idx]||"";
+        const card=document.createElement("div");card.className="day"+(todayISO===iso?" today":"");card.dataset.date=iso;
+        const head=`<div class="head"><div class="name">${name}</div><div class="date">${String(dateObj.getDate()).padStart(2,"0")+". "+String(dateObj.getMonth()+1).padStart(2,"0")+"."}</div></div>`;
+        const body=`<div class="list">
+          <div class="section" data-section="Aktivitet"><div class="h">Aktiviteter</div><div class="items"></div></div>
+          <div class="section" data-section="Fritidsinteresse"><div class="h">Fritidsinteresser</div><div class="items"></div></div>
+          <div class="section" data-section="Opgave"><div class="h">Opgaver</div><div class="items"></div></div>
         </div>`;
-
-      div.addEventListener('click', (e)=>{
-        if(e.target && (e.target.matches('input[type="checkbox"]') || e.target.hasAttribute('data-opgave'))) return;
-        openEditor(div.getAttribute('data-id'));
-      });
-
-      section.appendChild(div);
-    }
-
-    document.querySelectorAll('.day').forEach(d=>{
-      d.querySelectorAll('.section').forEach(sec=>{
-        const has = sec.querySelector('.items').children.length>0;
-        sec.style.display = has ? '' : 'none';
-      });
-    });
-
-    document.querySelectorAll('input[type="checkbox"][data-opgave]').forEach(cb=>{
-      cb.addEventListener('click', (e)=>{ e.stopPropagation(); });
-      cb.addEventListener('change', (e)=>{
-        const anyId = e.target.getAttribute('data-opgave');
-        const item = getBaseItemFromAnyId(anyId);
-        if(!item) return;
-        item.done = e.target.checked;
-        upsertItem(item);
-      });
-    });
-  }
-
-  const backdrop = document.getElementById('backdrop');
-  const dlgClose = document.getElementById('dlgClose');
-  const btnSave = document.getElementById('btnSave');
-  const btnDelete = document.getElementById('btnDelete');
-  const dlgTitle = document.getElementById('dlgTitle');
-
-  const f_title = document.getElementById('f_title');
-  const f_type = document.getElementById('f_type');
-  const f_person = document.getElementById('f_person');
-  const f_date = document.getElementById('f_date');
-  const f_time = document.getElementById('f_time');
-  const f_duration = document.getElementById('f_duration');
-  const f_location = document.getElementById('f_location');
-  const f_note = document.getElementById('f_note');
-  const f_repeat = document.getElementById('f_repeat');
-  const f_done = document.getElementById('f_done');
-
-  function buildPersonOptions(){
-    const opts = PEOPLE.map(p=>`<option${p.name==="Alle"?' selected':''}>${p.name}</option>`).join('');
-    f_person.innerHTML = opts;
-  }
-
-  function openNew(dateISO){
-    editingId = null;
-    dlgTitle.textContent = "Tilføj";
-    f_title.value = "";
-    f_type.value = "Aktivitet";
-    f_person.value = "Alle";
-    f_date.value = dateISO || fmtDateISO(new Date());
-    f_time.value = "";
-    f_duration.value = "";
-    f_location.value = "";
-    f_note.value = "";
-    f_repeat.checked = false;
-    f_done.checked = false;
-    btnDelete.style.display = "none";
-    backdrop.style.display = "flex";
-    document.body.classList.add('modal-open');
-  }
-
-  function openEditor(anyId){
-    const base = getBaseItemFromAnyId(anyId);
-    if(!base) return;
-
-    editingId = base.id;
-    dlgTitle.textContent = "Rediger";
-    f_title.value = base.title||"";
-    f_type.value = normalizeType(base.type)||"Aktivitet";
-    f_person.value = base.person || "Alle";
-    f_date.value = base.date || fmtDateISO(new Date());
-    f_time.value = base.time || "";
-    f_duration.value = base.durationMin || "";
-    f_location.value = base.location || "";
-    f_note.value = base.note || "";
-    f_repeat.checked = !!base.repeatWeekly;
-    f_done.checked = !!base.done;
-
-    btnDelete.style.display = "inline-flex";
-    backdrop.style.display = "flex";
-    document.body.classList.add('modal-open');
-  }
-
-  document.getElementById('dlgClose').addEventListener('click', ()=> { backdrop.style.display="none"; document.body.classList.remove('modal-open'); });
-  btnDelete.addEventListener('click', ()=>{ if(editingId){ deleteItem(editingId); backdrop.style.display="none"; document.body.classList.remove('modal-open'); }});
-  btnSave.addEventListener('click', ()=>{
-    const obj = {
-      id: editingId || ("loc:"+Date.now().toString(36)+Math.random().toString(36).slice(2)),
-      title: f_title.value.trim() || "(uden titel)",
-      type: normalizeType(f_type.value),
-      person: f_person.value || "Alle",
-      date: f_date.value,
-      time: f_time.value || "",
-      durationMin: f_duration.value ? parseInt(f_duration.value,10) : 0,
-      location: f_location.value.trim(),
-      note: f_note.value.trim(),
-      repeatWeekly: !!f_repeat.checked,
-      done: !!f_done.checked,
-      source: editingId && String(editingId).startsWith("gcal") ? "google" : "local"
-    };
-    upsertItem(obj);
-    backdrop.style.display="none";
-    document.body.classList.remove('modal-open');
-  });
-
-  document.getElementById('btnNew').addEventListener('click', ()=> openNew());
-  document.getElementById('btnPrev').addEventListener('click', ()=>{ weekStart.setDate(weekStart.getDate()-7); render(); });
-  document.getElementById('btnNext').addEventListener('click', ()=>{ weekStart.setDate(weekStart.getDate()+7); render(); });
-  document.getElementById('btnWeek').addEventListener('click', ()=>{ weekStart = startOfWeek(new Date()); render(); });
-
-  function toLocalDateISO(ev){
-    if (ev.startISO){
-      const d = new Date(ev.startISO);
-      return fmtDateISO(d);
-    }
-    return ev.date;
-  }
-  function weekdayFromEv(ev){
-    const d = new Date(ev.startISO || (ev.date+"T00:00:00"));
-    return (d.getDay()+6)%7;
-  }
-  function recurrenceKey(ev){
-    if (ev.recurringEventId) return "weekly:"+ev.recurringEventId;
-    const recArr = Array.isArray(ev.recurrence) ? ev.recurrence.join(';') : (ev.rrule || ev.recurrence || "");
-    if (/FREQ=WEEKLY/i.test(recArr) || ev.isRecurring === true) return null;
-    return null;
-  }
-  async function fetchEvents(){
-    const url = GAS_URL + (GAS_URL.includes("?") ? "&" : "?") + "t=" + Date.now();
-    const res = await fetch(url, { cache: "no-store" });
-    if(!res.ok) throw new Error("Apps Script fejl: " + res.status);
-    const data = await res.json();
-    return Array.isArray(data.items) ? data.items : [];
-  }
-  function loadIndex(){ try{ return JSON.parse(localStorage.getItem(LS_GCAL_INDEX) || "{}"); }catch(_){ return {}; } }
-  function saveIndex(o){ localStorage.setItem(LS_GCAL_INDEX, JSON.stringify(o)); }
-
-  async function syncNow(){
-    try{
-      setBadge("henter…");
-      const events = await fetchEvents();
-      const idx = loadIndex();
-      let created = 0;
-
-      const groups = new Map();
-      for(const ev of events){
-        let key = recurrenceKey(ev);
-        if(!key){
-          const title = (ev.summary||"").trim().toLowerCase();
-          const wd = weekdayFromEv(ev);
-          const time = (ev.time||"").trim();
-          key = `heur:${title}|${wd}|${time}`;
+        card.innerHTML=head+body;grid.appendChild(card);
+      };
+      if(viewMode==="day"){
+        appendCard(new Date(focusDate));
+      }else{
+        for(let i=0;i<7;i++){
+          const d=new Date(wk);d.setDate(wk.getDate()+i);
+          appendCard(d);
         }
-        if(!groups.has(key)) groups.set(key, []);
-        groups.get(key).push(ev);
+      }
+    }
+    function withinWeek(iso){if(!iso)return false;const parts=iso.split("-").map(Number);if(parts.length<3||parts.some(n=>Number.isNaN(n)))return false;const [Y,M,D]=parts;const d=new Date(Y,M-1,D);const e=new Date(wk);e.setDate(wk.getDate()+7);return d>=wk && d<e}
+
+    function computeEasterSunday(year){
+      if(!Number.isFinite(year)) return null;
+      const a=year%19;
+      const b=Math.floor(year/100);
+      const c=year%100;
+      const d=Math.floor(b/4);
+      const e=b%4;
+      const f=Math.floor((b+8)/25);
+      const g=Math.floor((b-f+1)/3);
+      const h=(19*a+b-d-g+15)%30;
+      const i=Math.floor(c/4);
+      const k=c%4;
+      const l=(32+2*e+2*i-h-k)%7;
+      const m=Math.floor((a+11*h+22*l)/451);
+      const month=Math.floor((h+l-7*m+114)/31);
+      const day=((h+l-7*m+114)%31)+1;
+      const result=new Date(year,month-1,day);
+      if(Number.isNaN(result.getTime())) return null;
+      return result;
+    }
+    function nthWeekdayOfMonth(year,monthIndex,weekday,occurrence){
+      if(!Number.isFinite(year)||!Number.isFinite(monthIndex)||!Number.isFinite(weekday)||!Number.isFinite(occurrence)) return null;
+      const first=new Date(year,monthIndex,1);
+      if(Number.isNaN(first.getTime())) return null;
+      const offset=(7+weekday-first.getDay())%7;
+      const day=1+offset+(occurrence-1)*7;
+      const candidate=new Date(year,monthIndex,day);
+      if(Number.isNaN(candidate.getTime())||candidate.getMonth()!==monthIndex) return null;
+      return candidate;
+    }
+    function milestoneDisplayKey(title,iso){return `${(title||"").trim().toLowerCase()}|${iso}`;}
+    function makeMilestone(def,iso){
+      if(!iso) return null;
+      return {
+        id:`auto:milestone:${def.id}:${iso}`,
+        title:def.title,
+        type:MILESTONE_TYPE,
+        people:["Alle"],
+        person:"Alle",
+        date:iso,
+        time:"",
+        durationMin:0,
+        location:"",
+        note:def.note||"",
+        repeatWeekly:false,
+        repeatYearly:false,
+        done:false,
+        source:AUTO_MILESTONE_SOURCE,
+        autoGenerated:true
+      };
+    }
+    function generateMilestonesForYear(year){
+      const out=[];
+      if(!Number.isFinite(year)) return out;
+      for(const def of FIXED_MILESTONES){
+        const dt=new Date(year,(def.month||1)-1,def.day||1);
+        if(Number.isNaN(dt.getTime())||dt.getFullYear()!==year) continue;
+        const item=makeMilestone(def,fmtISO(dt));
+        if(item) out.push(item);
+      }
+      const easter=computeEasterSunday(year);
+      if(easter){
+        for(const def of EASTER_MILESTONES){
+          const dt=new Date(easter);
+          dt.setDate(dt.getDate()+def.offset);
+          if(Number.isNaN(dt.getTime())||dt.getFullYear()!==year) continue;
+          const item=makeMilestone(def,fmtISO(dt));
+          if(item) out.push(item);
+        }
+      }
+      for(const def of RELATIVE_MILESTONES){
+        if(!Number.isFinite(def.month)||!Number.isFinite(def.weekday)||!Number.isFinite(def.occurrence)) continue;
+        const dt=nthWeekdayOfMonth(year,(def.month||1)-1,def.weekday,def.occurrence);
+        if(!dt) continue;
+        const item=makeMilestone(def,fmtISO(dt));
+        if(item) out.push(item);
+      }
+      return out;
+    }
+    function autoMilestonesForView(){
+      const years=new Set();
+      years.add(wk.getFullYear());
+      const weekEnd=new Date(wk);weekEnd.setDate(wk.getDate()+6);years.add(weekEnd.getFullYear());
+      years.add(focusDate.getFullYear());
+      const userKeys=new Set();
+      for(const it of items||[]){
+        if(!it) continue;
+        if(normalizeType(it.type)!==MILESTONE_TYPE) continue;
+        const iso=toISO(it.date);
+        if(!iso) continue;
+        userKeys.add(milestoneDisplayKey(it.title,iso));
+      }
+      const results=[];
+      const seen=new Set();
+      const dayISO=viewMode==="day"?fmtISO(focusDate):null;
+      years.forEach(year=>{
+        for(const it of generateMilestonesForYear(year)){
+          const iso=toISO(it.date);
+          if(!iso) continue;
+          if(!withinWeek(iso)) continue;
+          if(dayISO && iso!==dayISO) continue;
+          const key=milestoneDisplayKey(it.title,iso);
+          if(userKeys.has(key)||seen.has(key)) continue;
+          seen.add(key);
+          results.push(it);
+        }
+      });
+      return results;
+    }
+
+    function materializeRepeats(base){
+      const out=[...base];
+      const weekISO=fmtISO(wk);
+      for(const it of base){
+        if(!it) continue;
+
+        if(it.repeatWeekly){
+          if(withinWeek(it.date)) continue;
+          if(!it.date||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(it.date)) continue;
+          const [y,m,d]=it.date.split("-").map(Number);
+          if([y,m,d].some(n=>Number.isNaN(n))) continue;
+          const src=new Date(y,m-1,d);
+          if(Number.isNaN(src.getTime())) continue;
+          const srcDow=(src.getDay()+6)%7;
+          const target=new Date(wk);target.setDate(wk.getDate()+srcDow);
+          const targetISO=fmtISO(target);
+          const skipDates=new Set((it.exceptions||[]).map(toISO).filter(Boolean));
+          if(skipDates.has(targetISO)) continue;
+          const untilISO=toISO(it.repeatUntil);
+          if(untilISO){
+            const untilDate=new Date(untilISO+"T00:00:00");
+            if(target>untilDate) continue;
+          }
+          const clone={...it};
+          clone.baseId=it.id;
+          clone.id=`rpt|${it.id}|${weekISO}`;
+          clone.date=targetISO;
+          out.push(clone);
+        }
+
+        if(it.repeatYearly){
+          const baseISO=toISO(it.date);
+          const baseDate=parseISODate(baseISO);
+          if(!baseDate) continue;
+          const baseYear=baseDate.getFullYear();
+          const month=baseDate.getMonth();
+          const day=baseDate.getDate();
+          const candidateYears=new Set([wk.getFullYear()-1,wk.getFullYear(),wk.getFullYear()+1,baseYear]);
+          if(viewMode==="day"){const fy=focusDate.getFullYear();candidateYears.add(fy);candidateYears.add(fy-1);candidateYears.add(fy+1);}
+          const skipDates=new Set((it.exceptions||[]).map(toISO).filter(Boolean));
+          const untilISO=toISO(it.repeatUntil);
+          for(const year of candidateYears){
+            if(!Number.isFinite(year)) continue;
+            if(year<baseYear) continue;
+            let target=new Date(year,month,day);
+            if(Number.isNaN(target.getTime())) continue;
+            if(target.getMonth()!==month){
+              target=new Date(year,month+1,0);
+            }
+            const targetISO=fmtISO(target);
+            if(baseISO && targetISO===baseISO) continue;
+            if(!withinWeek(targetISO)) continue;
+            if(skipDates.has(targetISO)) continue;
+            if(untilISO){
+              const untilDate=new Date(untilISO+"T00:00:00");
+              if(target>untilDate) continue;
+            }
+            const clone={...it};
+            clone.baseId=it.id;
+            clone.id=`rpty|${it.id}|${targetISO}`;
+            clone.date=targetISO;
+            clone.repeatYearly=true;
+            clone.seriesId=safeSeriesId(it)||it.seriesId||it.id;
+            out.push(clone);
+          }
+        }
+      }
+      return out;
+    }
+
+    function symbolsForCount(n){
+      if(!Number.isFinite(n)||n<=0) return "";
+      if(n===1) return "🪙";
+      if(n===2) return "🪙🪙";
+      if(n===3) return "🟨";
+      if(n===4) return "🟨🟨";
+      if(n===5) return "💎";
+      if(n===6) return "💎💎";
+      return "👑";
+    }
+
+    function baseId(any){if(!any)return any;if(any.startsWith("rpt|"))return any.split("|")[1];if(any.startsWith("rpt:"))return any.split(":")[1];return any}
+    function getByAnyId(id){const b=baseId(id);return items.find(x=>x.id===b)||null}
+
+    function render(){
+      updateViewToggle();
+      weekNo.textContent=weekNumber(focusDate); weekBtn.textContent=viewMode==="day"?dayLabel(focusDate):weekLabel(wk); if(weekBtn)weekBtn.title="Hop til i dag"; buildGrid();
+
+      const autoMilestones=autoMilestonesForView();
+      const materialized=materializeRepeats((items||[]).concat(autoMilestones));
+      const normalized=materialized
+        .map(it=>{const peopleList=normalizePeopleList(it.people&&it.people.length?it.people:(it.person!==undefined?it.person:"Alle"));return {...it,people:peopleList,person:primaryPersonName(peopleList)};});
+
+      const dayISO=viewMode==="day"?fmtISO(focusDate):null;
+      const visible=normalized
+        .filter(it=>withinWeek(it.date))
+        .filter(it=>!dayISO||it.date===dayISO)
+        .filter(it=>peopleInclude(it.people||it.person,current))
+        .sort((a,b)=>a.date.localeCompare(b.date)||(a.time||"").localeCompare(b.time||""));
+
+      const seen=new Set();
+      const seenBase=new Set();
+      for(const it of visible){
+        const UID=uidFor(it); if(seen.has(UID)) continue; seen.add(UID);
+        const baseKey=baseId(String(it.id||""));
+        if(baseKey&&seenBase.has(baseKey)) continue; if(baseKey) seenBase.add(baseKey);
+        const day=document.querySelector(`.day[data-date="${it.date}"]`); if(!day) continue;
+        const typeNow=normalizeType(it.type);
+        const typeLabel=(it.type||"").toString().toLowerCase();
+        const isBirthday = typeNow===BIRTHDAY_TYPE || typeLabel.includes('fødsel') || typeLabel.includes('foedsel') || !!it.birthYear;
+        const isMilestone = typeNow===MILESTONE_TYPE;
+        const sectionType=(isBirthday||isMilestone)?"Aktivitet":typeNow;
+        const sec=day.querySelector(`.section[data-section="${sectionType}"] .items`); if(!sec) continue;
+        const isTask = sectionType==="Opgave";
+        let leftContent='';
+        if(isTask){leftContent=`<input type="checkbox" ${it.done?'checked':''} data-opg="${it.id}">`;} else if(isBirthday){leftContent=`<span class="birthday-flag" aria-hidden="true">${BIRTHDAY_FLAG}</span>`;} else if(isMilestone){leftContent=MILESTONE_ICON;}
+        const escapeHtml=s=>s.replace(/[&<>]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[ch]||ch));
+        const timeDetail = it.time ? `<span class="time">${escapeHtml(String(it.time))}</span>` : (!isTask ? `<span class="time muted">Heldag</span>` : '');
+        const div=document.createElement("div");
+        div.className="item"+(it.done?" done":"");
+        div.style.borderLeftColor=personColor(it.people||it.person);
+        div.dataset.id=it.id;
+        div.dataset.date=it.date||"";
+        div.dataset.baseId=it.baseId||it.overrideBaseId||it.id;
+        div.dataset.seriesId=it.seriesId||it.overrideOf||it.baseId||it.id;
+        const peopleDetail=(it.people||[]).includes("Alle")?"":(it.people||[]).join(", ");
+        const detailParts=[];
+        if(peopleDetail) detailParts.push(`<div class="note people">${peopleDetail}</div>`);
+        if(it.location) detailParts.push(`<div class="note">${it.location}</div>`);
+        if(it.note) detailParts.push(`<div class="note">${it.note}</div>`);
+        const leftBlock = leftContent?`<div class="left">${leftContent}</div>`:'';
+        const safeTitle = escapeHtml(it.title||"(uden titel)");
+        const metaLabels=[];
+        if(it.repeatWeekly) metaLabels.push('↻ uge');
+        if(it.repeatYearly) metaLabels.push('↻ år');
+        if(it.overrideOf) metaLabels.push('tilpasset');
+        const metaSuffix=metaLabels.length?' · '+metaLabels.map(label=>`<span class="muted">${label}</span>`).join(' · '):'';
+        let displayTitle=safeTitle;
+        if(isBirthday){
+          const age=birthdayAgeOnDate(it.birthYear,it.date);
+          displayTitle=age!==null?`${safeTitle} bliver ${age} år`:`${safeTitle} har fødselsdag`;
+        }
+        div.innerHTML=`${leftBlock}<div class="meta"><div class="title-row"><div class="titlex">${displayTitle}${metaSuffix}</div>${timeDetail}</div>${detailParts.join("")}</div>`;
+        div.onclick=(e)=>{if(e.target && e.target.matches('input[type="checkbox"]'))return; openEditor({id:div.dataset.id,date:div.dataset.date,baseId:div.dataset.baseId,seriesId:div.dataset.seriesId})}
+        sec.appendChild(div);
       }
 
-      const processed = new Set();
-      for(const [key, list] of groups){
-        const latestUpdated = list.reduce((a,b)=> (a.updated>b.updated?a:b)).updated;
+      const doneCounts={}, completedTasks={};
+      for(const p of PEOPLE){ if(p.name!=="Alle"){ doneCounts[p.name]=0; completedTasks[p.name]=[]; } }
+      for(const it of normalized){
+        if(it.type==="Opgave" && it.done && withinWeek(it.date)){
+          const peopleList=normalizePeopleList(it.people||it.person);
+          const targets=peopleList.includes("Alle")?PEOPLE.filter(p=>p.name!=="Alle").map(p=>p.name):peopleList;
+          for(const name of targets){
+            doneCounts[name]=(doneCounts[name]||0)+1;
+            if(!completedTasks[name]) completedTasks[name]=[];
+            completedTasks[name].push({title:it.title||"Opgave",date:it.date||"",time:it.time||""});
+          }
+        }
+      }
+      for(const p of PEOPLE){
+        if(p.name==="Alle") continue;
+        const span=document.querySelector(`.tally[data-person="${p.name}"]`);
+        if(span){ span.textContent=symbolsForCount(doneCounts[p.name]||0); }
+      }
 
-        const isOfficialRepeat = key.startsWith("weekly:");
-        let isHeuristicRepeat = false;
-        if (!isOfficialRepeat) {
-          if (list.length >= 2) {
-            const titleOk = (list[0].summary || "").trim().length >= 3;
-            if (titleOk) {
-              const ms = list.map(ev => new Date(toLocalDateISO(ev)).getTime()).sort((a,b)=>a-b);
-              const spanDays = (ms[ms.length-1] - ms[0]) / (1000*60*60*24);
-              const distinctDates = new Set(ms.map(x => new Date(x).toDateString())).size;
-              isHeuristicRepeat = (distinctDates >= 2) && (spanDays >= 6);
+      celebration.maybeCelebrate({weekISO:fmtISO(wk),weekNo:weekNumber(wk),weekLabel:weekLabel(wk),counts:doneCounts,tasks:completedTasks});
+
+      document.querySelectorAll('input[data-opg]').forEach(cb=>{
+        cb.addEventListener("change",e=>{const any=e.target.getAttribute("data-opg");const it=getByAnyId(any);if(!it)return;it.done=e.target.checked; upsert(it)})
+      })
+    }
+
+    function putItem(obj,{commit=true}={}){
+      if(!obj)return null;
+      const normalized=normalizeItemShape(obj);
+      if(!normalized) return null;
+      if(!normalized.id){
+        normalized.id=`loc:${Date.now().toString(36)}${Math.random().toString(36).slice(2,8)}`;
+      }
+      if(!normalized.seriesId){
+        normalized.seriesId=normalized.id;
+      }
+      const idx=items.findIndex(x=>String(x.id||"")===String(normalized.id));
+      if(idx>=0){
+        items[idx]={...items[idx],...normalized};
+      }else{
+        items.push(normalized);
+      }
+      if(commit){commitItems();}
+      return normalized;
+    }
+    function upsert(obj){return putItem(obj,{commit:true});}
+    function remove(id){dropItem(id,{commit:true});}
+    function dropItem(id,{commit=true}={}){
+      const key=String(id||"");
+      const next=items.filter(x=>String(x.id||"")!==key);
+      if(next.length===items.length)return;
+      items=next;
+      if(commit){commitItems();}
+    }
+    function findById(id){return items.find(x=>String(x.id||"")===String(id||""))||null}
+    function replaceItem(id,payload){const idx=items.findIndex(x=>String(x.id||"")===String(id||""));if(idx>=0){items[idx]={...items[idx],...payload};}}
+    function commitItems(){saveItems();render();}
+    function findOverride(seriesOrBaseId,dateIso){const targetISO=toISO(dateIso);if(!targetISO)return null;const key=String(seriesOrBaseId||"");return items.find(x=>{if(toISO(x.date)!==targetISO)return false;const overrideKey=String(x.overrideOf||"");const baseKey=String(x.overrideBaseId||"");if(overrideKey&&overrideKey===key)return true;if(baseKey&&baseKey===key)return true;const seriesKey=safeSeriesId(x);if(seriesKey&&seriesKey===key&&!x.repeatWeekly)return true;return false;})||null}
+    function ensureException(baseId,dateIso){const base=findById(baseId);const iso=toISO(dateIso);if(!base||!iso)return;base.exceptions=uniqueISOList([...(base.exceptions||[]),iso]);replaceItem(baseId,{exceptions:base.exceptions});}
+    function removeException(baseId,dateIso){const base=findById(baseId);const iso=toISO(dateIso);if(!base||!iso)return;base.exceptions=(base.exceptions||[]).filter(x=>toISO(x)!==iso);replaceItem(baseId,{exceptions:base.exceptions});}
+    function updateRepeatUntil(baseId,lastIso){const base=findById(baseId);if(!base)return;const iso=toISO(lastIso);if(iso){replaceItem(baseId,{repeatUntil:iso});}else{replaceItem(baseId,{repeatUntil:""});}}
+
+    // editor
+    const EBD=$("editorBD"), DTitle=$("dlgTitle"), Ftitle=$("f_title"), Ftype=$("f_type"), Fperson=$("f_person"), FtaskRow=$("taskPresetRow"), FtaskPreset=$("f_taskPreset"), Fdate=$("f_date"), Ftime=$("f_time"), FbirthYear=$("f_birthYear"), FbirthdayWrap=$("birthdayFields"), Fdur=$("f_dur"), Floc=$("f_loc"), Fnote=$("f_note"), Frep=$("f_rep"), Fweekdays=$("f_weekdays"), FweekdaysWrap=$("weekdayOption"), Fdone=$("f_done");
+    const FrepWrap=Frep?Frep.closest('.option'):null;
+    const scopeRow=$("repeatScopeRow");
+    const scopeRadios=[...document.querySelectorAll('input[name="repeatScope"]')];
+    function showScopeRow(){if(scopeRow)scopeRow.style.display="block";}
+    function hideScopeRow(){if(scopeRow)scopeRow.style.display="none";}
+    function resetScopeRadios(){scopeRadios.forEach(r=>{r.checked=r.value==='series';});}
+    function currentScope(){const found=scopeRadios.find(r=>r.checked);return found?found.value:'series';}
+    function currentPeopleFromUI(){const boxes=Fperson?Array.from(Fperson.querySelectorAll('input[type="checkbox"]')):[];if(!boxes.length)return["Alle"];const chosen=boxes.filter(b=>b.checked).map(b=>b.value);return normalizePeopleList(chosen.length?chosen:["Alle"]);}
+    function applyPeopleToggleRules(target){if(!Fperson||!target)return;const value=normalizePersonName(target.value);const boxes=Array.from(Fperson.querySelectorAll('input[type="checkbox"]'));
+      if(value==="Alle"&&target.checked){boxes.forEach(box=>{if(box!==target)box.checked=false;});}
+      if(value!=="Alle"&&target.checked){const allBox=boxes.find(box=>normalizePersonName(box.value)==="Alle");if(allBox)allBox.checked=false;}
+      const anyChecked=boxes.some(box=>box.checked);
+      if(!anyChecked){const allBox=boxes.find(box=>normalizePersonName(box.value)==="Alle");if(allBox)allBox.checked=true;}
+    }
+    function fillPeopleSelect(selected){const targetList=normalizePeopleList((selected&&selected.length)?selected:currentPeopleFromUI());const effective=targetList.includes("Alle")?["Alle"]:targetList;const selection=new Set(effective.length?effective:["Alle"]);
+      if(!Fperson)return;Fperson.innerHTML=PEOPLE.map(p=>{const id=`p-${p.name.toLowerCase().replace(/[^a-z0-9]+/g,'-')}`;const checked=selection.has(p.name)||(selection.has("Alle")&&p.name==="Alle");return `<label for="${id}"><input type="checkbox" id="${id}" value="${p.name}" ${checked?"checked":""}>${p.name}</label>`;}).join("");
+      Fperson.querySelectorAll('input[type="checkbox"]').forEach(box=>{box.addEventListener("change",e=>{applyPeopleToggleRules(e.target);});});
+    }
+    function getSelectedPeople(){return normalizePeopleList(currentPeopleFromUI());}
+    function gatherTaskPresets(){const base=new Set(DEFAULT_TASK_PRESETS);if(Array.isArray(items)){for(const it of items){if(!it)continue;const isTask=normalizeType(it.type)==="Opgave";const title=(it.title||"").trim();if(isTask&&title)base.add(title);}}return Array.from(base).filter(Boolean).sort((a,b)=>a.localeCompare(b,'da',{sensitivity:'base'}));}
+    function fillTaskPresetOptions(){if(!FtaskPreset)return;const presets=gatherTaskPresets();const currentValue=FtaskPreset.value||"";FtaskPreset.innerHTML=['<option value="">Vælg opgave…</option>',...presets.map(name=>`<option value="${name}">${name}</option>`)].join("");if(currentValue&&presets.includes(currentValue)){FtaskPreset.value=currentValue;}else if(!presets.includes(currentValue)){FtaskPreset.value="";}}
+    function updateTaskPresetVisibility(){if(!FtaskRow||!Ftype)return;const typeNow=normalizeType(Ftype.value);if(typeNow==="Opgave"){FtaskRow.style.display="block";fillTaskPresetOptions();}else{FtaskRow.style.display="none";if(FtaskPreset)FtaskPreset.value="";}}
+    function syncTaskPresetWithTitle(){if(!FtaskPreset)return;const title=(Ftitle.value||"").trim().toLowerCase();const options=Array.from(FtaskPreset.options||[]);const match=options.find(opt=>(opt.value||"").toLowerCase()===title);FtaskPreset.value=match?match.value:"";}
+    function applyTypeUiState(opts={}){if(!Ftype)return;const triggeredByChange=!!opts.triggeredByChange;const typeNow=normalizeType(Ftype.value);updateTaskPresetVisibility();if(triggeredByChange&&typeNow==="Opgave"&&FtaskPreset&&FtaskPreset.options.length>1&&!Ftitle.value.trim()){FtaskPreset.value=FtaskPreset.options[1].value;Ftitle.value=FtaskPreset.value;}const isBirthday=typeNow===BIRTHDAY_TYPE;if(FbirthdayWrap)FbirthdayWrap.style.display=isBirthday?"block":"none";if(FbirthYear){FbirthYear.disabled=!isBirthday;}if(Frep){if(isBirthday){Frep.checked=false;Frep.disabled=true;Frep.dataset.birthdayLock='1';if(FrepWrap)FrepWrap.classList.add('disabled');}else{delete Frep.dataset.birthdayLock;Frep.disabled=false;if(FrepWrap)FrepWrap.classList.remove('disabled');}}if(Fweekdays){if(isBirthday){Fweekdays.checked=false;Fweekdays.dataset.birthdayLock='1';}else{delete Fweekdays.dataset.birthdayLock;}const locked=!!Fweekdays.dataset.birthdayLock||!!Fweekdays.dataset.contextLock;Fweekdays.disabled=locked;if(FweekdaysWrap){FweekdaysWrap.classList.toggle('disabled',locked);}}syncTaskPresetWithTitle();}
+    function openNew(dateISO){editContext=null;resetScopeRadios();hideScopeRow();DTitle.textContent="Tilføj";Ftitle.value="";Ftype.value="Aktivitet";fillPeopleSelect(["Alle"]);Fdate.value=dateISO||fmtISO(new Date());Ftime.value="";if(FbirthYear){FbirthYear.value="";}Fdur.value="";Floc.value="";Fnote.value="";Frep.checked=false;if(Frep){delete Frep.dataset.birthdayLock;Frep.disabled=false;if(FrepWrap)FrepWrap.classList.remove('disabled');}if(Fweekdays){Fweekdays.checked=false;delete Fweekdays.dataset.contextLock;delete Fweekdays.dataset.birthdayLock;Fweekdays.disabled=false;}if(FweekdaysWrap){FweekdaysWrap.classList.remove('disabled');}Fdone.checked=false;applyTypeUiState();$("btnDel").style.display="none";EBD.style.display="flex"}
+    function openEditor(ctx){
+      const hint=ctx||{};
+      const rawId=hint.id;
+      const baseHint=hint.baseId;
+      const seriesHint=hint.seriesId;
+      const target=findById(rawId);
+      let base=null;
+      if(baseHint){
+        base=findById(baseHint);
+      }
+      if(!base && rawId){
+        base=getByAnyId(rawId);
+      }
+      if(!base && seriesHint){
+        base=items.find(x=>safeSeriesId(x)===seriesHint && !!x.repeatWeekly) || null;
+      }
+      const source=target||base;
+      if(!source)return;
+      const occISO=toISO(hint.date||source.date||base?.date||"");
+      const effectiveBase=base||source;
+      editContext={
+        id:source.id,
+        rawId:rawId,
+        baseId:effectiveBase.id,
+        seriesId:safeSeriesId(effectiveBase)||effectiveBase.id,
+        occurrence:occISO,
+        isOverride:!!(target && target.id!==effectiveBase.id),
+        hasRepeat:!!effectiveBase.repeatWeekly
+      };
+      const initial={...source};
+      if(occISO) initial.date=occISO;
+      DTitle.textContent="Rediger";
+      Ftitle.value=initial.title||"";
+      Ftype.value=normalizeType(initial.type);
+      fillPeopleSelect(initial.people&&initial.people.length?initial.people:[initial.person||"Alle"]);
+      Fdate.value=initial.date||fmtISO(new Date());
+      Ftime.value=initial.time||"";
+      if(FbirthYear){const yr=sanitizeBirthYear(initial.birthYear);FbirthYear.value=yr?String(yr):"";}
+      Fdur.value=initial.durationMin||"";
+      Floc.value=initial.location||"";
+      Fnote.value=initial.note||"";
+      Frep.checked=!!initial.repeatWeekly;
+      if(Fweekdays){Fweekdays.checked=false;Fweekdays.disabled=true;Fweekdays.dataset.contextLock='1';}
+      if(FweekdaysWrap){FweekdaysWrap.classList.add('disabled');}
+      Fdone.checked=!!initial.done;
+      if(editContext.hasRepeat && !editContext.isOverride){showScopeRow();}else{hideScopeRow();}
+      resetScopeRadios();
+      applyTypeUiState();
+      $("btnDel").style.display="inline-flex";
+      EBD.style.display="flex";
+    }
+    if(Ftype){
+      Ftype.addEventListener("change",()=>{applyTypeUiState({triggeredByChange:true});});
+    }
+    if(FtaskPreset){
+      FtaskPreset.addEventListener("change",()=>{const val=FtaskPreset.value||"";if(val){Ftitle.value=val;}});
+    }
+    if(Ftitle){
+      Ftitle.addEventListener("input",()=>{syncTaskPresetWithTitle();});
+    }
+    $("dlgClose").onclick=()=>{EBD.style.display="none";editContext=null;};
+    $("btnDel").onclick=()=>{
+      if(!editContext){EBD.style.display="none";return;}
+      const base=findById(editContext.baseId);
+      const existing=findById(editContext.id);
+      const seriesId=editContext.seriesId||safeSeriesId(base)|| (base?base.id:"");
+      const scope=(editContext.hasRepeat && !editContext.isOverride)?currentScope():'series';
+      const occISO=toISO(editContext.occurrence||base?.date||"");
+      rememberGoogleDeletion({scope,seriesId,occurrenceISO:occISO,existingItem:existing,baseItem:base});
+      if(editContext.isOverride || !editContext.hasRepeat){
+        dropItem(editContext.id,{commit:true});
+        EBD.style.display="none";
+        editContext=null;
+        return;
+      }
+      if(scope==='series'){
+        items=items.filter(it=>safeSeriesId(it)!==seriesId);
+        commitItems();
+      }else if(scope==='future'){
+        if(!occISO){
+          items=items.filter(it=>safeSeriesId(it)!==seriesId);
+          commitItems();
+        }else{
+          const baseDate=toISO(base?.date);
+          if(baseDate && occISO<=baseDate){
+            items=items.filter(it=>safeSeriesId(it)!==seriesId);
+            commitItems();
+          }else{
+            const prevIso=addDaysISO(occISO,-7);
+            updateRepeatUntil(editContext.baseId,prevIso);
+            items=items.filter(it=>{
+              if(safeSeriesId(it)!==seriesId) return true;
+              if(it.id===editContext.baseId) return true;
+              const dateIso=toISO(it.date);
+              if(!dateIso) return true;
+              return dateIso<occISO;
+            });
+            commitItems();
+          }
+        }
+      }else{
+        if(occISO){
+          ensureException(editContext.baseId,occISO);
+          const override=findOverride(seriesId,occISO);
+          if(override){dropItem(override.id,{commit:false});}
+          commitItems();
+        }
+      }
+      EBD.style.display="none";
+      editContext=null;
+    };
+    $("btnSave").onclick=()=>{
+      const newRepeat=!!Frep.checked;
+      const applyWeekdays=!editContext && Fweekdays && !Fweekdays.disabled && Fweekdays.checked;
+      const dateInput=toISO(Fdate.value)||fmtISO(new Date());
+      const chosenDate=dateInput;
+      const timeValue=Ftime.value||"";
+      let dur=Fdur.value?parseInt(Fdur.value,10):0; if(!Number.isFinite(dur)) dur=0;
+      const base=editContext?findById(editContext.baseId):null;
+      const existing=editContext?findById(editContext.id):null;
+      const seriesId=editContext?.seriesId||safeSeriesId(base)||safeSeriesId(existing)||"";
+      const selectedPeople=getSelectedPeople();
+      const occOriginal=editContext?toISO(editContext.occurrence||""):"";
+      const occFallback=editContext?toISO(existing?.date||base?.date||""):"";
+      const occISO=occOriginal||occFallback||"";
+      const typeNormalized=normalizeType(Ftype.value);
+      const payload={
+        id:existing?.id||"",
+        externalId:existing?.externalId||base?.externalId||"",
+        title:(Ftitle.value||"(uden titel)").trim()||"(uden titel)",
+        type:typeNormalized,
+        people:selectedPeople,
+        person:primaryPersonName(selectedPeople),
+        date:chosenDate,
+        time:timeValue,
+        durationMin:dur,
+        location:(Floc.value||"").trim(),
+        note:(Fnote.value||"").trim(),
+        repeatWeekly:newRepeat,
+        done:!!Fdone.checked,
+        source:existing?.source||base?.source||'local',
+        detachedFromFeed:!!(existing?.detachedFromFeed||base?.detachedFromFeed),
+        seriesId:seriesId
+      };
+      if(typeNormalized===BIRTHDAY_TYPE){
+        const yearVal=FbirthYear?sanitizeBirthYear(FbirthYear.value):"";
+        payload.birthYear=yearVal||"";
+        payload.repeatYearly=true;
+        payload.repeatWeekly=false;
+      }else{
+        payload.birthYear="";
+        payload.repeatYearly=false;
+      }
+      if(!payload.date) payload.date=fmtISO(new Date());
+      if(!payload.repeatWeekly){
+        payload.repeatUntil="";
+      }
+      const aulaSource=(existing?.source||base?.source||"").toString().toLowerCase()==="aula";
+      const aulaDetached=!!(existing?.detachedFromFeed||base?.detachedFromFeed);
+      if(aulaSource && !aulaDetached){
+        const feedItem=existing||base||{};
+        const detachedPayload={
+          ...feedItem,
+          ...payload,
+          id:feedItem.id||payload.id||"",
+          externalId:feedItem.externalId||payload.externalId||"",
+          source:"aula",
+          detachedFromFeed:true,
+          overrideOf:"",
+          overrideBaseId:""
+        };
+        upsert(detachedPayload);
+        EBD.style.display="none";
+        editContext=null;
+        return;
+      }
+      if(existing && String(existing.id||"").startsWith("gcal:")){
+        const prevAuto=existing.autoRepeatWeekly;
+        let manualOverride=false;
+        if(prevAuto!==undefined){
+          manualOverride=newRepeat!==prevAuto;
+        }else if(existing.repeatWeekly!==newRepeat){
+          manualOverride=true;
+        }else{
+          manualOverride=!!existing.manualRepeatWeekly;
+        }
+        payload.manualRepeatWeekly=manualOverride;
+        if(prevAuto!==undefined) payload.autoRepeatWeekly=prevAuto;
+        payload.source=existing.source||'google';
+      }else if(base && String(base.id||"").startsWith("gcal:")){
+        const prevAuto=base.autoRepeatWeekly;
+        let manualOverride=false;
+        if(prevAuto!==undefined){
+          manualOverride=newRepeat!==prevAuto;
+        }else if(base.repeatWeekly!==newRepeat){
+          manualOverride=true;
+        }else{
+          manualOverride=!!base.manualRepeatWeekly;
+        }
+        payload.manualRepeatWeekly=manualOverride;
+        if(prevAuto!==undefined) payload.autoRepeatWeekly=prevAuto;
+        payload.source=base.source||'google';
+      }else if(existing && existing.manualRepeatWeekly!==undefined){
+        payload.manualRepeatWeekly=existing.manualRepeatWeekly;
+        if(existing.autoRepeatWeekly!==undefined) payload.autoRepeatWeekly=existing.autoRepeatWeekly;
+      }else if(base && base.manualRepeatWeekly!==undefined){
+        payload.manualRepeatWeekly=base.manualRepeatWeekly;
+        if(base.autoRepeatWeekly!==undefined) payload.autoRepeatWeekly=base.autoRepeatWeekly;
+      }
+
+      if(!editContext){
+        if(applyWeekdays){
+          const dates=weekdayDatesFor(payload.date);
+          const seen=new Set();
+          if(dates.length){
+            dates.forEach(iso=>{
+              if(!iso||seen.has(iso))return;
+              seen.add(iso);
+              const clone={...payload,date:iso,id:""};
+              putItem(clone,{commit:false});
+            });
+            commitItems();
+          }else{
+            upsert(payload);
+          }
+        }else{
+          upsert(payload);
+        }
+        EBD.style.display="none";
+        return;
+      }
+
+      if(editContext.isOverride || !editContext.hasRepeat){
+        if(existing){
+          payload.id=existing.id;
+          payload.seriesId=safeSeriesId(existing)||seriesId||existing.id;
+          payload.overrideOf=existing.overrideOf||"";
+          payload.overrideBaseId=existing.overrideBaseId||existing.baseId||editContext.baseId;
+        }else{
+          payload.id=editContext.baseId;
+        }
+        putItem(payload,{commit:true});
+        EBD.style.display="none";
+        editContext=null;
+        return;
+      }
+
+      const baseItem=base||existing;
+      if(!baseItem){
+        upsert(payload);
+        EBD.style.display="none";
+        editContext=null;
+        return;
+      }
+
+      const scope=currentScope();
+      const seriesKey=safeSeriesId(baseItem)||seriesId||baseItem.id;
+      const baseDate=toISO(baseItem.date);
+      rememberGoogleEdit({scope:scope,seriesId:seriesKey,occurrenceISO:occISO||chosenDate,payload,existingItem:existing,baseItem:baseItem});
+
+      if(scope==='series'){
+        const updated={...baseItem,...payload,id:baseItem.id,seriesId:seriesKey,overrideOf:"",overrideBaseId:""};
+        putItem(updated,{commit:false});
+        commitItems();
+      }else if(scope==='future'){
+        if(!occISO || (baseDate && occISO<=baseDate)){
+          const updated={...baseItem,...payload,id:baseItem.id,seriesId:seriesKey,overrideOf:"",overrideBaseId:""};
+          putItem(updated,{commit:false});
+          commitItems();
+        }else{
+          const previousEnd=baseItem.repeatUntil;
+          const prevIso=addDaysISO(occISO,-7);
+          updateRepeatUntil(baseItem.id,prevIso);
+          const futureExceptions=(baseItem.exceptions||[]).filter(x=>{const iso=toISO(x);return iso&&iso>occISO;});
+          const remainingExceptions=(baseItem.exceptions||[]).filter(x=>{const iso=toISO(x);return !iso||iso<occISO;});
+          replaceItem(baseItem.id,{exceptions:remainingExceptions});
+          const futureExisting=findOverride(seriesKey,occISO);
+          const futureId=futureExisting?futureExisting.id:makeOverrideId(seriesKey,occISO,'future');
+          const futurePayload={...baseItem,...payload,id:futureId,date:chosenDate,repeatWeekly:payload.repeatWeekly,seriesId:seriesKey,overrideOf:"",overrideBaseId:baseItem.id,exceptions:futureExceptions,repeatUntil:payload.repeatWeekly?previousEnd:""};
+          putItem(futurePayload,{commit:false});
+          commitItems();
+        }
+      }else{
+        if(occISO){
+          ensureException(baseItem.id,occISO);
+          const existingOverride=findOverride(seriesKey,occISO);
+          const overrideId=existingOverride?existingOverride.id:makeOverrideId(seriesKey,occISO,'one');
+          const overridePayload={...baseItem,...payload,id:overrideId,date:chosenDate,repeatWeekly:false,seriesId:seriesKey,overrideOf:seriesKey,overrideBaseId:baseItem.id,exceptions:[],repeatUntil:""};
+          putItem(overridePayload,{commit:false});
+          commitItems();
+        }else{
+          const updated={...baseItem,...payload,id:baseItem.id,seriesId:seriesKey};
+          putItem(updated,{commit:false});
+          commitItems();
+        }
+      }
+
+      EBD.style.display="none";
+      editContext=null;
+    }
+
+    // header buttons
+    const shiftRange=(days)=>{const next=new Date(focusDate);next.setDate(next.getDate()+days);setFocusDate(next);render();};
+    $("prev").onclick=()=>{shiftRange(viewMode==="day"?-1:-7)}
+    $("next").onclick=()=>{shiftRange(viewMode==="day"?1:7)}
+    weekBtn.onclick=()=>{setFocusDate(new Date());render()}
+    $("newBtn").onclick=()=>openNew()
+    const settingsBackdrop=$("settBD");
+    function refreshSyncSettings(){
+      hydrateGoogleStatus();
+    }
+    function openSettings(focusId){
+      buildSettings();
+      refreshSyncSettings();
+      if(!settingsBackdrop)return;
+      settingsBackdrop.style.display='flex';
+      settingsBackdrop.setAttribute('aria-hidden','false');
+      if(focusId){
+        const target=document.getElementById(focusId);
+        if(target){
+          requestAnimationFrame(()=>{
+            target.focus();
+            target.scrollIntoView({behavior:'smooth',block:'center'});
+          });
+        }
+      }
+    }
+    function closeSettings(){
+      if(!settingsBackdrop)return;
+      settingsBackdrop.style.display='none';
+      settingsBackdrop.setAttribute('aria-hidden','true');
+    }
+    $("settingsBtn").onclick=()=>openSettings();
+    $("settClose").onclick=()=>closeSettings();
+    if(settingsBackdrop){
+      settingsBackdrop.addEventListener('click',e=>{if(e.target===settingsBackdrop)closeSettings();});
+    }
+    if(viewToggle){
+      viewToggle.onclick=()=>{
+        viewMode=viewMode==="week"?"day":"week";
+        if(viewMode==="day"){setFocusDate(new Date());}
+        saveViewMode(viewMode);
+        render();
+      };
+    }
+
+    // settings (synk farver/avatars)
+    const readFileAsDataURL=file=>new Promise((resolve,reject)=>{const reader=new FileReader();reader.onerror=()=>reject(reader.error||new Error("Failed to read file"));reader.onload=()=>resolve(reader.result||"");reader.readAsDataURL(file);});
+    function buildSettings(){const box=$("settRows");box.innerHTML="";for(const p of PEOPLE){const row=document.createElement("div");row.className="row-s";row.innerHTML=`<div class="initial">${(p.name[0]||"?").toUpperCase()}</div><input type="text" value="${p.name}" data-f="name" data-for="${p.name}"><input type="file" accept="image/*" data-f="avatar" data-for="${p.name}"><input type="color" value="${p.color}" data-f="color" data-for="${p.name}"><span class="swatch" style="background:${p.color}"></span>`;const initialEl=row.querySelector(".initial");const nameInput=row.querySelector('input[data-f="name"]');const renderInitial=(src)=>{if(src){const img=document.createElement("img");img.src=src;img.alt="";initialEl.innerHTML="";initialEl.appendChild(img);initialEl.dataset.hasAvatar="true";}else{const letter=((nameInput.value||"?").trim()[0]||"?").toUpperCase();initialEl.textContent=letter;delete initialEl.dataset.hasAvatar;}};if(p.avatar)renderInitial(p.avatar);nameInput.addEventListener("input",()=>{if(!initialEl.dataset.hasAvatar)renderInitial("");});const fileInput=row.querySelector('input[data-f="avatar"]');fileInput.addEventListener("change",ev=>{const file=ev.target.files&&ev.target.files[0];if(file){const fr=new FileReader();fr.onload=()=>{renderInitial(fr.result||"");};fr.readAsDataURL(file);}else{renderInitial(p.avatar||"");}});row.querySelector('input[type="color"]').addEventListener("input",e=>row.querySelector(".swatch").style.background=e.target.value);box.appendChild(row)}}
+    $("settSave").onclick=async()=>{const prefs=loadPrefs();const rows=[...document.querySelectorAll("#settRows .row-s")];const readers=[];for(const r of rows){const nameInput=r.querySelector('input[data-f="name"]');const colorInput=r.querySelector('input[data-f="color"]');const fileInput=r.querySelector('input[data-f="avatar"]');const initialEl=r.querySelector(".initial");const old=nameInput.getAttribute("data-for");const name=nameInput.value.trim()||old;const color=colorInput.value;const prev=prefs[old]?.avatar||"";if(old&&old!==name)delete prefs[old];prefs[name]={color,avatar:prev};if(initialEl&&!initialEl.dataset.hasAvatar)prefs[name].avatar="";if(fileInput.files&&fileInput.files[0]){const file=fileInput.files[0];readers.push(readFileAsDataURL(file).then(data=>{prefs[name].avatar=data;}).catch(err=>{console.error("[Avatar read]",err);}));}}if(readers.length)await Promise.all(readers);savePrefs(prefs);if(window._peopleFS?.save){try{await window._peopleFS.save(prefs);}catch(e){console.error("[Supabase prefs save]",e);}}refreshPeople();$("settBD").style.display="none"}
+    function refreshPeople(){const currentSelection=currentPeopleFromUI();PEOPLE=getPeople();fillPeopleSelect(currentSelection);buildPeople();render()}
+
+    function defaultGState(){return{itemOverrides:{},seriesOverrides:{},deletedUids:{},deletedSeries:{}}}
+    let gStateCache=null;
+    function normalizeGState(state){const base=state&&typeof state==="object"?state:{};return{
+        itemOverrides:base.itemOverrides&&typeof base.itemOverrides==="object"?{...base.itemOverrides}:{},
+        seriesOverrides:base.seriesOverrides&&typeof base.seriesOverrides==="object"?{...base.seriesOverrides}:{},
+        deletedUids:base.deletedUids&&typeof base.deletedUids==="object"?{...base.deletedUids}:{},
+        deletedSeries:base.deletedSeries&&typeof base.deletedSeries==="object"?{...base.deletedSeries}:{}}
+    }
+    function getGState(){if(!gStateCache){gStateCache=normalizeGState(loadLS(LS_GSTATE,defaultGState()));}return gStateCache;}
+    function saveGState(state){gStateCache=normalizeGState(state||defaultGState());saveLS(LS_GSTATE,gStateCache);return gStateCache;}
+    function updateGState(mutator){const current=getGState();const next={
+        itemOverrides:{...current.itemOverrides},
+        seriesOverrides:{...current.seriesOverrides},
+        deletedUids:{...current.deletedUids},
+        deletedSeries:{...current.deletedSeries}
+      };const maybe=mutator&&mutator(next);return saveGState(maybe||next);}
+    function googleBase(existingItem,baseItem){const hasGoogleId=obj=>obj&&typeof obj.id==='string'&&obj.id.startsWith('gcal:');const isGoogle=obj=>(obj?.source||'').toString().toLowerCase()==='google';if(hasGoogleId(existingItem))return existingItem;if(hasGoogleId(baseItem))return baseItem;if(isGoogle(existingItem))return existingItem;if(isGoogle(baseItem))return baseItem;return existingItem||baseItem||null;}
+    function googleCloneForUid({existingItem,baseItem,payload,occurrenceISO}){const ref=googleBase(existingItem,baseItem);const source=ref||existingItem||baseItem||{};const clone={...source,...(payload||{})};if(ref?.id)clone.id=ref.id;if(ref?.source)clone.source=ref.source;if(!clone.source)clone.source='google';clone.date=toISO((payload&&payload.date)||occurrenceISO||source.date||'');return clone;}
+    function captureRemoteFields(payload){if(!payload||typeof payload!=="object")return{};const out={};if(payload.title!==undefined)out.title=(payload.title||"(uden titel)").toString();if(payload.type!==undefined)out.type=normalizeType(payload.type);if(payload.people!==undefined){const norm=normalizePeopleList(payload.people);if(norm.length){out.people=norm.slice();out.person=primaryPersonName(norm);}}if(payload.manualRepeatWeekly!==undefined)out.manualRepeatWeekly=!!payload.manualRepeatWeekly;if(payload.autoRepeatWeekly!==undefined)out.autoRepeatWeekly=payload.autoRepeatWeekly;if(payload.repeatWeekly!==undefined)out.repeatWeekly=!!payload.repeatWeekly;return out;}
+    function rememberGoogleEdit({scope,seriesId,occurrenceISO,payload,existingItem,baseItem}){
+      const source=(existingItem&&existingItem.source)||(baseItem&&baseItem.source)||payload?.source;
+      if(source!=="google")return;
+      const fields=captureRemoteFields(payload);
+      if(Object.keys(fields).length===0)return;
+      const effectiveSeries=seriesId||safeSeriesId(existingItem)||safeSeriesId(baseItem)||"";
+      updateGState(state=>{
+        if(scope==="series"||scope==="future"){
+          if(!effectiveSeries)return state;
+          const fromISO=scope==="future"?toISO(occurrenceISO||payload?.date||existingItem?.date||baseItem?.date||""):"";
+          state.seriesOverrides[effectiveSeries]={fields,...(fromISO?{from:fromISO}:{} )};
+          delete state.deletedSeries[effectiveSeries];
+          return state;
+        }
+        const reference=googleCloneForUid({existingItem,baseItem,payload,occurrenceISO});
+        if(!reference)return state;
+        const uid=uidFor(reference);
+        if(!uid.startsWith("g:"))return state;
+        state.itemOverrides[uid]={fields};
+        delete state.deletedUids[uid];
+        return state;
+      });
+    }
+    function rememberGoogleDeletion({scope,seriesId,occurrenceISO,existingItem,baseItem}){
+      const source=(existingItem&&existingItem.source)||(baseItem&&baseItem.source)||"";
+      if(source!=="google")return;
+      const effectiveSeries=seriesId||safeSeriesId(existingItem)||safeSeriesId(baseItem)||"";
+      updateGState(state=>{
+        if(scope==="series"||scope==="future"){
+          if(!effectiveSeries)return state;
+          const fromISO=scope==="future"?toISO(occurrenceISO||existingItem?.date||baseItem?.date||""):"";
+          state.deletedSeries[effectiveSeries]=fromISO?{from:fromISO}:{};
+          delete state.seriesOverrides[effectiveSeries];
+          return state;
+        }
+        const reference=googleCloneForUid({existingItem,baseItem,occurrenceISO});
+        if(!reference)return state;
+        const uid=uidFor(reference);
+        if(!uid.startsWith("g:"))return state;
+        state.deletedUids[uid]=true;
+        delete state.itemOverrides[uid];
+        return state;
+      });
+    }
+    function shouldIgnoreGoogleEvent(state,{uid,seriesId,dateISO}){
+      if(!state)return false;
+      if(uid&&state.deletedUids&&state.deletedUids[uid])return true;
+      if(seriesId){const info=state.deletedSeries&&state.deletedSeries[seriesId];if(info){const cutoff=toISO(info.from||"");if(!cutoff)return true;const target=toISO(dateISO||"");if(!target)return true;if(target>=cutoff)return true;}}
+      return false;
+    }
+    function applyGoogleOverrides(state,{uid,seriesId,dateISO,item}){
+      if(!state||!item)return{item};
+      let changed=false;
+      const next={...item};
+      const applyFields=entry=>{
+        if(!entry||typeof entry!=='object')return;
+        const fields=entry.fields||entry;
+        if(!fields||typeof fields!=='object')return;
+        if(fields.title!==undefined&&fields.title!==next.title){next.title=(fields.title||"(uden titel)").toString();changed=true;}
+        if(fields.type!==undefined&&fields.type!==next.type){next.type=normalizeType(fields.type);changed=true;}
+        if(fields.people!==undefined){const norm=normalizePeopleList(fields.people);if(norm.length){next.people=norm;next.person=primaryPersonName(norm);changed=true;}}
+        if(fields.manualRepeatWeekly!==undefined&&fields.manualRepeatWeekly!==next.manualRepeatWeekly){next.manualRepeatWeekly=!!fields.manualRepeatWeekly;changed=true;}
+        if(fields.autoRepeatWeekly!==undefined&&fields.autoRepeatWeekly!==next.autoRepeatWeekly){next.autoRepeatWeekly=fields.autoRepeatWeekly;changed=true;}
+        if(fields.repeatWeekly!==undefined&&fields.repeatWeekly!==next.repeatWeekly){next.repeatWeekly=!!fields.repeatWeekly;changed=true;}
+        if(fields.repeatYearly!==undefined&&fields.repeatYearly!==next.repeatYearly){next.repeatYearly=!!fields.repeatYearly;changed=true;}
+        if(fields.birthYear!==undefined||fields.birth_year!==undefined){const yr=sanitizeBirthYear(fields.birthYear??fields.birth_year);const current=next.birthYear||"";const normalized=yr||"";if(current!==normalized){next.birthYear=normalized;changed=true;}}
+      };
+      if(seriesId){const info=state.seriesOverrides&&state.seriesOverrides[seriesId];if(info){const fromISO=toISO(info.from||"");const targetISO=toISO(dateISO||next.date||"");if(!fromISO||targetISO&&(targetISO>=fromISO)){applyFields(info);}}}
+      if(uid){const perItem=state.itemOverrides&&state.itemOverrides[uid];if(perItem)applyFields(perItem);}
+      if(changed){next.people=normalizePeopleList(next.people);next.person=primaryPersonName(next.people);}
+      return{item:changed?next:item};
+    }
+
+    function hydrateGoogleStatus(){
+      const stored=loadLS(LS_GSYNC_META,null);
+      if(stored){
+        updateGoogleStatus(stored.status||'—',{state:stored.state||'info',meta:stored});
+      }else{
+        updateGoogleStatus('—',{state:'idle',meta:null});
+      }
+    }
+    /* ---------- Google sync (enkeltforekomster) ---------- */
+    const GAS_URL="https://script.google.com/macros/s/AKfycbyQeS_NvMVv4A3IImB6S3AsRt67aSpeKuaoHHSf8K4xRE9sx3zSZS8zHlvZFL_WDIKl/exec";
+    function loadGIdx(){return loadLS(LS_GIDX,{})}
+    function saveGIdx(x){saveLS(LS_GIDX,x)}
+    async function fetchEvents(){
+      const url=new URL(GAS_URL,location.href);
+      url.searchParams.set('t',Date.now().toString());
+      url.searchParams.set('include','all');
+      const r=await fetch(url.toString(),{cache:"no-store"});
+      if(!r.ok)throw new Error("GAS "+r.status);
+      const j=await r.json();
+      return Array.isArray(j.items)?j.items:[]
+    }
+    function containsWeekly(val){if(!val)return false;if(typeof val==="string")return/(WEEKLY|\bWEEK\b|\bUGE\b)/i.test(val);if(Array.isArray(val))return val.some(containsWeekly);if(typeof val==="object")return Object.values(val).some(containsWeekly);return false}
+    function recurrenceAnchor(ev){if(!ev||typeof ev!=="object")return"";const id=ev.recurringEventId||ev.recurring_event_id||ev.seriesMasterId||ev.series_master_id||ev.masterEventId||ev.master_event_id||ev.parentId||ev.parent_id;if(id)return"rec:"+id;const title=(ev.summary||ev.title||"").trim().toLowerCase();const time=(ev.time||ev.startTime||ev.start_time||"").toString().trim();const rawDur=Number(ev.durationMin??ev.durationMinutes??ev.duration??0);const duration=Number.isFinite(rawDur)?rawDur:0;const location=(ev.location||"").trim().toLowerCase();if(!title&&!time)return"";return"heur:"+[title,time,duration,location].join("|");}
+    function markLikelyWeekly(events){const groups=new Map();for(const ev of events){if(!ev||typeof ev!=="object")continue;const key=recurrenceAnchor(ev);if(!key)continue;const dateISO=fromAnyToLocalISO(ev.startISO||ev.date);if(!dateISO||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(dateISO))continue;if(!groups.has(key))groups.set(key,[]);groups.get(key).push({ev,dateISO});}const WEEK_MS=7*24*60*60*1000;groups.forEach(list=>{if(list.length<2)return;list.sort((a,b)=>a.dateISO.localeCompare(b.dateISO));let weekly=false;for(let i=1;i<list.length;i++){const prev=list[i-1].dateISO,curr=list[i].dateISO;const diff=Math.abs(new Date(curr).getTime()-new Date(prev).getTime());if(diff===0)continue;const ratio=diff/WEEK_MS;const rounded=Math.round(ratio);if(rounded>=1&&Math.abs(ratio-rounded)<=0.15){weekly=true;break;}}if(weekly){list.forEach(x=>{x.ev.__weeklyHint=true;});}});}
+    function detectWeeklyRepeat(ev){if(!ev||typeof ev!=="object")return false;if(ev.repeatWeekly||ev.repeat_weekly)return true;if(ev.__weeklyHint)return true;const freq=(ev.repeatFrequency||ev.repeat_frequency||ev.frequency||ev.recurrenceFrequency||"").toString();const type=(ev.repeatType||ev.repeat_type||ev.recurrenceType||"").toString();if(containsWeekly(freq)||containsWeekly(type))return true;const interval=Number(ev.repeatInterval||ev.repeat_interval||ev.interval||ev.recurrenceInterval);if((freq||type)&&Number.isFinite(interval)&&interval===1&&/(week|uge)/i.test(freq+" "+type))return true;return containsWeekly(ev.recurrence)||containsWeekly(ev.recurrenceRule)||containsWeekly(ev.recurrence_rule)||containsWeekly(ev.repeat)||containsWeekly(ev.repeatRule)||containsWeekly(ev.pattern)||containsWeekly(ev.schedule)||containsWeekly(ev.recurrenceText)||containsWeekly(ev.recurrence_text)||containsWeekly(ev.repeatText)||containsWeekly(ev.repeat_text)}
+    async function syncNow(){
+      try{
+        updateGoogleStatus('henter…',{state:'loading'});
+        const evs=await fetchEvents();
+        markLikelyWeekly(evs);
+        const idx=loadGIdx();
+        const gState=getGState();
+        let created=0;
+        for(const ev of evs){
+          const date=fromAnyToLocalISO(ev.startISO||ev.date);
+          const calendarId=(ev.calendarId||ev.calendar_id||ev.calendar||ev.calendarID||"").toString().trim();
+          const rawRemoteId=(ev.id||ev.uid||"").toString().trim();
+          const compositeParts=[calendarId,rawRemoteId].filter(Boolean);
+          let idBody=compositeParts.join('#');
+          if(!idBody){
+            const fallbackKey=[ev.summary||"",date||"",ev.time||"",ev.location||""].join('|');
+            idBody=djb2(fallbackKey);
+          }
+          const id="gcal:"+idBody;
+          const repeatWeeklyAuto=detectWeeklyRepeat(ev);
+          const seriesAnchor=recurrenceAnchor(ev);
+          const derivedSeriesId=seriesAnchor?`gseries:${seriesAnchor}`:"";
+          let item={id,title:ev.summary||"(uden titel)",type:"Aktivitet",people:["Alle"],person:"Alle",date,time:ev.time||"",durationMin:ev.durationMin||30,location:ev.location||"",note:ev.description||"",repeatWeekly:repeatWeeklyAuto,done:false,source:"google",manualRepeatWeekly:false,autoRepeatWeekly:repeatWeeklyAuto,seriesId:derivedSeriesId||undefined,calendarId:calendarId||undefined};
+          const uid=uidFor(item);
+          const initialSeriesId=safeSeriesId(item)||derivedSeriesId||"";
+          if(shouldIgnoreGoogleEvent(gState,{uid,seriesId:initialSeriesId,dateISO:date}))continue;
+          const existingIdx=items.findIndex(x=>uidFor(x)===uid);
+          const existingItem=existingIdx>=0?items[existingIdx]:null;
+          if(existingItem){
+            item.seriesId=safeSeriesId(existingItem)||item.seriesId||derivedSeriesId;
+            item.type=normalizeType(existingItem.type)||item.type;
+            const existingPeople=normalizePeopleList(existingItem.people&&existingItem.people.length?existingItem.people:existingItem.person);
+            item.people=existingPeople;
+            item.person=primaryPersonName(existingPeople);
+            item.done=existingItem.done!==undefined?!!existingItem.done:item.done;
+            if(existingItem.note&&existingItem.note.trim()&&existingItem.note!==item.note)item.note=existingItem.note;
+            const autoPrev=existingItem.autoRepeatWeekly;
+            const manualOverride=!!(existingItem.manualRepeatWeekly||(autoPrev!==undefined&&existingItem.repeatWeekly!==autoPrev));
+            item.manualRepeatWeekly=manualOverride;
+            if(manualOverride){item.repeatWeekly=!!existingItem.repeatWeekly;}
+            if(existingItem.calendarId&&!item.calendarId){item.calendarId=existingItem.calendarId;}
+          }
+          const seriesIdToUse=safeSeriesId(item)||derivedSeriesId;
+          if(seriesIdToUse&&!existingItem){
+            const seriesCandidates=items.filter(x=>safeSeriesId(x)===seriesIdToUse&&!x.overrideOf);
+            const seriesSource=seriesCandidates.find(x=>x.manualRepeatWeekly||x.repeatWeekly)||seriesCandidates[0]||null;
+            if(seriesSource){
+              item.type=normalizeType(seriesSource.type)||item.type;
+              const rememberedPeople=normalizePeopleList(seriesSource.people&&seriesSource.people.length?seriesSource.people:seriesSource.person);
+              if(rememberedPeople.length){item.people=rememberedPeople;item.person=primaryPersonName(rememberedPeople);}
+              if(seriesSource.note&&(!item.note||item.note.trim()==="")){item.note=seriesSource.note;}
+              if(seriesSource.manualRepeatWeekly!==undefined){item.manualRepeatWeekly=!!seriesSource.manualRepeatWeekly;}
+              if(seriesSource.autoRepeatWeekly!==undefined){item.autoRepeatWeekly=seriesSource.autoRepeatWeekly;}
+              if(seriesSource.repeatWeekly!==undefined){item.repeatWeekly=!!seriesSource.repeatWeekly;}
+              if(seriesSource.calendarId&&!item.calendarId){item.calendarId=seriesSource.calendarId;}
             }
           }
+          item.people=normalizePeopleList(item.people);
+          item.person=primaryPersonName(item.people);
+          const overrideApplied=applyGoogleOverrides(gState,{uid,seriesId:seriesIdToUse,dateISO:date,item});
+          item=overrideApplied.item;
+          item.people=normalizePeopleList(item.people);
+          item.person=primaryPersonName(item.people);
+          if(shouldIgnoreGoogleEvent(gState,{uid,seriesId:seriesIdToUse,dateISO:item.date||date}))continue;
+          if(seriesIdToUse){item.seriesId=seriesIdToUse;}
+          const existingKey=existingItem?peopleKey(existingItem.people&&existingItem.people.length?existingItem.people:existingItem.person):"";
+          const newKey=peopleKey(item.people);
+          const needsUpdate=!existingItem||["title","type","date","time","durationMin","location","note","repeatWeekly","repeatYearly","done","manualRepeatWeekly","autoRepeatWeekly","seriesId","calendarId"].some(key=>(existingItem?existingItem[key]:undefined)!==item[key])||existingKey!==newKey;
+          if(idx[uid]===ev.updated&&!needsUpdate)continue;
+          upsert(item);
+          idx[uid]=ev.updated;
+          created++;
         }
+        saveGIdx(idx);
+        const status=created?`+${created} oprettet`:'ingen ændringer';
+        updateGoogleStatus(status,{state:'ok',persist:true,detail:status});
+      }catch(e){
+        console.error(e);
+        updateGoogleStatus('fejl',{state:'error',persist:true,detail:'Kunne ikke hente Google-data'});
+      }
+    }
+    hydrateGoogleStatus();
+    function resetGoogleSync(){
+      localStorage.removeItem(LS_GIDX);
+      localStorage.removeItem(LS_GSTATE);
+      localStorage.removeItem(LS_GSYNC_META);
+      gStateCache=null;
+      updateGoogleStatus('nulstiller…',{state:'loading'});
+      syncNow();
+    }
+    const gSyncBtn=$("gSync");
+    if(gSyncBtn)gSyncBtn.addEventListener('click',()=>syncNow());
+    const gResetBtn=$("gReset");
+    if(gResetBtn)gResetBtn.addEventListener('click',resetGoogleSync);
+    const gSyncSettingsBtn=$("gSyncSettings");
+    if(gSyncSettingsBtn)gSyncSettingsBtn.addEventListener('click',()=>syncNow());
+    const gResetSettingsBtn=$("gResetSettings");
+    if(gResetSettingsBtn)gResetSettingsBtn.addEventListener('click',resetGoogleSync);
 
-        if (isOfficialRepeat || isHeuristicRepeat){
-          const storageId = "gcalr:"+key;
-          if (idx[storageId] !== latestUpdated){
-            list.sort((a,b)=> (toLocalDateISO(a)).localeCompare(toLocalDateISO(b)));
-            const anchor = list[0];
-            const item = {
-              id: storageId,
-              title: anchor.summary || "(uden titel)",
-              type: "Aktivitet",
-              person: "Alle",
-              date: toLocalDateISO(anchor),
-              time: anchor.time || "",
-              durationMin: anchor.durationMin || 30,
-              location: anchor.location || "",
-              note: anchor.description || "",
-              repeatWeekly: true,
-              done: false,
-              source: "google"
-            };
-            upsertItem(item);
-            idx[storageId] = latestUpdated;
-            created++;
+    /* ---------- Supabase bridges ---------- */
+  </script>
+  <!-- Supabase projektkonfiguration: erstat værdierne nedenfor med dit eget projekt -->
+  <script>
+    window.SUPABASE_URL = window.SUPABASE_URL || "https://nnfkumgdebxdegjykkwp.supabase.co";
+    window.SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5uZmt1bWdkZWJ4ZGVnanlra3dwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIxMzA5OTYsImV4cCI6MjA3NzcwNjk5Nn0.HjDkwmW-AXvEq3t3UIknu8ut-rWyKFEhbQ9WPIftkLM";
+    window.SUPABASE_CONFIG = window.SUPABASE_CONFIG || {
+      url: window.SUPABASE_URL,
+      anonKey: window.SUPABASE_ANON_KEY
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/dist/umd/supabase.min.js"></script>
+  <script>
+    (async function(){
+      const cfg=window.SUPABASE_CONFIG||{url:window.SUPABASE_URL||"https://YOUR-PROJECT.supabase.co",anonKey:window.SUPABASE_ANON_KEY||"YOUR_SUPABASE_ANON_KEY"};
+      if(!cfg.url||!cfg.anonKey||!window.supabase||typeof window.supabase.createClient!=="function"){
+        console.warn("Supabase-konfigurationen mangler eller biblioteket kunne ikke indlæses. Autosync er deaktiveret.");
+        return;
+      }
+
+      const client=window.supabase.createClient(cfg.url,cfg.anonKey,{auth:{persistSession:false}});
+
+      function canon(row,id){
+        const base=row&&typeof row==="object"?row:{};
+        const payload=base.data&&typeof base.data==="object"?base.data:base;
+        const rawUid=typeof base.uid==="string"?base.uid:"";
+        let derivedId=payload.id||base.uid||id||"";
+        const ensureGoogleIdFromUid=()=>{
+          if(!rawUid)return null;
+          if(rawUid.startsWith("g:")){
+            const body=rawUid.slice(2);
+            const [gid,dateHint]=body.split("|");
+            return {id:gid?`gcal:${gid}`:"",dateHint:dateHint||"",source:"google"};
           }
-          list.forEach(ev=> processed.add(ev.id));
+          if(rawUid.startsWith("gr:")){
+            return {id:`gcalr:${rawUid.slice(3)}`,dateHint:"",source:"google"};
+          }
+          return null;
+        };
+        if(!derivedId){
+          const guess=ensureGoogleIdFromUid();
+          if(guess?.id){
+            derivedId=guess.id;
+          }
+        }
+        if(/^g:/.test(derivedId)||/^gr:/.test(derivedId)){
+          const guess=ensureGoogleIdFromUid();
+          if(guess?.id){
+            derivedId=guess.id;
+          }
+        }
+        if(!derivedId){
+          derivedId="sb:"+(payload.title||base.title||"item");
+        }
+        const rawPeople=payload.people&&payload.people.length?payload.people:(payload.person||base.person);
+        const normalizedPeople=normalizePeopleList(rawPeople);
+        const calendarIdVal=(payload.calendarId??payload.calendar_id??base.calendar_id??"").toString().trim();
+        const out={
+          id:derivedId,
+          title:(payload.title||base.title||"(uden titel)").trim()||"(uden titel)",
+          type:normalizeType(payload.type||base.type),
+          people:normalizedPeople,
+          person:primaryPersonName(normalizedPeople),
+          date:fromAnyToLocalISO(payload.date||base.date||""),
+          time:(payload.time||base.time)||"",
+          durationMin:Number.isFinite(payload.durationMin)?payload.durationMin:(base.duration_min||0),
+          location:payload.location||base.location||"",
+          note:payload.note||base.note||"",
+          repeatWeekly:!!(payload.repeatWeekly||payload.repeat_weekly||base.repeat_weekly),
+          repeatYearly:!!(payload.repeatYearly||payload.repeat_yearly||base.repeat_yearly),
+          birthYear:sanitizeBirthYear(payload.birthYear??payload.birth_year??base.birth_year??"")||"",
+          done:!!(payload.done??base.done),
+          source:payload.source||base.source||"sb",
+          manualRepeatWeekly:!!(payload.manualRepeatWeekly??payload.manual_repeat_weekly??base.manual_repeat_weekly??false),
+          autoRepeatWeekly:payload.autoRepeatWeekly??payload.auto_repeat_weekly??base.auto_repeat_weekly,
+          exceptions:uniqueISOList(payload.exceptions||payload.exceptionDates||base.exceptions||base.exception_dates||[]),
+          repeatUntil:toISO(payload.repeatUntil||payload.repeat_until||base.repeat_until||""),
+          seriesId:payload.seriesId||payload.series_id||base.series_id||derivedId,
+          overrideOf:payload.overrideOf||payload.override_of||base.override_of||"",
+          overrideBaseId:payload.overrideBaseId||payload.override_base_id||base.override_base_id||"",
+          calendarId:calendarIdVal
+        };
+        const uidGuess=ensureGoogleIdFromUid();
+        if(uidGuess?.dateHint && !out.date){
+          out.date=fromAnyToLocalISO(uidGuess.dateHint);
+        }
+        if(uidGuess?.source && !out.source){
+          out.source=uidGuess.source;
+        }
+        return out;
+      }
+
+      let pushLock=false;
+      function writeAndRender(arr){
+        pushLock=true;
+        items=Array.isArray(arr)?arr.map(normalizeItemShape).filter(Boolean):[];
+        saveLS(LS_ITEMS,items);
+        pushLock=false;
+        try{render()}catch(_){ }
+      }
+
+      async function fetchRemoteItems(){
+        try{
+          const {data,error}=await client.from("calendar_items").select("uid,data,title,date,time,person,type,note,done,repeat_weekly").eq("hid",HID);
+          if(error) throw error;
+          const map=new Map();
+          for(const row of data){
+            const it=canon(row,row.uid);
+            const uid=uidFor(it);
+            if(!map.has(uid)) map.set(uid,it);
+          }
+          return {map,ok:true};
+        }catch(err){
+          console.error("[Supabase fetch]",err);
+          return {map:null,ok:false};
         }
       }
 
-      for(const ev of events){
-        if(processed.has(ev.id)) continue;
-        const storageId = "gcal:"+ev.id;
-        if (idx[storageId] === ev.updated) continue;
-
-        const item = {
-          id: storageId,
-          title: ev.summary || "(uden titel)",
-          type: "Aktivitet",
-          person: "Alle",
-          date: toLocalDateISO(ev),
-          time: ev.time || "",
-          durationMin: ev.durationMin || 30,
-          location: ev.location || "",
-          note: ev.description || "",
-          repeatWeekly: false,
-          done: false,
-          source: "google"
-        };
-        upsertItem(item);
-        idx[storageId] = ev.updated;
-        created++;
+      async function syncFromRemote(){
+        const {map}=await fetchRemoteItems();
+        if(!map)return; // bevar lokale data ved netværksfejl
+        writeAndRender([...map.values()]);
       }
 
-      saveIndex(idx);
-      setBadge(created ? `+${created} oprettet` : "ingen ændringer");
-    }catch(e){
-      console.error(e);
-      setBadge("fejl");
-    }
-  }
+      async function pushAll(localArr){
+        try{
+          const seen=new Set();
+          const rows=[];
+          for(const it of localArr){
+            if(!it) continue;
+            const data={...it,type:normalizeType(it.type),date:fromAnyToLocalISO(it.date)};const normalizedPeople=normalizePeopleList(data.people&&data.people.length?data.people:(data.person||"Alle"));data.people=normalizedPeople;data.person=primaryPersonName(normalizedPeople);
+            const uid=uidFor(data);
+            if(seen.has(uid)) continue;
+            seen.add(uid);
+            rows.push({
+              hid:HID,
+              uid,
+              data,
+              title:data.title,
+              date:data.date,
+              time:data.time,
+              person:data.person,
+              type:data.type,
+              note:data.note,
+              done:!!data.done,
+              repeat_weekly:!!data.repeatWeekly
+            });
+          }
 
-  document.getElementById('btnSync').addEventListener('click', async ()=>{ try{ setBadge('henter…'); await syncNow(); }catch(e){ console.error(e); }});
-  document.getElementById('btnSyncHard').addEventListener('click', async ()=>{ try{
-    localStorage.removeItem('gcal_index');
-    setBadge('nulstiller…');
-    await syncNow();
-  }catch(e){ console.error(e); }});
+          if(rows.length){
+            const {error}=await client.from("calendar_items").upsert(rows,{onConflict:"hid,uid"});
+            if(error) throw error;
+          }
 
-  const settingsBackdrop = document.getElementById('settingsBackdrop');
-  const btnSettings = document.getElementById('btnSettings');
-  const btnSettingsClose = document.getElementById('btnSettingsClose');
-  const btnSettingsSave = document.getElementById('btnSettingsSave');
-  const settingsRows = document.getElementById('settingsRows');
+          const {data:existing,error:existingError}=await client.from("calendar_items").select("uid").eq("hid",HID);
+          if(existingError) throw existingError;
+          const toDelete=existing.filter(r=>!seen.has(r.uid)).map(r=>r.uid);
+          if(toDelete.length){
+            const {error:delError}=await client.from("calendar_items").delete().eq("hid",HID).in("uid",toDelete);
+            if(delError) throw delError;
+          }
+        }catch(e){console.error("[Supabase push]",e);}
+      }
 
-  btnSettings.addEventListener('click', ()=>{ buildSettingsUI(); settingsBackdrop.style.display='flex'; document.body.classList.add('modal-open'); });
-  btnSettingsClose.addEventListener('click', ()=>{ settingsBackdrop.style.display='none'; document.body.classList.remove('modal-open'); });
+      function applyPrefs(map){
+        const payload=map&&typeof map==="object"?map:{};
+        savePrefs(payload);
+        refreshPeople();
+      }
 
-  function buildSettingsUI(){
-    settingsRows.innerHTML = "";
-    for(const p of PEOPLE){
-      const row = document.createElement('div');
-      row.className = 'row-s';
-      row.innerHTML = `
-        <div class="initial">${(p.name[0]||'?').toUpperCase()}</div>
-        <input type="text" value="${p.name}" data-field="name" data-for="${p.name}">
-        <input type="file" accept="image/*" data-field="avatar" data-for="${p.name}">
-        <input type="color" value="${p.color}" data-field="color" data-for="${p.name}">
-        <span class="swatch" style="background:${p.color}"></span>
-      `;
-      settingsRows.appendChild(row);
-      row.querySelector('input[type="color"]').addEventListener('input', e=>{
-        row.querySelector('.swatch').style.background = e.target.value;
-      });
-    }
-  }
+      async function ensurePrefs(){
+        const fallback={};
+        for(const p of DEFAULT_PEOPLE) fallback[p.name]={color:p.color,avatar:""};
+        try{
+          const {data,error,status}=await client.from("people_prefs").select("people").eq("hid",HID).maybeSingle();
+          if(error&&status!==406) throw error;
+          if(!data){
+            applyPrefs(fallback);
+            const {error:seedError}=await client.from("people_prefs").upsert({hid:HID,people:fallback});
+            if(seedError) throw seedError;
+          } else {
+            applyPrefs(data.people||fallback);
+          }
+        }catch(e){console.error("[Supabase prefs fetch]",e);}
 
-  btnSettingsSave.addEventListener('click', async ()=>{
-    const prefs = loadPrefs();
-    const rows = settingsRows.querySelectorAll('.row-s');
-    rows.forEach(r=>{
-      const nameOld = r.querySelector('input[data-field="name"]').getAttribute('data-for');
-      const nameNew = r.querySelector('input[data-field="name"]').value.trim() || nameOld;
-      const color = r.querySelector('input[data-field="color"]').value;
-      const fileInput = r.querySelector('input[data-field="avatar"]');
-      if (fileInput.files && fileInput.files[0]){
-        const fr = new FileReader();
-        fr.onload = ()=>{ prefs[nameNew] = {color, avatar: fr.result}; savePrefs(prefs); refreshPeopleFromPrefs(); };
-        fr.readAsDataURL(fileInput.files[0]);
+        client.channel(`people-prefs-${HID}`)
+          .on("postgres_changes",{event:"*",schema:"public",table:"people_prefs",filter:`hid=eq.${HID}`},payload=>{
+            applyPrefs(payload.new?.people||{});
+          })
+          .subscribe();
+      }
+
+      await ensurePrefs();
+
+      const local=loadLS(LS_ITEMS,[]);
+      const {map:remoteMap}=await fetchRemoteItems();
+      if(!remoteMap){
+        // Hvis vi ikke kan hente fra Supabase, så behold lokale data
+        writeAndRender(local);
+      } else if(local.length && remoteMap.size===0){
+        await pushAll(local);
+        await syncFromRemote();
       } else {
-        prefs[nameNew] = {color, avatar: (prefs[nameOld]?.avatar || "")};
-        savePrefs(prefs);
-        refreshPeopleFromPrefs();
+        writeAndRender([...remoteMap.values()]);
       }
-    });
-    settingsBackdrop.style.display='none';
-    document.body.classList.remove('modal-open');
-  });
 
-  function refreshPeopleFromPrefs(){
-    PEOPLE = getPeople();
-    buildPersonOptions();
-    buildPeople();
-    render();
-  }
+      client.channel(`calendar-items-${HID}`)
+        .on("postgres_changes",{event:"*",schema:"public",table:"calendar_items",filter:`hid=eq.${HID}`},()=>{
+          syncFromRemote();
+        })
+        .subscribe();
 
-  function buildPersonOptions(){
-    const opts = PEOPLE.map(p=>`<option${p.name==="Alle"?' selected':''}>${p.name}</option>`).join('');
-    document.getElementById('f_person').innerHTML = opts;
-  }
+      let t=null;
+      const origSet=localStorage.setItem.bind(localStorage);
+      localStorage.setItem=function(k,v){
+        const res=origSet(k,v);
+        if(k===LS_ITEMS&&!pushLock){
+          clearTimeout(t);
+          t=setTimeout(()=>{
+            try{
+              const arr=JSON.parse(v||"null");
+              if(Array.isArray(arr)) pushAll(arr);
+            }catch(err){console.error("[Supabase push decode]",err);}
+          },300);
+        }
+        return res;
+      };
 
-  function buildAll(){ buildPersonOptions(); buildPeople(); render(); }
-  buildAll();
-  syncNow();
-  setInterval(syncNow, SYNC_MS);
+      window._peopleFS={
+        save:async(prefs)=>{
+          try{
+            const payload=prefs&&typeof prefs==="object"?prefs:{};
+            const {error}=await client.from("people_prefs").upsert({hid:HID,people:payload});
+            if(error) throw error;
+          }catch(e){console.error("[Supabase prefs save]",e);}
+        }
+      };
+    })();
+  </script>
 
-  grid.addEventListener('dblclick', (e)=>{ const day = e.target.closest('.day'); if(day){ openNew(day.getAttribute('data-date')); }});
-</script>
+  <script>
+    // bootstrap UI
+    fillPeopleSelect(["Alle"]); buildPeople(); render(); syncNow(); setInterval(syncNow, 120000);
+    grid.addEventListener("dblclick",e=>{const day=e.target.closest(".day"); if(day) openNew(day.dataset.date)});
+  </script>
 </body>
 </html>

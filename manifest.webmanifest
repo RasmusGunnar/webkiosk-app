@@ -1,13 +1,20 @@
 {
   "name": "Webkiosk",
   "short_name": "Webkiosk",
-  "start_url": "/webkiosk-app/",
-  "scope": "/webkiosk-app/",
+  "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#000000",
-  "theme_color": "#000000",
+  "background_color": "#f6f7f9",
+  "theme_color": "#f6f7f9",
   "icons": [
-    { "src": "/webkiosk-app/assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "/webkiosk-app/assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    {
+      "src": "./assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "./assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
   ]
 }

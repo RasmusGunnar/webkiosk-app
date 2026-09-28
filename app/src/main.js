@@ -1,8 +1,19 @@
 import './style.css'
-import { supabase } from './lib/supabase'
+import { supabase, configurationError } from './lib/supabase'
+import { findPerson, selectPeople, itemPeople, itemPersonIds, itemMatchesPerson, feedPerson } from './lib/people.js'
+import { avatarDisplayUrl, validateAvatar, resolveAvatarUrls, savePerson } from './lib/avatars.js'
+import { normalizeFeedUrl, redactFeedUrl, feedIdOf } from './lib/feeds.js'
+import { calendarPayload } from './lib/calendar.js'
+import { observeSession } from './lib/auth.js'
+import { readAllRows } from './lib/rows.js'
 
 const app = document.querySelector('#app')
 
+let sessionEpoch = 0
+let authRequestInFlight = false
+let householdsLoadFailed = false
+let householdRole = null
+const pendingAvatarFiles = new Map()
 let session = null
 let households = []
 let activeHousehold = null
@@ -35,21 +46,41 @@ let calendarCursorDate = new Date()
 let hasUserSelectedCalendarView = false
 
 async function init() {
-  const { data, error } = await supabase.auth.getSession()
-
-  if (error) {
-    message = `Kunne ikke hente session: ${error.message}`
-  }
-
-  session = data?.session || null
-
-  if (session) {
-    await loadHouseholds()
-    chooseDefaultHousehold()
-  }
-
+  if (configurationError) { app.innerHTML = '<main class="app-shell"><p>' + escapeHtml(configurationError) + '</p></main>'; return }
+  observeSession(supabase, applySession, error => { message = 'Login kunne ikke indlæses: ' + error.message; render() })
+  setInterval(async () => {
+    if (!session || !activeHousehold) return
+    const epoch = sessionEpoch
+    const refreshed = await resolveAvatarUrls(supabase, householdPeople)
+    if (epoch === sessionEpoch) { householdPeople = refreshed; if (!isSettingsModalOpen && !isCalendarModalOpen) render() }
+  }, 45 * 60 * 1000)
+}
+async function applySession(nextSession) {
+  if (session?.user?.id === nextSession?.user?.id && session !== null) { session = nextSession; return }
+  clearSessionState()
+  session = nextSession
+  const epoch = sessionEpoch
+  if (session) { await loadHouseholds(); if (epoch !== sessionEpoch) return; chooseDefaultHousehold() }
   render()
 }
+function clearSessionState() {
+  sessionEpoch++
+  session = null
+  households = []; activeHousehold = null; householdRole = null
+  calendarItems = []; calendarItemsHouseholdId = null
+  householdPeople = []; householdPeopleHouseholdId = null
+  calendarFeeds = []; calendarFeedsHouseholdId = null
+  activePersonFilter = 'Alle'
+  isLoadingCalendar = false; isLoadingPeople = false; isLoadingCalendarFeeds = false
+  isCalendarModalOpen = false; editingCalendarItemId = null; isSettingsModalOpen = false
+  isCreatingPerson = false; isCreatingCalendarItem = false; isCreatingHousehold = false
+  isSavingCalendarFeed = false; importingCalendarFeedId = null
+  settingsMessage = ''; calendarImportMessage = ''; calendarFeedImportMessages = {}
+  editingCalendarFeedId = null; calendarFeedDraft = createEmptyCalendarFeedDraft()
+  pendingAvatarFiles.clear()
+  calendarCursorDate = new Date(); message = ''; householdsLoadFailed = false
+}
+function canManageFeeds() { return ['owner', 'admin'].includes(householdRole) }
 
 function render() {
   if (!session) {
@@ -104,6 +135,12 @@ function renderLogin() {
 }
 
 function renderCreateFirstHousehold() {
+  if (householdsLoadFailed) {
+    app.innerHTML = '<main class="app-shell"><p>' + escapeHtml(message) + '</p><button id="retry-households">Prøv igen</button><button id="logout-button">Log ud</button></main>'
+    document.querySelector('#retry-households').onclick = async () => { await loadHouseholds(); chooseDefaultHousehold(); render() }
+    document.querySelector('#logout-button').onclick = handleLogout
+    return
+  }
   app.innerHTML = `
     <main class="app-shell">
       <header class="dashboard-header">
@@ -326,29 +363,12 @@ function renderCalendarView() {
 }
 
 function renderPersonChips() {
-  const people = [{ name: 'Alle', color: '#0f172a', avatar_url: '' }, ...householdPeople.filter(isActiveHouseholdPerson)]
-
-  return `
-    <div class="person-chipbar" aria-label="Personfilter">
-      ${people.map((person) => {
-        const name = person.name || 'Alle'
-        const active = activePersonFilter === name
-        const color = person.color || getPersonColor(name)
-
-        return `
-          <button
-            class="person-chip ${active ? 'active' : ''}"
-            type="button"
-            data-person-filter="${escapeHtml(name)}"
-            style="border-color:${escapeHtml(color)}"
-          >
-            ${renderPersonAvatar(person, 'person-chip-avatar')}
-            <span>${escapeHtml(name)}</span>
-          </button>
-        `
-      }).join('')}
-    </div>
-  `
+  const people = [{ id: 'Alle', name: 'Alle', color: '#0f172a' }, ...householdPeople.filter(isActiveHouseholdPerson)]
+  return '<div class="person-chipbar" aria-label="Personfilter">' + people.map(person =>
+    '<button class="person-chip ' + (activePersonFilter === person.id ? 'active' : '') +
+    '" type="button" data-person-filter="' + escapeHtml(person.id) + '" style="border-color:' + escapeHtml(person.color || '#64748b') + '">' +
+    renderPersonAvatar(person, 'person-chip-avatar') + '<span>' + escapeHtml(person.name) + '</span></button>'
+  ).join('') + '</div>'
 }
 
 function renderDayCard(date) {
@@ -684,7 +704,7 @@ function renderCalendarModal() {
     title: getCalendarValue(item || {}, 'title'),
     date: getCalendarValue(item || {}, 'date') || getDefaultCalendarItemDate(),
     time: getCalendarValue(item || {}, 'time'),
-    people: getCalendarItemPeople(item || {}),
+    people: item && itemPersonIds(item, householdPeople).length ? [...itemPersonIds(item, householdPeople), ...(item.data?.unresolvedPeople || [])] : getCalendarItemPeople(item || {}),
     type: normalizeTypeValue(getCalendarValue(item || {}, 'type') || 'Aktivitet'),
     durationMin: getCalendarValue(item || {}, 'durationMin'),
     location: getCalendarValue(item || {}, 'location'),
@@ -848,7 +868,7 @@ function renderSettingsModal() {
               </div>
               <div>
                 <label for="person-avatar-file">Avatar</label>
-                <input id="person-avatar-file" name="avatar_file" type="file" accept="image/*" data-person-avatar-file="new" />
+                <input id="person-avatar-file" name="avatar_file" type="file" accept="image/png,image/jpeg,image/webp" data-person-avatar-file="new" />
               </div>
               <span class="person-settings-swatch" style="background:#64748b" data-person-color-swatch="new"></span>
             </div>
@@ -867,7 +887,7 @@ function renderSettingsModal() {
               <h3>Kalender-import</h3>
               <p>Hent begivenheder fra eksterne kalendere</p>
             </div>
-            <button id="add-calendar-feed-button" class="btn small" type="button">+ Tilf&oslash;j feed</button>
+            <button id="add-calendar-feed-button" class="btn small" type="button" ${canManageFeeds() ? '' : 'disabled'}>+ Tilf&oslash;j feed</button>
           </div>
 
           ${renderCalendarFeedsList()}
@@ -896,6 +916,7 @@ function renderSettingsPeopleList() {
 }
 
 function renderCalendarFeedsList() {
+  if (!canManageFeeds()) return '<p>Kun familiens ejer og administratorer kan administrere kalenderfeeds.</p>'
   if (isLoadingCalendarFeeds) {
     return '<p class="empty-state">Henter feeds...</p>'
   }
@@ -913,11 +934,11 @@ function renderCalendarFeedsList() {
 
 function renderCalendarFeedRow(feed) {
   const name = feed.name || 'Uden navn'
-  const assignedPerson = feed.assigned_person_name || 'Ingen'
+  const assignedPerson = feedPerson(feed, householdPeople)?.name || feed.assigned_person_name || 'Ingen'
   const source = getCalendarFeedSourceLabel(feed.source)
   const isActive = feed.is_active !== false
   const syncStatus = getCalendarFeedSyncStatus(feed)
-  const feedUrl = feed.feed_url || ''
+  const feedUrl = redactFeedUrl(feed.feed_url)
   const isImporting = String(importingCalendarFeedId || '') === String(feed.id)
   const importStatus = calendarFeedImportMessages[String(feed.id)] || null
 
@@ -942,7 +963,7 @@ function renderCalendarFeedRow(feed) {
       </div>
       <div class="calendar-feed-actions">
         <button type="button" data-edit-calendar-feed="${escapeHtml(String(feed.id))}">Rediger</button>
-        <button type="button" data-import-calendar-feed="${escapeHtml(String(feed.id))}" ${isImporting ? 'disabled' : ''}>${isImporting ? 'Henter...' : 'Hent nu'}</button>
+        <button type="button" data-import-calendar-feed="${escapeHtml(String(feed.id))}" ${isImporting || !isActive ? 'disabled' : ''}>${isImporting ? 'Henter...' : 'Hent nu'}</button>
         <button class="danger-button" type="button" data-delete-calendar-feed="${escapeHtml(String(feed.id))}">Slet</button>
       </div>
     </article>
@@ -970,8 +991,8 @@ function renderCalendarFeedForm() {
         </div>
         <div>
           <label for="calendar-feed-person">Tilknyttet person</label>
-          <select id="calendar-feed-person" name="assigned_person_name" data-calendar-feed-field>
-            ${renderCalendarFeedPersonOptions(calendarFeedDraft.assigned_person_name)}
+          <select id="calendar-feed-person" name="assigned_person_id" data-calendar-feed-field>
+            ${renderCalendarFeedPersonOptions(calendarFeedDraft.assigned_person_id)}
           </select>
         </div>
         <label class="calendar-feed-active">
@@ -1003,60 +1024,26 @@ function renderCalendarFeedSourceOption(source, currentSource) {
 }
 
 function renderCalendarFeedPersonOptions(currentPerson) {
-  const selected = String(currentPerson || '')
-  const names = ['', 'Alle']
-
-  householdPeople.filter(isActiveHouseholdPerson).forEach((person) => {
-    const name = String(person.name || '').trim()
-    if (name && !names.some((item) => item.toLowerCase() === name.toLowerCase())) {
-      names.push(name)
-    }
-  })
-
-  if (selected && !names.some((name) => name.toLowerCase() === selected.toLowerCase())) {
-    names.push(selected)
-  }
-
-  return names.map((name) => {
-    const label = name || 'Ingen'
-
-    return `
-      <option value="${escapeHtml(name)}" ${name === selected ? 'selected' : ''}>
-        ${escapeHtml(label)}
-      </option>
-    `
-  }).join('')
+  const options = [{ id: '', name: 'Ingen' }, { id: 'Alle', name: 'Alle' }, ...householdPeople.filter(isActiveHouseholdPerson)]
+  if (currentPerson && !options.some(person => person.id === currentPerson)) options.push({ id: currentPerson, name: currentPerson })
+  return options.map(person => '<option value="' + escapeHtml(person.id) + '" ' + (person.id === currentPerson ? 'selected' : '') + '>' + escapeHtml(person.name) + '</option>').join('')
 }
 
-function createEmptyCalendarFeedDraft() {
-  return {
-    source: 'aula',
-    feed_url: '',
-    assigned_person_name: '',
-    is_active: true,
-  }
-}
+function createEmptyCalendarFeedDraft() { return { source: 'aula', feed_url: '', assigned_person_id: '', assigned_person_name: '', is_active: true } }
 
 function createCalendarFeedDraft(feed) {
-  return {
-    source: normalizeCalendarFeedSource(feed.source),
-    feed_url: String(feed.feed_url || ''),
-    assigned_person_name: String(feed.assigned_person_name || ''),
-    is_active: feed.is_active !== false,
-  }
+  return { source: normalizeCalendarFeedSource(feed.source), feed_url: String(feed.feed_url || ''),
+    assigned_person_id: feedPerson(feed, householdPeople)?.id || feed.assigned_person_name || '',
+    assigned_person_name: feed.assigned_person_name || '', is_active: feed.is_active !== false }
 }
 
 function getCalendarFeedDraftValues() {
   const source = normalizeCalendarFeedSource(calendarFeedDraft.source)
-  const assignedPersonName = String(calendarFeedDraft.assigned_person_name || '').trim()
-
-  return {
-    source,
-    name: buildCalendarFeedName(source, assignedPersonName),
-    feed_url: String(calendarFeedDraft.feed_url || '').trim(),
-    assigned_person_name: assignedPersonName || null,
-    is_active: !!calendarFeedDraft.is_active,
-  }
+  const selected = calendarFeedDraft.assigned_person_id
+  const person = findPerson(selected, householdPeople)
+  const name = person?.name || selected || ''
+  return { source, name: buildCalendarFeedName(source, name), feed_url: normalizeFeedUrl(calendarFeedDraft.feed_url),
+    assigned_person_id: person?.id || null, assigned_person_name: name || null, is_active: !!calendarFeedDraft.is_active }
 }
 
 function buildCalendarFeedName(source, assignedPersonName) {
@@ -1262,21 +1249,7 @@ function getImportedCalendarItemsForFeed(feed) {
   })
 }
 
-function getCalendarItemImportFeedId(item) {
-  const values = [
-    item.calendar_id,
-    item.calendarId,
-    item.feed_id,
-    item.feedId,
-    item.data?.calendar_id,
-    item.data?.calendarId,
-    item.data?.feed_id,
-    item.data?.feedId,
-  ]
-
-  const value = values.find((candidate) => candidate !== undefined && candidate !== null && String(candidate).trim())
-  return value === undefined ? '' : String(value)
-}
+function getCalendarItemImportFeedId(item) { return feedIdOf(item) }
 
 function formatCalendarImportDateRange(firstDate, lastDate) {
   if (!firstDate || !lastDate) {
@@ -1310,14 +1283,14 @@ function renderPersonSettingsRow(person, { isNew = false } = {}) {
   const name = person.name || ''
   const role = mapPersonRoleToUi(person.role)
   const color = person.color || '#64748b'
-  const avatar = person.avatar_url || ''
+  const avatar = avatarDisplayUrl(person)
 
   return `
     <div class="person-settings-row" data-person-row="${escapeHtml(rowId)}">
       <div class="person-avatar-preview" data-avatar-preview="${escapeHtml(rowId)}">
-        ${renderPersonAvatar({ name, color, avatar_url: avatar }, 'person-settings-avatar')}
+        ${renderPersonAvatar(person, 'person-settings-avatar')}
       </div>
-      <input type="hidden" name="${prefix}-avatar" value="${escapeHtml(avatar)}" data-person-avatar-value="${escapeHtml(rowId)}" />
+      <input type="hidden" name="${prefix}-avatar" value="${escapeHtml(person.avatar_url || '')}" data-person-avatar-value="${escapeHtml(rowId)}" />
       <div>
         <label for="${prefix}-name">Navn</label>
         <input id="${prefix}-name" name="${prefix}-name" type="text" value="${escapeHtml(name)}" data-person-name-input="${escapeHtml(rowId)}" ${isNew ? '' : 'required'} />
@@ -1332,7 +1305,7 @@ function renderPersonSettingsRow(person, { isNew = false } = {}) {
       </div>
       <div>
         <label for="${prefix}-avatar-file">Avatar</label>
-        <input id="${prefix}-avatar-file" name="${prefix}-avatar-file" type="file" accept="image/*" data-person-avatar-file="${escapeHtml(rowId)}" />
+        <input id="${prefix}-avatar-file" name="${prefix}-avatar-file" type="file" accept="image/png,image/jpeg,image/webp" data-person-avatar-file="${escapeHtml(rowId)}" />
       </div>
       <div>
         <label for="${prefix}-color">Farve</label>
@@ -1392,7 +1365,7 @@ function getPersonRoleLabel(role) {
 
 function renderPersonAvatar(person, className) {
   const name = person.name || 'Alle'
-  const avatar = person.avatar_url || ''
+  const avatar = avatarDisplayUrl(person)
   const color = person.color || getPersonColor(name)
   const initial = (name.trim()[0] || '?').toUpperCase()
 
@@ -1405,87 +1378,50 @@ function renderPersonAvatar(person, className) {
 
 async function handleLogin(event) {
   event.preventDefault()
-
-  const messageElement = document.querySelector('#message')
-  const formData = new FormData(event.target)
-  const email = String(formData.get('email')).trim()
-  const password = String(formData.get('password'))
-  const action = event.submitter?.value === 'signup' ? 'signup' : 'login'
-
-  messageElement.textContent = action === 'signup' ? 'Opretter bruger...' : 'Logger ind...'
-
-  const { data, error } = action === 'signup'
-    ? await supabase.auth.signUp({ email, password })
-    : await supabase.auth.signInWithPassword({ email, password })
-
-  if (error) {
-    message = action === 'signup'
-      ? `Kunne ikke oprette bruger: ${error.message}`
-      : `Kunne ikke logge ind: ${error.message}`
-    messageElement.textContent = message
-    return
-  }
-
-  session = data?.session || (await supabase.auth.getSession()).data?.session || null
-
-  if (!session) {
-    message = 'Bruger oprettet. Tjek din email, hvis Supabase kræver bekræftelse.'
-    render()
-    return
-  }
-
-  await loadHouseholds()
-  chooseDefaultHousehold()
-  message = ''
-  render()
+  if (authRequestInFlight) return
+  const form = event.target
+  const formData = new FormData(form)
+  const email = String(formData.get('email') || '').trim()
+  const password = String(formData.get('password') || '')
+  const signup = event.submitter?.value === 'signup'
+  authRequestInFlight = true
+  form.querySelectorAll('button').forEach(button => { button.disabled = true })
+  try {
+    const { data, error } = signup
+      ? await supabase.auth.signUp({ email, password })
+      : await supabase.auth.signInWithPassword({ email, password })
+    if (error) throw error
+    if (data?.session) await applySession(data.session)
+    else { message = 'Bruger oprettet. Tjek din email for bekræftelse.'; render() }
+  } catch (error) { message = 'Login kunne ikke gennemføres: ' + error.message; render() }
+  finally { authRequestInFlight = false; form.querySelectorAll('button').forEach(button => { button.disabled = false }) }
 }
 
 async function handleLogout() {
-  await supabase.auth.signOut()
-  session = null
-  households = []
-  activeHousehold = null
-  calendarItems = []
-  calendarItemsHouseholdId = null
-  householdPeople = []
-  householdPeopleHouseholdId = null
-  calendarFeeds = []
-  calendarFeedsHouseholdId = null
-  activePersonFilter = 'Alle'
-  isCalendarModalOpen = false
-  editingCalendarItemId = null
-  isSettingsModalOpen = false
-  isCreatingPerson = false
-  settingsMessage = ''
-  calendarImportMessage = ''
-  importingCalendarFeedId = null
-  calendarFeedImportMessages = {}
-  editingCalendarFeedId = null
-  calendarFeedDraft = createEmptyCalendarFeedDraft()
-  calendarViewMode = getDefaultCalendarViewMode()
-  calendarCursorDate = new Date()
-  hasUserSelectedCalendarView = false
-  message = ''
+  const { error } = await supabase.auth.signOut({ scope: 'local' })
+  if (error) { message = 'Kunne ikke logge ud: ' + error.message; render(); return }
+  clearSessionState()
   render()
 }
 
 async function loadHouseholds() {
-  const { data, error } = await supabase
-    .from('households')
-    .select('*')
-
-  if (error) {
-    households = []
-    activeHousehold = null
-    message = `Kunne ikke hente households: ${error.message}`
-    return
-  }
-
-  households = data || []
+  const epoch = sessionEpoch, userId = session?.user.id
+  if (!userId) return
+  const [result, memberships] = await Promise.all([
+    supabase.from('households').select('*').order('created_at').order('id'),
+    supabase.from('household_members').select('household_id,role').eq('user_id', userId),
+  ])
+  if (epoch !== sessionEpoch) return
+  const error = result.error || memberships.error
+  householdsLoadFailed = Boolean(error)
+  if (error) { households = []; activeHousehold = null; message = 'Kunne ikke hente familie: ' + error.message; return }
+  const roles = new Map((memberships.data || []).map(row => [row.household_id, row.role]))
+  households = (result.data || []).map(row => ({ ...row, memberRole: roles.get(row.id) }))
 }
 
 function chooseDefaultHousehold() {
   activeHousehold = households[0] || null
+  householdRole = activeHousehold?.memberRole || null
   calendarItems = []
   calendarItemsHouseholdId = null
   householdPeople = []
@@ -1535,6 +1471,7 @@ async function handleCreateHousehold(event) {
   form.reset()
   await loadHouseholds()
   activeHousehold = findCreatedHousehold(data, previousIds, name) || households[0] || null
+  householdRole = activeHousehold?.memberRole || null
   calendarItems = []
   calendarItemsHouseholdId = null
   householdPeople = []
@@ -1552,16 +1489,19 @@ async function loadCalendarItems({ renderAfter = false } = {}) {
   }
 
   const householdId = getHouseholdId(activeHousehold)
+  const epoch = sessionEpoch
   isLoadingCalendar = true
   calendarItemsHouseholdId = householdId
 
-  const { data, error } = await supabase
+  const { data, error } = await readAllRows(() => supabase
     .from('calendar_items')
     .select('*')
     .eq('household_id', householdId)
     .order('date', { ascending: true })
     .order('time', { ascending: true })
+    .order('id'), () => epoch === sessionEpoch && activeHousehold?.id === householdId)
 
+  if (epoch !== sessionEpoch || activeHousehold?.id !== householdId) return
   isLoadingCalendar = false
 
   if (error) {
@@ -1577,65 +1517,31 @@ async function loadCalendarItems({ renderAfter = false } = {}) {
 }
 
 async function loadHouseholdPeople({ renderAfter = false } = {}) {
-  if (!activeHousehold) {
-    return
-  }
-
-  const householdId = getHouseholdId(activeHousehold)
-  isLoadingPeople = true
-  householdPeopleHouseholdId = householdId
-
-  const { data, error } = await supabase
-    .from('household_people')
-    .select('*')
-    .eq('household_id', householdId)
-    .order('name', { ascending: true })
-
+  if (!activeHousehold) return
+  const householdId = getHouseholdId(activeHousehold), epoch = sessionEpoch
+  isLoadingPeople = true; householdPeopleHouseholdId = householdId
+  const { data, error } = await supabase.from('household_people').select('*').eq('household_id', householdId).order('sort_order').order('name')
+  const people = error ? [] : await resolveAvatarUrls(supabase, data || [])
+  if (epoch !== sessionEpoch || activeHousehold?.id !== householdId) return
   isLoadingPeople = false
-
-  if (error) {
-    householdPeople = []
-    settingsMessage = `Kunne ikke hente personer: ${error.message}`
-  } else {
-    householdPeople = (data || []).map((person) => ({
-      ...person,
-      role: mapPersonRoleToUi(person.role),
-    }))
-    syncActivePersonFilter()
-  }
-
-  if (renderAfter && activeHousehold && getHouseholdId(activeHousehold) === householdId) {
-    render()
-  }
+  if (error) settingsMessage = 'Kunne ikke hente personer: ' + error.message
+  householdPeople = people.map(person => ({ ...person, role: mapPersonRoleToUi(person.role) }))
+  syncActivePersonFilter()
+  if (renderAfter) render()
 }
 
 async function loadCalendarFeeds({ renderAfter = false } = {}) {
-  if (!activeHousehold) {
-    return
-  }
-
-  const householdId = getHouseholdId(activeHousehold)
-  isLoadingCalendarFeeds = true
+  if (!activeHousehold) return
+  const householdId = getHouseholdId(activeHousehold), epoch = sessionEpoch
   calendarFeedsHouseholdId = householdId
-
-  const { data, error } = await supabase
-    .from('calendar_feeds')
-    .select('*')
-    .eq('household_id', householdId)
-    .order('name', { ascending: true })
-
+  if (!canManageFeeds()) { calendarFeeds = []; return }
+  isLoadingCalendarFeeds = true
+  const { data, error } = await supabase.from('calendar_feeds').select('*').eq('household_id', householdId).order('name')
+  if (epoch !== sessionEpoch || activeHousehold?.id !== householdId) return
   isLoadingCalendarFeeds = false
-
-  if (error) {
-    calendarFeeds = []
-    calendarImportMessage = `Kunne ikke hente feeds: ${error.message}`
-  } else {
-    calendarFeeds = data || []
-  }
-
-  if (renderAfter && activeHousehold && getHouseholdId(activeHousehold) === householdId) {
-    render()
-  }
+  calendarFeeds = data || []
+  if (error) calendarImportMessage = 'Kunne ikke hente feeds: ' + error.message
+  if (renderAfter) render()
 }
 
 async function handleSaveCalendarItem(event) {
@@ -1654,7 +1560,8 @@ async function handleSaveCalendarItem(event) {
   const isBirthday = type === 'Fødselsdag'
   const isTask = type === 'Opgave'
   const isMilestone = type === 'Mærkedag'
-  const selectedPeople = getSelectedCalendarPeople(formData)
+  const selection = selectPeople(formData.getAll('people'), householdPeople)
+  const selectedPeople = selection.people
   const selectedPerson = selectedPeople[0] || 'Alle'
   const itemData = {
     household_id: householdId,
@@ -1663,6 +1570,8 @@ async function handleSaveCalendarItem(event) {
     time: String(formData.get('time')).trim(),
     person: selectedPerson,
     people: selectedPeople,
+    personIds: selection.personIds,
+    unresolvedPeople: selection.unresolvedPeople,
     type,
     durationMin: parseOptionalNumber(formData.get('durationMin')),
     location: String(formData.get('location')).trim(),
@@ -1764,7 +1673,7 @@ async function createCalendarItem(itemData) {
       note: payload.note,
       done: payload.done,
       created_by: payload.created_by,
-      data: { ...payload },
+      ...calendarPayload(payload, householdPeople),
     })
     .select('id,data')
     .single()
@@ -1802,14 +1711,7 @@ async function updateCalendarItem(item, itemData) {
   return supabase
     .from('calendar_items')
     .update({
-      title: itemData.title,
-      date: itemData.date,
-      time: itemData.time,
-      person: itemData.person,
-      type: itemData.type,
-      note: itemData.note,
-      done: itemData.done,
-      data: nextData,
+      ...calendarPayload(nextData, householdPeople, storedItem),
     })
     .eq('id', storedItem.id)
 }
@@ -2094,99 +1996,41 @@ async function handleCreatePerson(event) {
 
 async function handleSavePeopleSettings(event) {
   event.preventDefault()
-
-  if (isCreatingPerson || !activeHousehold) {
-    return
+  if (isCreatingPerson || !activeHousehold) return
+  const householdId = getHouseholdId(activeHousehold)
+  const epoch = sessionEpoch
+  const newPerson = getNewPersonFormValues(event.target)
+  const updates = householdPeople.map(person => ({ existing: person, values: getPersonRowValues(String(person.id)), file: pendingAvatarFiles.get(String(person.id)) }))
+  if (newPerson.name) updates.push({ values: newPerson, file: pendingAvatarFiles.get('new') })
+  isCreatingPerson = true; settingsMessage = 'Gemmer personer...'; render()
+  const errors = []
+  for (const update of updates) {
+    if (!update.values.name || epoch !== sessionEpoch) continue
+    const result = await savePerson(supabase, householdId, update.values, update)
+    if (result.error) errors.push(result.error.message)
+    else pendingAvatarFiles.delete(update.existing?.id || 'new')
   }
-
-  const form = event.target
-  const newPerson = getNewPersonFormValues(form)
-  const personUpdates = householdPeople.map((person) => ({
-    id: person.id,
-    values: getPersonRowValues(String(person.id)),
-  }))
-
-  isCreatingPerson = true
-  settingsMessage = 'Gemmer personer...'
-  render()
-
-  const saveErrors = []
-
-  for (const person of personUpdates) {
-    const values = person.values
-
-    if (!values.name) {
-      continue
-    }
-
-    const { error } = await supabase
-      .from('household_people')
-      .update(values)
-      .eq('id', person.id)
-
-    if (error) {
-      saveErrors.push(error.message)
-    }
-  }
-
-  if (newPerson.name) {
-    const { error } = await supabase
-      .from('household_people')
-      .insert({
-        household_id: getHouseholdId(activeHousehold),
-        ...newPerson,
-      })
-
-    if (error) {
-      saveErrors.push(error.message)
-    }
-  }
-
+  if (epoch !== sessionEpoch) return
   isCreatingPerson = false
-
-  if (saveErrors.length) {
-    settingsMessage = `Kunne ikke gemme personer: ${saveErrors.join(', ')}`
-    render()
-    return
-  }
-
   await loadHouseholdPeople()
-  settingsMessage = newPerson.name ? 'Person oprettet.' : 'Personer gemt.'
+  settingsMessage = errors.length ? 'Kunne ikke gemme alle personer: ' + errors.join(', ') : 'Personer gemt.'
   render()
 }
 
 async function handleSavePersonRow(personId) {
-  if (isCreatingPerson || !activeHousehold || !personId) {
-    return
-  }
-
-  const values = getPersonRowValues(String(personId))
-
-  if (!values.name) {
-    settingsMessage = 'Personen mangler navn.'
-    render()
-    return
-  }
-
-  isCreatingPerson = true
-  settingsMessage = 'Gemmer person...'
-  render()
-
-  const { error } = await supabase
-    .from('household_people')
-    .update(values)
-    .eq('id', personId)
-
+  if (isCreatingPerson || !activeHousehold) return
+  const existing = householdPeople.find(person => person.id === personId)
+  if (!existing) return
+  const values = getPersonRowValues(personId)
+  if (!values.name) { settingsMessage = 'Personen mangler navn.'; render(); return }
+  const epoch = sessionEpoch
+  isCreatingPerson = true; settingsMessage = 'Gemmer person...'; render()
+  const { error } = await savePerson(supabase, getHouseholdId(activeHousehold), values, { existing, file: pendingAvatarFiles.get(personId) })
+  if (epoch !== sessionEpoch) return
   isCreatingPerson = false
-
-  if (error) {
-    settingsMessage = `Kunne ikke gemme person: ${error.message}`
-    render()
-    return
-  }
-
+  if (!error) pendingAvatarFiles.delete(personId)
   await loadHouseholdPeople()
-  settingsMessage = 'Person gemt.'
+  settingsMessage = error ? 'Kunne ikke gemme person: ' + error.message : 'Person gemt.'
   render()
 }
 
@@ -2221,6 +2065,8 @@ function handlePersonAvatarPreview(event) {
     return
   }
 
+  try { validateAvatar(file) } catch (error) { settingsMessage = error.message; render(); return }
+  pendingAvatarFiles.set(rowId, file)
   const reader = new FileReader()
   reader.addEventListener('load', () => {
     const avatarValue = document.querySelector(`[data-person-avatar-value="${rowId}"]`)
@@ -2325,6 +2171,7 @@ function openSettingsModal() {
 }
 
 function closeSettingsModal() {
+  pendingAvatarFiles.clear()
   isSettingsModalOpen = false
   settingsMessage = ''
   calendarImportMessage = ''
@@ -2345,8 +2192,8 @@ async function handleImportCalendarFeed(event) {
   const feedId = event?.currentTarget?.dataset?.importCalendarFeed
   const feed = calendarFeeds.find((item) => String(item.id) === String(feedId))
 
-  if (!feed) {
-    calendarImportMessage = 'Feed blev ikke fundet.'
+  if (!feed || !canManageFeeds() || feed.is_active === false) {
+    calendarImportMessage = 'Feed er inaktivt eller utilgængeligt.'
     renderPreservingSettingsScroll()
     return
   }
@@ -2362,9 +2209,7 @@ async function handleImportCalendarFeed(event) {
     result = await supabase.functions.invoke('import-calendar-feed', {
       body: { feedId: feed.id },
     })
-    console.log('import-calendar-feed response', result)
   } catch (error) {
-    console.log('import-calendar-feed thrown error', error)
     importingCalendarFeedId = null
     setCalendarFeedImportMessage(feed.id, `Fejl: ${formatErrorMessage(error?.message || error)}`, 'error')
     renderPreservingSettingsScroll()
@@ -2376,14 +2221,12 @@ async function handleImportCalendarFeed(event) {
   importingCalendarFeedId = null
 
   if (error) {
-    console.log('import-calendar-feed invoke error', error)
     setCalendarFeedImportMessage(feed.id, `Fejl: ${await getEdgeFunctionErrorMessage(error)}`, 'error')
     renderPreservingSettingsScroll()
     return
   }
 
   if (data?.success === false) {
-    console.log('import-calendar-feed data error', data)
     setCalendarFeedImportMessage(feed.id, `Fejl: ${formatErrorMessage(data.error || data.message || data)}`, 'error')
     renderPreservingSettingsScroll()
     return
@@ -2479,7 +2322,9 @@ async function handleSaveCalendarFeed(event) {
     return
   }
 
-  const values = getCalendarFeedDraftValues()
+  if (!canManageFeeds()) return
+  let values
+  try { values = getCalendarFeedDraftValues() } catch (error) { calendarImportMessage = error.message; render(); return }
 
   if (!values.feed_url) {
     calendarImportMessage = 'Feed mangler URL.'
@@ -2619,38 +2464,14 @@ function renderPersonOptions(currentPerson) {
 }
 
 function renderCalendarPersonPills(selectedPeople) {
-  const selected = normalizeCalendarPeople(selectedPeople)
-  const names = ['Alle']
-
-  householdPeople.filter(isActiveHouseholdPerson).forEach((person) => {
-    const name = normalizeCalendarPersonName(person.name)
-    if (name !== 'Alle' && !names.some((item) => item.toLowerCase() === name.toLowerCase())) {
-      names.push(name)
-    }
-  })
-
-  selected.forEach((name) => {
-    if (!names.some((item) => item.toLowerCase() === name.toLowerCase())) {
-      names.push(name)
-    }
-  })
-
-  return names.map((name) => {
-    const checked = selected.some((selectedName) => selectedName.toLowerCase() === name.toLowerCase())
-    const color = getPersonColor(name)
-
-    return `
-      <label class="calendar-person-pill ${checked ? 'selected' : ''}" style="--person-color:${escapeHtml(color)}">
-        <input
-          type="checkbox"
-          name="people"
-          value="${escapeHtml(name)}"
-          data-calendar-person-choice
-          ${checked ? 'checked' : ''}
-        />
-        <span>${escapeHtml(name)}</span>
-      </label>
-    `
+  const selection = selectPeople(selectedPeople, householdPeople)
+  const options = [{ id: 'Alle', name: 'Alle', color: '#0f172a' }, ...householdPeople.filter(person => isActiveHouseholdPerson(person) || selection.personIds.includes(person.id))]
+  selection.unresolvedPeople.forEach(name => options.push({ id: name, name, color: '#64748b' }))
+  return options.map(person => {
+    const checked = person.id === 'Alle' ? selection.people.includes('Alle') : selection.personIds.includes(person.id) || selection.unresolvedPeople.includes(person.id)
+    return '<label class="calendar-person-pill ' + (checked ? 'selected' : '') + '" style="--person-color:' + escapeHtml(person.color || '#64748b') +
+      '"><input type="checkbox" name="people" value="' + escapeHtml(person.id) + '" data-calendar-person-choice ' + (checked ? 'checked' : '') +
+      ' /><span>' + escapeHtml(person.name) + '</span></label>'
   }).join('')
 }
 
@@ -2713,17 +2534,7 @@ function isActiveHouseholdPerson(person) {
 }
 
 function syncActivePersonFilter() {
-  if (activePersonFilter === 'Alle') {
-    return
-  }
-
-  const hasActiveFilterPerson = householdPeople
-    .filter(isActiveHouseholdPerson)
-    .some((person) => String(person.name || '').trim().toLowerCase() === activePersonFilter.toLowerCase())
-
-  if (!hasActiveFilterPerson) {
-    activePersonFilter = 'Alle'
-  }
+  if (activePersonFilter !== 'Alle' && !householdPeople.some(person => person.id === activePersonFilter && isActiveHouseholdPerson(person))) activePersonFilter = 'Alle'
 }
 
 function updateModalTypeFields() {
@@ -3108,6 +2919,8 @@ function calendarItemToData(item) {
     time: getCalendarValue(item, 'time'),
     person: getPrimaryCalendarPerson(item),
     people: getCalendarItemPeople(item),
+    personIds: itemPersonIds(item, householdPeople),
+    unresolvedPeople: item.data?.unresolvedPeople || [],
     type: normalizeTypeValue(getCalendarValue(item, 'type')),
     durationMin: parseOptionalNumber(getCalendarValue(item, 'durationMin')),
     location: getCalendarValue(item, 'location'),
@@ -3221,52 +3034,20 @@ function isMilestoneItem(item) {
   return normalizeTypeValue(getCalendarValue(item, 'type')) === 'Mærkedag'
 }
 
-function doesItemMatchPersonFilter(item) {
-  if (activePersonFilter === 'Alle') {
-    return true
-  }
-
-  const people = getCalendarItemPeople(item).map((person) => person.toLowerCase())
-  return people.includes(activePersonFilter.toLowerCase())
-}
+function doesItemMatchPersonFilter(item) { return itemMatchesPerson(item, activePersonFilter, householdPeople) }
 
 function getCalendarItemColor(item) {
-  const people = getCalendarItemPeople(item)
-  const matchingPerson = people
-    .map(findHouseholdPersonByName)
-    .find(Boolean)
-
-  return matchingPerson?.color || getPersonColor(people[0] || getCalendarValue(item, 'person') || 'Alle')
+  const person = householdPeople.find(person => person.id === itemPersonIds(item, householdPeople)[0])
+  return person?.color || getPersonColor(getCalendarItemPeople(item)[0])
 }
 
-function getCalendarItemPeople(item) {
-  const dataPeople = getCalendarValue(item, 'people')
-
-  if (Array.isArray(dataPeople) && dataPeople.length) {
-    return normalizeCalendarPeople(dataPeople)
-  }
-
-  if (typeof dataPeople === 'string' && dataPeople.trim()) {
-    return normalizeCalendarPeople(dataPeople)
-  }
-
-  const person = getCalendarValue(item, 'person')
-
-  if (person) {
-    return normalizeCalendarPeople(person)
-  }
-
-  return ['Alle']
-}
+function getCalendarItemPeople(item) { return itemPeople(item, householdPeople) }
 
 function getPrimaryCalendarPerson(item) {
   return getCalendarItemPeople(item)[0] || 'Alle'
 }
 
-function findHouseholdPersonByName(name) {
-  const normalizedName = String(name || '').trim().toLowerCase()
-  return householdPeople.find((person) => String(person.name || '').trim().toLowerCase() === normalizedName) || null
-}
+function findHouseholdPersonByName(name) { return findPerson(name, householdPeople) }
 
 function getPersonColor(person) {
   const normalizedPerson = String(person || '').trim().toLowerCase()

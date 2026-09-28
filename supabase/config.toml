@@ -1,0 +1,39 @@
+# Local-only configuration. Do not link or push without following docs/backend.md.
+project_id = "familiekalender"
+[api]
+enabled = true
+port = 59321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+[db]
+port = 59322
+shadow_port = 59320
+major_version = 17
+[db.migrations]
+enabled = true
+schema_paths = []
+[db.seed]
+enabled = false
+[studio]
+enabled = true
+port = 59323
+api_url = "http://127.0.0.1"
+[local_smtp]
+enabled = true
+port = 59324
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:5178"
+additional_redirect_urls = ["http://localhost:5173", "http://127.0.0.1:5178"]
+enable_signup = true
+minimum_password_length = 8
+[auth.email]
+enable_signup = true
+enable_confirmations = true
+[storage]
+enabled = true
+file_size_limit = "2MiB"
+[functions.import-calendar-feed]
+# JWT validation is performed explicitly with auth.getUser() before any feed access.
+verify_jwt = false

@@ -1,0 +1,11 @@
+{
+  "nodeModulesDir": "none",
+  "lock": "deno.lock",
+  "compilerOptions": {
+    "strict": true
+  },
+  "tasks": {
+    "check": "deno check import-calendar-feed/index.ts",
+    "test": "deno test --allow-env --allow-read tests/"
+  }
+}

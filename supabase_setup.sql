@@ -1,5 +1,7 @@
--- Idempotent setup script for Supabase Realtime sync
--- Run this in the Supabase SQL editor for your project.
+-- LEGACY REFERENCE: the old hid/uid model, NOT the current Vite app schema.
+-- Do not run this against the new Familiekalender project.
+-- The authoritative model is supabase/migrations/; see docs/backend.md.
+-- Idempotent setup script for legacy Supabase Realtime sync
 
 -- Calendar items table
 create table if not exists public.calendar_items (

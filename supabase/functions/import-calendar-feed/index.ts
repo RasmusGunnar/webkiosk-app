@@ -1,5 +1,7 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.105.4";
 import * as icalModule from "npm:node-ical@0.22.1";
+
+import { ImportFailure, fetchFeedText, allowedFeedHosts, validateCalendarText, MAX_EVENTS } from "../_shared/feed-security.ts";
 
 const ical = (icalModule as any).default || icalModule;
 
@@ -20,6 +22,8 @@ type CalendarFeedRow = {
   source: string;
   feed_url: string;
   assigned_person_name?: string | null;
+  assigned_person_id?: string | null;
+  is_active?: boolean;
 };
 
 type ExtractedComponent = {
@@ -64,80 +68,63 @@ type ParsedEvent = {
   cancelled: boolean;
 };
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
-
-  if (req.method !== "POST") {
-    return jsonResponse({ success: false, error: "Method not allowed" }, 405);
-  }
-
-  try {
-    const supabaseUrl = mustGetEnv("SUPABASE_URL");
-    const anonKey = mustGetEnv("SUPABASE_ANON_KEY");
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    const authHeader = req.headers.get("Authorization") || "";
-    const body = await req.json().catch(() => ({}));
-    const feedId = String(body.feedId || "").trim();
-
-    if (!feedId) {
-      return jsonResponse({ success: false, error: "Missing feedId" }, 400);
+export function makeHandler(dependencies: {
+  clientFactory?: typeof createClient;
+  fetcher?: typeof fetch;
+  env?: (key: string) => string | undefined;
+  now?: () => Date;
+} = {}) {
+  const factory = dependencies.clientFactory || createClient;
+  const env = dependencies.env || ((key: string) => Deno.env.get(key));
+  return async (req: Request): Promise<Response> => {
+    if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+    if (req.method !== "POST") return jsonResponse({ success: false, error: "Method not allowed" }, 405);
+    let writer: any = null, claimed: any = null;
+    try {
+      const authHeader = req.headers.get("Authorization") || "";
+      if (!/^Bearer \S+$/i.test(authHeader)) return jsonResponse({ success: false, error: "Not authenticated" }, 401);
+      const body = await req.json().catch(() => ({}));
+      const feedId = String(body.feedId || "").trim();
+      if (!/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(feedId)) return jsonResponse({ success: false, error: "Invalid feedId" }, 400);
+      const url = env("SUPABASE_URL"), anon = env("SUPABASE_ANON_KEY"), service = env("SUPABASE_SERVICE_ROLE_KEY");
+      if (!url || !anon || !service) throw new ImportFailure("IMPORT_FAILED", 503);
+      const userClient = factory(url, anon, { global: { headers: { Authorization: authHeader } }, auth: { persistSession: false } });
+      const { data: auth, error: authError } = await userClient.auth.getUser();
+      if (authError || !auth?.user) return jsonResponse({ success: false, error: "Not authenticated" }, 401);
+      const { data: feed, error: feedError } = await userClient.from("calendar_feeds").select("*").eq("id", feedId).single();
+      if (feedError || !feed) return jsonResponse({ success: false, error: "Feed unavailable" }, 404);
+      if (feed.is_active === false) return jsonResponse({ success: false, error: "Feed inactive" }, 409);
+      const permission = await userClient.rpc("is_household_admin", { hid: feed.household_id, uid: auth.user.id });
+      if (permission.error || permission.data !== true) return jsonResponse({ success: false, error: "Forbidden" }, 403);
+      writer = factory(url, service, { auth: { persistSession: false } });
+      const claim = await writer.rpc("begin_calendar_feed_import", { p_feed_id: feedId, p_actor_id: auth.user.id });
+      if (claim.error || !claim.data) return jsonResponse({ success: false, error: "Feed busy or unavailable" }, 409);
+      claimed = claim.data;
+      const normalizedFeed = normalizeFeed(claimed as CalendarFeedRow);
+      const now = dependencies.now?.() || new Date();
+      const range = { start: startOfDay(new Date(now.getTime() - LOOKBEHIND_DAYS * DAY_MS)), end: endOfDay(new Date(now.getTime() + LOOKAHEAD_DAYS * DAY_MS)) };
+      const text = await fetchFeedText(normalizedFeed.feed_url, {
+        fetcher: dependencies.fetcher, hosts: allowedFeedHosts(env("CALENDAR_FEED_ALLOWED_HOSTS") || ""),
+      });
+      const events = parseIcsEvents(text, range);
+      const rows = eventsToCalendarRows(events, normalizedFeed, auth.user.id);
+      const result = await writer.rpc("apply_calendar_feed_import", {
+        p_feed_id: claimed.id, p_actor_id: auth.user.id, p_token: claimed.import_token, p_rows: rows,
+        p_range_start: formatDate(range.start, DEFAULT_TIME_ZONE), p_range_end: formatDate(range.end, DEFAULT_TIME_ZONE),
+      });
+      if (result.error) throw new ImportFailure("IMPORT_FAILED", 500);
+      return jsonResponse({ success: true, feedId: claimed.id, ...result.data });
+    } catch (error) {
+      const failure = error instanceof ImportFailure ? error : new ImportFailure("IMPORT_FAILED", 500);
+      if (writer && claimed) {
+        const result = await writer.rpc("fail_calendar_feed_import", { p_feed_id: claimed.id, p_token: claimed.import_token, p_message: failure.code }).catch(() => ({ error: true }));
+        if (result.error) return jsonResponse({ success: false, error: "IMPORT_FAILED", statusPersisted: false }, 503);
+      }
+      return jsonResponse({ success: false, error: failure.code }, failure.status);
     }
-
-    const userClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-      auth: { persistSession: false },
-    });
-    const writeClient = serviceRoleKey
-      ? createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } })
-      : userClient;
-
-    const { data: userData, error: userError } = await userClient.auth.getUser();
-    if (userError || !userData?.user) {
-      return jsonResponse({ success: false, error: userError?.message || "Not authenticated" }, 401);
-    }
-
-    const { data: feed, error: feedError } = await userClient
-      .from("calendar_feeds")
-      .select("*")
-      .eq("id", feedId)
-      .single();
-
-    if (feedError || !feed) {
-      return jsonResponse({ success: false, error: feedError?.message || "Feed not found" }, 404);
-    }
-
-    const normalizedFeed = normalizeFeed(feed as CalendarFeedRow);
-    const rangeStart = startOfDay(new Date(Date.now() - LOOKBEHIND_DAYS * DAY_MS));
-    const rangeEnd = endOfDay(new Date(Date.now() + LOOKAHEAD_DAYS * DAY_MS));
-    const events = await fetchIcsEvents(normalizedFeed.feed_url, {
-      start: rangeStart,
-      end: rangeEnd,
-    });
-    const rows = eventsToCalendarRows(events, normalizedFeed, userData.user.id);
-    const result = await syncRows(writeClient, normalizedFeed, rows);
-
-    await updateFeedStatus(writeClient, normalizedFeed.id, {
-      last_sync_status: `OK: ${rows.length} aftaler`,
-      last_synced_at: new Date().toISOString(),
-      last_import_count: rows.length,
-      last_error: null,
-    });
-
-    return jsonResponse({
-      success: true,
-      feedId: normalizedFeed.id,
-      importedCount: rows.length,
-      insertedCount: result.insertedCount,
-      updatedCount: result.updatedCount,
-      deletedCount: result.deletedCount,
-    });
-  } catch (error) {
-    console.error("import-calendar-feed failed", error);
-    return jsonResponse({ success: false, error: formatError(error) }, 500);
-  }
-});
+  };
+}
+if (import.meta.main) Deno.serve(makeHandler());
 
 function normalizeFeed(feed: CalendarFeedRow): CalendarFeedRow {
   const source = String(feed.source || "ics").trim().toLowerCase();
@@ -158,17 +145,20 @@ function normalizeFeedUrl(url: string): string {
   return trimmed.replace(/^webcal:\/\//i, "https://");
 }
 
-async function fetchIcsEvents(feedUrl: string, range: { start: Date; end: Date }): Promise<ParsedEvent[]> {
-  const response = await fetch(feedUrl);
-  if (!response.ok) {
-    throw new Error(`Could not fetch calendar feed (${response.status})`);
+export function parseIcsEvents(text: string, range: { start: Date; end: Date }): ParsedEvent[] {
+  const componentCount = validateCalendarText(text);
+  try {
+    const parsed = ical.sync.parseICS(text);
+    const components = Object.values(parsed).filter((component: any) => component?.type === "VEVENT") as any[];
+    if (componentCount > 0 && components.length === 0) throw new ImportFailure("INVALID_ICS", 422);
+    for (const component of components) {
+      if (!component.uid || (!toDate(component.start) && component.status !== "CANCELLED")) throw new ImportFailure("INVALID_ICS", 422);
+    }
+    return getEvents(applyCalendar(parsed), range);
+  } catch (error) {
+    if (error instanceof ImportFailure) throw error;
+    throw new ImportFailure("INVALID_ICS", 422);
   }
-
-  const text = await response.text();
-  const parsed = ical.sync.parseICS(text);
-  const entries = applyCalendar(parsed);
-
-  return getEvents(entries, range);
 }
 
 function applyCalendar(parsed: Record<string, any>): Map<string, CalendarEntry> {
@@ -296,6 +286,22 @@ function extractComponent(component: any, fallbackTimeZone = DEFAULT_TIME_ZONE):
   };
 }
 
+function recurrenceInstant(floating: Date, timeZone: string): Date {
+  // rrule's TZID output depends on the host timezone. Expand in floating wall time,
+  // then resolve it explicitly so Windows development and the UTC Edge runtime agree.
+  const wanted = floating.getTime();
+  let instant = wanted;
+  const formatter = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const parts = Object.fromEntries(formatter.formatToParts(new Date(instant)).map(part => [part.type, part.value]));
+    const wall = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), Number(parts.hour), Number(parts.minute), Number(parts.second));
+    const correction = wanted - wall;
+    if (!correction) break;
+    instant += correction;
+  }
+  return new Date(instant);
+}
+
 function getEvents(entries: Map<string, CalendarEntry>, range: { start: Date; end: Date }): ParsedEvent[] {
   const events: ParsedEvent[] = [];
 
@@ -308,11 +314,13 @@ function getEvents(entries: Map<string, CalendarEntry>, range: { start: Date; en
     const exclusions = new Set(entry.cancelledInstances);
 
     if (base.rrule) {
-      const occurrences = base.rrule.between(range.start, range.end, true);
+      const tzid = base.rrule.origOptions?.tzid;
+      const rule = tzid ? new base.rrule.constructor({ ...base.rrule.origOptions, tzid: null }) : base.rrule;
+      const occurrences = rule.between(new Date(range.start.getTime() - DAY_MS), new Date(range.end.getTime() + DAY_MS), true, (_date: Date, index: number) => { if (index >= MAX_EVENTS) throw new ImportFailure("IMPORT_LIMIT", 413); return true; });
       const seenKeys = new Set<string>();
 
       for (const occurrenceStart of occurrences) {
-        const startDate = toDate(occurrenceStart);
+        const startDate = tzid ? recurrenceInstant(occurrenceStart, tzid) : toDate(occurrenceStart);
         const key = makeKey(startDate);
         if (!startDate || !key || seenKeys.has(key)) {
           continue;
@@ -390,11 +398,12 @@ function pushIfInRange(events: ParsedEvent[], event: ParsedEvent, range: { start
   const start = new Date(event.start);
   const end = event.end ? new Date(event.end) : null;
   if (overlapsRange(start, end, range.start, range.end)) {
-    events.push(event);
+    if (events.length >= MAX_EVENTS) throw new ImportFailure("IMPORT_LIMIT", 413);
+  events.push(event);
   }
 }
 
-function eventsToCalendarRows(events: ParsedEvent[], feed: CalendarFeedRow, userId: string) {
+export function eventsToCalendarRows(events: ParsedEvent[], feed: CalendarFeedRow, userId: string) {
   const person = String(feed.assigned_person_name || "").trim() || "Alle";
 
   return events
@@ -416,6 +425,7 @@ function eventsToCalendarRows(events: ParsedEvent[], feed: CalendarFeedRow, user
         time,
         person,
         people: [person],
+        personIds: feed.assigned_person_id ? [feed.assigned_person_id] : [],
         type: "Aktivitet",
         durationMin,
         location: event.location || "",
@@ -441,6 +451,7 @@ function eventsToCalendarRows(events: ParsedEvent[], feed: CalendarFeedRow, user
           date: data.date,
           time: data.time,
           person: data.person,
+          person_ids: data.personIds,
           type: data.type,
           note: data.note,
           done: false,
@@ -491,89 +502,6 @@ function stableHash(value: string): string {
   }
 
   return (hash >>> 0).toString(36);
-}
-
-async function syncRows(client: any, feed: CalendarFeedRow, rows: Array<{ externalKey: string; payload: any }>) {
-  const { data: existingRows, error: existingError } = await client
-    .from("calendar_items")
-    .select("id,source,external_id,calendar_id,data")
-    .eq("household_id", feed.household_id);
-
-  if (existingError) {
-    throw existingError;
-  }
-
-  const importedRows = [];
-  for (const row of existingRows || []) {
-    const payload = row.data || {};
-    const rowSource = String(row.source || payload.source || "").toLowerCase();
-    const rowCalendarId = String(row.calendar_id || payload.calendarId || payload.feedId || "");
-    if (rowCalendarId !== feed.id || rowSource !== feed.source || payload.detachedFromFeed) {
-      continue;
-    }
-    importedRows.push(row);
-  }
-
-  const incomingKeys = new Set(rows.map((row) => row.externalKey));
-  const payloads = rows.map((row) => row.payload);
-
-  if (payloads.length) {
-    const { error } = await client
-      .from("calendar_items")
-      .upsert(payloads, { onConflict: "household_id,source,external_id" });
-    if (error) {
-      throw error;
-    }
-  }
-
-  const staleIds = importedRows
-    .filter((row) => !incomingKeys.has(getRowExternalKey(row)))
-    .map((row) => row.id)
-    .filter(Boolean);
-
-  if (staleIds.length) {
-    const { error } = await client.from("calendar_items").delete().in("id", staleIds);
-    if (error) {
-      throw error;
-    }
-  }
-
-  return {
-    insertedCount: payloads.length,
-    updatedCount: 0,
-    deletedCount: staleIds.length,
-  };
-}
-
-function getRowExternalKey(row: any): string {
-  return String(row.external_id || row.data?.externalKey || row.data?.external_id || "");
-}
-
-async function updateFeedStatus(client: any, feedId: string, values: Record<string, unknown>) {
-  let { error } = await client.from("calendar_feeds").update(values).eq("id", feedId);
-
-  if (error && "last_sync_status" in values) {
-    const fallbackValues: Record<string, unknown> = {
-      last_sync_status: values.last_sync_status,
-    };
-
-    if ("last_synced_at" in values) {
-      fallbackValues.last_synced_at = values.last_synced_at;
-    }
-
-    ({ error } = await client.from("calendar_feeds").update(fallbackValues).eq("id", feedId));
-  }
-
-  if (error && "last_sync_status" in values) {
-    ({ error } = await client
-      .from("calendar_feeds")
-      .update({ last_sync_status: values.last_sync_status })
-      .eq("id", feedId));
-  }
-
-  if (error) {
-    console.warn("Could not update feed status", error.message);
-  }
 }
 
 function toDate(value: any): Date | null {

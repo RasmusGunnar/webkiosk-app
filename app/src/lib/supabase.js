@@ -1,6 +1,15 @@
 import { createClient } from '@supabase/supabase-js'
+import { publicSupabaseConfig } from './config.js'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+let client = null
+let error = ''
+try {
+  const { url, key } = publicSupabaseConfig(import.meta.env)
+  client = createClient(url, key, {
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+  })
+} catch (cause) {
+  error = cause.message
+}
+export const supabase = client
+export const configurationError = error

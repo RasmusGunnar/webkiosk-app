@@ -133,7 +133,7 @@ Database og Edge Function er live. Der skal **ikke** anvendes migrationer igen f
 
 Den eksisterende offentlige kiosk ligger på https://rasmusgunnar.github.io/webkiosk-app/. Oprettelse af en ny Pages-build for /app afventer udtrykkelig hostinggodkendelse. Ingen hostingindstillinger er ændret, og ingen ny Pages-workflow er oprettet.
 
-Auth-check: email/password og signup er aktiveret, emailbekræftelse kræves. Site URL er stadig http://localhost:3000 og redirect-listen er tom. Når appens placering er valgt, skal kun Site URL/redirects ændres til den faktiske adresse; lokale config.toml må ikke pushes samlet til live. Signup-emaillevering/SMTP er ikke testet. Password-reset-endpointet findes i Supabase Auth, men appen har endnu intet reset-UI; den del er ikke release-testet. Leaked password protection kan aktiveres under Authentication → Sign In / Providers → Email → Password security ([Supabase-vejledning](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection)).
+Auth-opdatering Mega 4: login/signup, glemt adgangskode og recovery-UI er implementeret og testet. Live Site URL er http://localhost:5173; eksisterende wildcard samt konkrete lokale callbacks er tilladt. Kun redirectlisten blev ændret. Se [produktoplevelse og Auth-release](product-experience.md) for aktuel status, testafgrænsning og endelig public URL i Mega 5. Rodens lokale config.toml må fortsat ikke pushes samlet til live.
 
 ### Reproducerbar live-smoketest
 
@@ -158,3 +158,5 @@ Supabase/.temp/live-release/recovery/ indeholder lokalt hentet kildekode for den
 ## Afgrænsning
 
 [Mega 2](calendar.md) tilføjer kalenderrealtime. Offline-cache/ændringskø, push, kiosk/device auth, Capacitor, generelt deep-link routing, fuld kontosletning/eksport, invitationsmail og App Store-pakning er endnu ikke implementeret. De kan bygges videre på household-modellen. Legacy-kiosk, Apps Script og Firebase-kode er bevaret.
+
+Mega 3 og Mega 4 er også live: migrationerne 20260928131536 og 20260929062752. Aktuelt schema med private funktioner: [live-after-product.json](../supabase/schema/live-after-product.json). Se [Mega 4](product-experience.md).

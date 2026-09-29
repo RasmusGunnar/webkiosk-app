@@ -1,0 +1,139 @@
+{
+  "release": "Mega 4 mobile and kiosk product experience",
+  "date": "2026-09-29",
+  "base_commit": "b3ca52aa74485d9f11198e8ad24e5da5d4abe1c4",
+  "project_ref": "oyyqniwppytipdktzwsy",
+  "migration": {
+    "version": "20260929062752",
+    "name": "product_access",
+    "status": "APPLIED",
+    "sha256": "42d930368ac07abd02e8c0c19c1ccfb9b8983d88140e0941e1606db1f45fb4c9"
+  },
+  "schema_drift_before": [],
+  "backup_verified": {
+    "id": 1814861545,
+    "inserted_at": "2026-09-29T03:34:48.491Z",
+    "is_physical_backup": true,
+    "status": "COMPLETED"
+  },
+  "preservation": {
+    "all_existing_full_row_fingerprints_unchanged": true,
+    "counts_before_after_identical": true,
+    "after_smoke_matches_preflight": true,
+    "calendar_full_row_fingerprint": "a1e8d8abd4dbdabeca555faf05a2434f"
+  },
+  "counts_after": {
+    "auth_users": 1,
+    "calendar_feeds": 4,
+    "calendar_items": 273,
+    "calendar_mutation_receipts": 2,
+    "calendar_revisions": 1,
+    "household_invitations": 0,
+    "household_members": 2,
+    "household_people": 5,
+    "households": 2,
+    "profiles": 0,
+    "reward_celebrations": 0,
+    "storage_objects": 0
+  },
+  "acceptance": {
+    "mobile": "PASS",
+    "kiosk": "PASS",
+    "settings_auth": "PASS",
+    "viewport_count": 11
+  },
+  "tests": {
+    "node_unit": 67,
+    "postgres": 113,
+    "edge_import": 12,
+    "browser_foundation": "PASS",
+    "browser_calendar": 22,
+    "browser_task_offline": 20,
+    "browser_product": {
+      "checks": 23,
+      "results": [
+        "Forgot-password request uses local callback and generic response",
+        "Actual local recovery email opens callback and updates password",
+        "Mobile four destinations and day default",
+        "Mobile quick-create opens full-screen editor and saves",
+        "Task destination quick-completes, groups week and folds completed",
+        "Person archive retains history; restore and reward setting persist",
+        "Private feed masked by default; explicit copy and edit work",
+        "Email-bound invitation joins correct household; adult cannot administer invitations",
+        "Owner can revoke pending invitation",
+        "Curated appearance persists per device and household",
+        "Explicit kiosk and selected household survive reload with configured shortcuts and upcoming events",
+        "Kiosk settings reject wrong PIN; Escape closes lock without exiting kiosk",
+        "Wake-lock consent survives reload; unsupported browser uses quiet fallback",
+        "Kiosk task completion displays and dismisses exactly-once celebration",
+        "Kiosk seven-day week fits all four required wall sizes without horizontal scroll",
+        "Seven mobile/tablet/desktop sizes: navigation, editor save, settings, no horizontal overflow and focus return",
+        "Mobile week is a readable vertical seven-day list",
+        "Reduced visual viewport keeps save reachable and draft intact; modal traps keyboard focus",
+        "Kiosk inactivity returns to Today and never discards an active editor draft",
+        "Kiosk midnight rollover refreshes visible day without reload",
+        "Logout clears Auth and cached session; explicit kiosk binding restores after re-login",
+        "Authenticated PIN-protected exit persists across reload",
+        "No uncaught browser exceptions through all product flows"
+      ],
+      "viewports": 11
+    },
+    "live_product": {
+      "owner_member_list": "PASS",
+      "anonymous_list_denied": "PASS",
+      "cross_household_list_denied": "PASS",
+      "wrong_email_cannot_accept": "PASS",
+      "email_bound_invite_accepted": "PASS",
+      "token_single_use": "PASS",
+      "member_list_roles": "PASS",
+      "adult_cannot_invite": "PASS",
+      "adult_cannot_revoke": "PASS",
+      "other_owner_cannot_revoke": "PASS",
+      "anonymous_revoke_denied": "PASS",
+      "owner_revoke_persisted": "PASS",
+      "revoked_link_denied": "PASS",
+      "archive_retains_history": "PASS",
+      "local_redirect_allowlisted": "PASS",
+      "recovery_password_change": "PASS"
+    },
+    "build": "PASS",
+    "edge_typecheck": "PASS"
+  },
+  "auth": {
+    "site_url": "http://localhost:5173",
+    "changed_properties": [
+      "additional_redirect_urls"
+    ],
+    "preserved_existing_redirects": true,
+    "undeclared_properties_unchanged": 12,
+    "local_recovery_email": "PASS",
+    "live_recovery_fixture": "PASS",
+    "automatic_invitation_email": false,
+    "invitation_delivery": "Copy link or explicit mailto in user email client"
+  },
+  "cleanup": {
+    "isolated_fixture_users_and_households_removed": true
+  },
+  "edge_function": {
+    "name": "import-calendar-feed",
+    "version": 10,
+    "status": "ACTIVE",
+    "changed": false,
+    "entrypoint_sha256": "41cfd795cd47365b0ea4df8b9ba936df014093616044f7ba1eb9924fa2d84446",
+    "deployed_bundle_sha256": "d12314fadf12487a3e5fd3aa0c7407d83dff5890698437c5ece4d79bfc813b7a"
+  },
+  "advisors": {
+    "new_findings": 0,
+    "existing_auth_notice": "Leaked password protection disabled",
+    "remediation": "https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection",
+    "performance": "Existing INFO: unused indexes and Auth allocation"
+  },
+  "frontend_hosting": "No public hosting deployed",
+  "physical_mobile_device_tests": "Mega 5; Chrome viewport and visualViewport acceptance completed",
+  "secret_check": {
+    "introduced_credentials": 0,
+    "env_dependencies_build_and_temp_ignored": true,
+    "historical_legacy_endpoint_unchanged": true,
+    "explicit_noncredential_fixture": "TEST_ONLY"
+  }
+}

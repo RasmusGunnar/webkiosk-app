@@ -6,13 +6,16 @@ import { normalizeFeedUrl, redactFeedUrl, feedIdOf } from './lib/feeds.js'
 import { calendarPayload } from './lib/calendar.js'
 import { observeSession } from './lib/auth.js'
 import { readAllRows } from './lib/rows.js'
-import { calendarHeading, preferredView, VIEW_KEY, parseDate as parseDateIso } from './lib/calendar-dates.js'
+import { calendarHeading, preferredView, VIEW_KEY, weekDates, parseDate as parseDateIso } from './lib/calendar-dates.js'
 import { materialize, displayTitle, value as calendarValue, imported, sourceLabel, repeatContext, baseFor, itemValues, planCreate, planEdit, planDelete, taskSuggestions } from './lib/calendar-semantics.js'
 import { calendarRealtime } from './lib/calendar-realtime.js'
 import { LocalStore, DATABASE_NAME } from './lib/local-store.js'
 import { OfflineSync } from './lib/offline-sync.js'
 import { taskEmoji, taskOccurrenceKey, weeklyProgress, rewardEnabled } from './lib/task-rewards.js'
 import { CelebrationPopup } from './lib/celebration-ui.js'
+import { DEVICE_KEY, readDevice, saveDevice, deviceSettings, resolveMode, densityFor, safeShortcut, makePin, checkPin, WakeScreen, DeviceClock } from './lib/device-mode.js'
+import { upcomingItems, roleLabel, invitationStatus, callbackUrl, consumeInvite } from './lib/product-model.js'
+import { installDialogAccessibility } from './lib/dialog-accessibility.js'
 
 const app = document.querySelector('#app')
 const localStore = new LocalStore(DATABASE_NAME + ':' + cacheNamespace)
@@ -72,16 +75,49 @@ const realtime = calendarRealtime(supabase, async () => { await refreshHousehold
   }
 })
 
+
+const deviceKey=DEVICE_KEY+':'+cacheNamespace
+let device=readDevice(localStorage,deviceKey)
+let productRoute='calendar',settingsTab='people',taskRange='today',newCalendarType='Aktivitet'
+let kioskUnlocked=false,pinAttempts=0,pinBlockedUntil=0,members=[],invitations=[]
+const pinRoot=document.createElement('div');document.body.append(pinRoot)
+let pendingInvite=consumeInvite(location,history,sessionStorage)
+let authScreen=location.hash.includes('type=recovery')||sessionStorage.getItem('familiekalender.recovery')?'recovery':'login'
+const wakeScreen=new WakeScreen({onStatus:status=>{const el=document.querySelector('#wake-status');if(el)el.textContent=status}})
+let lastClockMinute=''
+const clock=new DeviceClock({
+ onTick:now=>{
+   const time=document.querySelector('#device-clock'),date=document.querySelector('#device-date')
+   const text=new Intl.DateTimeFormat('da-DK',{hour:'2-digit',minute:'2-digit'}).format(now)
+   if(time&&time.textContent!==text)time.textContent=text
+   const dateText=new Intl.DateTimeFormat('da-DK',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(now)
+   if(date&&date.textContent!==dateText)date.textContent=dateText
+   const minute=toDateIso(now)+text
+   if(lastClockMinute!==minute){lastClockMinute=minute;if(session&&productRoute==='today')scheduleCalendarSurface()}
+ },
+ onDay:now=>{if(session&&(mode()==='kiosk'||['today','tasks'].includes(productRoute))){calendarCursorDate=now;render({preserveDialogs:true})}},
+ onIdle:()=>{if(productRoute!=='today'||activePersonFilter!=='Alle')setProductRoute('today')},
+ isKiosk:()=>mode()==='kiosk',
+ isBusy:()=>isCalendarModalOpen||isSettingsModalOpen||Boolean(pinRoot.firstChild)||syncPanelOpen||Boolean(document.querySelector('.celebration-backdrop')),
+ timeout:()=>settingsForDevice().inactivity
+})
+function preferredHousehold(fallback) {
+ return households.find(h=>device.kiosk?.userId===session?.user.id&&h.id===device.kiosk?.householdId)||fallback
+}
+
 async function init() {
+  installProductRuntime()
   if (configurationError) { app.innerHTML = '<main class="app-shell"><p>' + escapeHtml(configurationError) + '</p></main>'; return }
   if (import.meta.env.PROD && 'serviceWorker' in navigator) navigator.serviceWorker.register(import.meta.env.BASE_URL + 'sw.js').catch(() => {})
   try {
     const remembered = await localStore.get('last-session')
     if (remembered) await applySession({ user: { id: remembered.user_id }, offlineOnly: true }, 'OFFLINE')
   } catch { message = 'Lokallagring er utilgængelig. Offlineændringer kan ikke gemmes.' }
-  observeSession(supabase, (next, event) => {
+  observeSession(supabase, async (next, event) => {
+    if(event==='PASSWORD_RECOVERY'){authScreen='recovery';sessionStorage.setItem('familiekalender.recovery','1')}
     if (!next && !navigator.onLine && session) return
-    return applySession(next, event)
+    await applySession(next, event)
+    if(event==='PASSWORD_RECOVERY')render()
   }, error => { message = 'Login kunne ikke indlæses: ' + error.message; if (!session) render() })
   window.addEventListener('offline', () => { syncEngine?.emit(); realtime.stop(); updateCalendarSurface() })
   window.addEventListener('online', reconnectCalendar)
@@ -99,7 +135,7 @@ async function applySession(nextSession) {
     const wasOffline = session.offlineOnly; session = nextSession
     if (wasOffline && !nextSession.offlineOnly) {
       await loadHouseholds()
-      const chosen = households.find(h => h.id === activeHousehold?.id) || households[0]
+      const chosen = preferredHousehold(households.find(h => h.id === activeHousehold?.id) || households[0])
       if (chosen && chosen.id !== activeHousehold?.id) await activateHousehold(chosen)
       else if (!chosen && !householdsLoadFailed) { syncEngine?.stop(); syncEngine = null; activeHousehold = null }
       render({preserveDialogs:true}); await reconnectCalendar()
@@ -115,11 +151,11 @@ async function applySession(nextSession) {
   try {
     const cached = await localStore.get('user:' + session.user.id)
     households = cached?.households || []
-    if (households.length) { await activateHousehold(households.find(h => h.id === cached.activeHouseholdId) || households[0]); render() }
+    if (households.length) { await activateHousehold(preferredHousehold(households.find(h => h.id === cached.activeHouseholdId) || households[0])); render() }
     if (nextSession.offlineOnly) { if (!households.length) render(); return }
     await loadHouseholds()
     if (epoch !== sessionEpoch) return
-    const chosen = households.find(h => h.id === activeHousehold?.id) || households[0]
+    const chosen = preferredHousehold(households.find(h => h.id === activeHousehold?.id) || households[0])
     if (chosen && chosen.id !== activeHousehold?.id) await activateHousehold(chosen)
     else if (!chosen) { activeHousehold = null; syncEngine?.stop(); syncEngine = null }
     render()
@@ -130,6 +166,10 @@ async function activateHousehold(household) {
   realtime.stop(); syncEngine?.stop(); celebrations.reset()
   syncPanelOpen = false; syncPanelRoot.innerHTML = ''
   activeHousehold = household; householdRole = household.memberRole
+  members=[];invitations=[];kioskUnlocked=false;pinRoot.innerHTML=''
+  productRoute=mode()==='kiosk'||(mode()==='mobile'&&getDefaultCalendarViewMode()==='day')?'today':'calendar'
+  calendarViewMode=productRoute==='today'?'day':getDefaultCalendarViewMode()
+  void wakeScreen.set(mode()==='kiosk'&&settingsForDevice().wake)
   calendarItems = []; householdPeople = []; calendarFeeds = []; liveFeedMetadata = []
   activePersonFilter = 'Alle'; calendarCursorDate = new Date()
   editingCalendarSnapshot = null; isCalendarModalOpen = false; isSettingsModalOpen = false
@@ -176,6 +216,7 @@ async function loadRewardState() {
 }
 
 function clearSessionState() {
+  void wakeScreen.set(false);pinRoot.innerHTML='';kioskUnlocked=false;members=[];invitations=[]
   realtime.stop(); syncEngine?.stop(); syncEngine = null; celebrations.reset()
   syncPanelOpen = false; syncPanelRoot.innerHTML = ''; liveFeedMetadata = []; expandedTaskDays.clear()
   editingCalendarSnapshot = null; editingRowsSnapshot = []
@@ -198,7 +239,9 @@ function clearSessionState() {
 function canManageFeeds() { return ['owner', 'admin'].includes(householdRole) }
 
 function render({ preserveDialogs = false } = {}) {
-  if (!session) {
+  applyDeviceAppearance()
+  if(authScreen==='recovery'&&document.querySelector('#recovery-form'))return
+  if (!session || authScreen==='recovery') {
     renderLogin()
     return
   }
@@ -227,27 +270,33 @@ function renderPreservingSettingsScroll() {
 }
 
 function renderLogin() {
-  app.innerHTML = `
-    <main class="app-shell auth-shell">
-      <section class="panel auth-panel">
-        <h1>Familiekalender</h1>
-        <form id="login-form" class="stack-form">
-          <label for="email">Email</label>
-          <input id="email" name="email" type="email" required />
-          <label for="password">Password</label>
-          <input id="password" name="password" type="password" required />
-          <div class="auth-actions">
-            <button type="submit" name="authAction" value="login">Log ind</button>
-            <button type="submit" name="authAction" value="signup">Opret bruger</button>
-          </div>
-        </form>
-        <p id="message" class="message">${escapeHtml(message)}</p>
-      </section>
-    </main>
-  `
-
-  document.querySelector('#login-form').addEventListener('submit', handleLogin)
+ const recovery=authScreen==='recovery',reset=authScreen==='reset',signup=authScreen==='signup'
+ const heading=recovery?'Vælg ny adgangskode':reset?'Glemt adgangskode?':signup?'Opret din konto':'Velkommen hjem'
+ app.innerHTML='<main class="app-shell auth-shell"><section class="panel auth-panel"><p class="eyebrow">Familiekalender</p><h1>'+heading+'</h1>'+
+ (pendingInvite?'<p class="hint">Log ind med invitationens email for at blive en del af familien.</p>':'')+
+ (recovery?'<form id="recovery-form" class="stack-form"><label for="new-password">Ny adgangskode</label><input id="new-password" name="password" type="password" minlength="8" required autocomplete="new-password"><label for="repeat-password">Gentag adgangskode</label><input id="repeat-password" name="repeat" type="password" minlength="8" required autocomplete="new-password"><button type="submit">Gem adgangskode</button></form>':
+ reset?'<form id="reset-form" class="stack-form"><p>Vi sender et link, så du kan vælge en ny adgangskode.</p><label for="email">Email</label><input id="email" name="email" type="email" required autocomplete="email"><button type="submit">Send nulstillingslink</button></form>':
+ '<div class="auth-tabs"><button data-auth-screen="login" aria-pressed="'+!signup+'">Har en konto</button><button data-auth-screen="signup" aria-pressed="'+signup+'">Ny bruger</button></div><form id="login-form" class="stack-form"><label for="email">Email</label><input id="email" name="email" type="email" required autocomplete="email"><label for="password">Adgangskode</label><div class="password-field"><input id="password" name="password" type="password" required '+(signup?'minlength="8" autocomplete="new-password"':'autocomplete="current-password"')+'><button id="show-password" type="button" aria-label="Vis adgangskode">Vis</button></div><button type="submit" name="authAction" value="'+(signup?'signup':'login')+'">'+(signup?'Opret bruger':'Log ind')+'</button></form><button class="text-button" data-auth-screen="reset">Glemt adgangskode?</button>')+
+ '<p id="message" class="message" role="status">'+escapeHtml(message)+'</p>'+((reset||recovery)?'<button data-auth-screen="login" class="text-button">'+(session?'Tilbage til kalender':'Tilbage til login')+'</button>':'')+'</section></main>'
+ document.querySelectorAll('[data-auth-screen]').forEach(button=>button.onclick=()=>{authScreen=button.dataset.authScreen;message='';render()})
+ document.querySelector('#login-form')?.addEventListener('submit',handleLogin)
+ document.querySelector('#show-password')?.addEventListener('click',event=>{const input=document.querySelector('#password');input.type=input.type==='password'?'text':'password';event.target.textContent=input.type==='password'?'Vis':'Skjul';event.target.setAttribute('aria-label',input.type==='password'?'Vis adgangskode':'Skjul adgangskode')})
+ document.querySelector('#reset-form')?.addEventListener('submit',async event=>{
+   event.preventDefault();const button=event.target.querySelector('button');button.disabled=true
+   const {error}=await supabase.auth.resetPasswordForEmail(new FormData(event.target).get('email'),{redirectTo:callbackUrl(location)})
+   message=error?'Linket kunne ikke sendes. Prøv igen om lidt.':'Hvis emailen har en konto, har vi sendt et link. Tjek også spam.'
+   document.querySelector('#message').textContent=message;button.disabled=false
+ })
+ document.querySelector('#recovery-form')?.addEventListener('submit',async event=>{
+   event.preventDefault();const data=new FormData(event.target),button=event.target.querySelector('button')
+   if(data.get('password')!==data.get('repeat')){document.querySelector('#message').textContent='Adgangskoderne er ikke ens.';return}
+   button.disabled=true
+   const {error}=await supabase.auth.updateUser({password:String(data.get('password'))})
+   if(error){document.querySelector('#message').textContent='Adgangskoden kunne ikke ændres. Linket kan være udløbet; bed om et nyt link.';button.disabled=false;return}
+   sessionStorage.removeItem('familiekalender.recovery');authScreen='login';message='Adgangskode opdateret.';render()
+ })
 }
+
 
 function renderCreateFirstHousehold() {
   if (householdsLoadFailed) {
@@ -267,25 +316,27 @@ function renderCreateFirstHousehold() {
       </header>
 
       <section class="panel">
-        <h2>Households</h2>
+        <h2>Din familie</h2>
         <ul id="households-list">
-          <li>Ingen households endnu.</li>
+          <li>Du er endnu ikke tilknyttet en familie.</li>
         </ul>
       </section>
 
+      ${renderInvitation()}
       <form id="household-form" class="panel stack-form">
-        <h2>Ny household</h2>
+        <h2>Opret familie</h2>
         <label for="household-name">Navn</label>
         <input id="household-name" name="name" type="text" required />
-        <button type="submit">Opret household</button>
+        <button type="submit">Opret familie</button>
       </form>
 
       <p id="message" class="message">${escapeHtml(message)}</p>
     </main>
   `
 
-  document.querySelector('#logout-button').addEventListener('click', handleLogout)
+  document.querySelector('#logout-button')?.addEventListener('click', handleLogout)
   document.querySelector('#household-form').addEventListener('submit', handleCreateHousehold)
+  document.querySelector('#accept-invite')?.addEventListener('click',acceptInvitation)
 }
 
 function renderDashboard(preserveDialogs = false) {
@@ -321,26 +372,23 @@ function renderDashboard(preserveDialogs = false) {
   app.innerHTML = `
     <main class="app-shell">
       <header class="dashboard-header">
-        <div>
-          <p class="eyebrow">Familie</p>
-          <h1>${escapeHtml(getHouseholdName(activeHousehold))}</h1>
-          <p>Familiens kalender, opgaver og aftaler</p>
-        </div>
-        <button id="logout-button" class="logout-button" type="button">Log ud</button>
+${renderProductHeader()}
       </header>
 
       <div id="sync-status" class="sync-status">${renderSyncStatus()}</div>
-      ${households.length > 1 ? '<label class="household-switch">Familie <select id="household-switch">' + households.map(h => '<option value="' + h.id + '" ' + (h.id === activeHousehold.id ? 'selected' : '') + '>' + escapeHtml(h.name) + '</option>').join('') + '</select></label>' : ''}
+      ${mode()!=='kiosk' && households.length > 1 ? '<label class="household-switch">Familie <select id="household-switch">' + households.map(h => '<option value="' + h.id + '" ' + (h.id === activeHousehold.id ? 'selected' : '') + '>' + escapeHtml(h.name) + '</option>').join('') + '</select></label>' : ''}
+      ${renderProductNav()}
+      ${renderInvitation()}
       ${renderPersonChips()}
 
       <section class="calendar-section">
         <div class="section-heading calendar-heading">
           <div>
-            <h2>Kalender</h2>
+            <h2>${productRoute==='today'?'I dag':productRoute==='tasks'?'Opgaver':'Kalender'}</h2>
             <p id="calendar-heading-label">${escapeHtml(getCalendarHeaderLabel())}</p>
             <small id="calendar-sync-status" role="status"></small>
           </div>
-          <div class="calendar-toolbar">
+          <div class="calendar-toolbar" ${productRoute==='tasks'?'hidden':''}>
             <div class="calendar-nav">
               <button id="calendar-prev-button" type="button">Forrige ${navUnit}</button>
               <button id="calendar-today-button" type="button">I dag</button>
@@ -352,7 +400,8 @@ function renderDashboard(preserveDialogs = false) {
         <div id="calendar-view">${renderCalendarView()}</div>
       </section>
 
-      <p id="message" class="message">${escapeHtml(message)}</p>
+      <p id="message" class="message" role="status">${escapeHtml(message)}</p>
+      <div class="quick-create" aria-label="Opret hurtigt">${['Aktivitet','Opgave','Fødselsdag'].map(type=>'<button data-quick-type="'+type+'">+ '+type+'</button>').join('')}</div>
       <button id="new-calendar-button" class="floating-new-button" type="button">+ Ny</button>
       <button id="settings-button" class="floating-settings-button" type="button" aria-label="Indstillinger" title="Indstillinger">&#9881;</button>
       ${renderCalendarModal()}
@@ -360,12 +409,12 @@ function renderDashboard(preserveDialogs = false) {
     </main>
   `
 
-  document.querySelector('#logout-button').addEventListener('click', handleLogout)
+  document.querySelector('#logout-button')?.addEventListener('click', handleLogout)
   if (savedCalendarModal) document.querySelector('#calendar-modal')?.replaceWith(savedCalendarModal)
   if (savedSettingsModal) document.querySelector('#settings-modal')?.replaceWith(savedSettingsModal)
   for (const [panel, scrollTop] of dialogScroll) panel.scrollTop = scrollTop
   if (restoreInput) { activeInput.focus({ preventScroll: true }); if (selection) activeInput.setSelectionRange(...selection) }
-  document.querySelector('#new-calendar-button').addEventListener('click', () => openCreateCalendarModal())
+  document.querySelector('#new-calendar-button').addEventListener('click', () => {newCalendarType='Aktivitet';openCreateCalendarModal()})
   document.querySelector('#calendar-today-button').addEventListener('click', () => { calendarCursorDate = new Date(); render() })
   bindCalendarSurface()
   document.querySelector('#household-switch')?.addEventListener('change', async event => { await activateHousehold(households.find(h => h.id === event.target.value)); render(); await refreshHousehold() })
@@ -460,6 +509,9 @@ function renderDashboard(preserveDialogs = false) {
       }
     })
   }
+  if(!isCalendarModalOpen&&!isSettingsModalOpen&&!pinRoot.firstChild&&activeInput?.id)document.getElementById(activeInput.id)?.focus({preventScroll:true})
+  bindProductControls(!savedSettingsModal)
+  if(isSettingsModalOpen && settingsTab==='family')void loadMemberships()
 }
 
 function scheduleCalendarSurface() {
@@ -473,7 +525,7 @@ function updateCalendarSurface() {
   if (chips) chips.outerHTML = renderPersonChips()
   document.querySelector('#sync-status').innerHTML = renderSyncStatus()
   document.querySelector('#message').textContent = message
-  bindCalendarSurface()
+  bindCalendarSurface();bindProductSurface()
   if (syncPanelOpen) renderSyncPanel()
 }
 function bindCalendarSurface() {
@@ -516,13 +568,15 @@ function renderSyncPanel() {
   syncPanelRoot.querySelector('[data-sync-retry]')?.addEventListener('click',()=>syncEngine.retry())
 }
 function renderDayItems(section,items,date) {
-  if(section!=='Opgave'||calendarViewMode!=='day'||window.innerWidth>=700)return items.length?items.map(renderCalendarItemCard).join(''):'<p class="empty-section">Ingen</p>'
+  if(section!=='Opgave'||!(mode()==='kiosk'||(calendarViewMode==='day'&&mode()==='mobile')))return items.length?items.map(renderCalendarItemCard).join(''):'<p class="empty-section">Ingen</p>'
   const open=items.filter(item=>!item.done),completed=items.filter(item=>item.done)
   return (open.length?open.map(renderCalendarItemCard).join(''):'<p class="empty-section">Ingen åbne opgaver</p>')+
     (completed.length?'<details class="completed-tasks" data-completed-date="'+date+'" '+(expandedTaskDays.has(date)?'open':'')+'><summary>'+completed.length+' udførte opgaver</summary>'+completed.map(renderCalendarItemCard).join('')+'</details>':'')
 }
 
 function renderCalendarView() {
+  if(productRoute==='today')return renderHome()
+  if(productRoute==='tasks')return renderTaskView()
   if (isLoadingCalendar) {
     return '<p class="calendar-status">Henter kalender...</p>'
   }
@@ -564,10 +618,10 @@ function renderDayCard(date) {
     { key: 'Fritidsinteresse', label: 'Fritidsinteresser' },
     { key: 'Opgave', label: 'Opgaver' },
   ]
-  if (calendarViewMode === 'day' && window.innerWidth < 700) sections.sort((a,b) => Number(b.key==='Opgave')-Number(a.key==='Opgave'))
+  if (calendarViewMode === 'day' && mode() === 'mobile') sections.sort((a,b) => Number(b.key==='Opgave')-Number(a.key==='Opgave'))
 
   return `
-    <article class="day-card ${dateIso === toDateIso(new Date()) ? 'is-today' : ''}" data-day="${dateIso}">
+    <article class="day-card ${[0,6].includes(date.getDay())?'is-weekend':''} ${dateIso === toDateIso(new Date()) ? 'is-today' : ''}" data-day="${dateIso}">
       <header class="day-card-header">
         <strong>${escapeHtml(formatWeekday(date))}</strong>
         <span>${escapeHtml(formatShortDate(date))}${dateIso === toDateIso(new Date()) ? ' · I dag' : ''}</span>
@@ -690,14 +744,14 @@ function renderCalendarModal() {
   const item = getEditingCalendarItem()
   const base = item ? baseFor(editingRowsSnapshot, item) : null
   const readOnly = imported(item) || item?.isVirtualMilestone
-  const mode = readOnly ? 'Kalenderaftale' : item ? 'Rediger kalender-item' : 'Nyt kalender-item'
-  const submitText = item ? 'Gem ændringer' : 'Opret kalender-item'
+  const mode = readOnly ? 'Kalenderaftale' : item ? 'Rediger aftale' : 'Ny aftale'
+  const submitText = item ? 'Gem ændringer' : 'Opret aftale'
   const values = {
     title: getCalendarValue(item || {}, 'title'),
     date: (item?.isYearlyOccurrence ? getCalendarValue(base || item, 'date') : getCalendarValue(item || {}, 'date')) || getDefaultCalendarItemDate(),
     time: getCalendarValue(item || {}, 'time'),
     people: item && itemPersonIds(item, householdPeople).length ? [...itemPersonIds(item, householdPeople), ...(item.data?.unresolvedPeople || [])] : getCalendarItemPeople(item || {}),
-    type: normalizeTypeValue(getCalendarValue(item || {}, 'type') || 'Aktivitet'),
+    type: normalizeTypeValue(getCalendarValue(item || {}, 'type') || newCalendarType),
     durationMin: getCalendarValue(item || {}, 'durationMin'),
     location: getCalendarValue(item || {}, 'location'),
     note: getCalendarValue(item || {}, 'note'),
@@ -832,7 +886,9 @@ function renderSettingsModal() {
           <button id="settings-modal-close" class="icon-button" type="button" aria-label="Luk">×</button>
         </header>
 
-        <section class="settings-block">
+        ${renderSettingsNavigation()}
+        ${renderOtherSettings()}
+        <section class="settings-block" data-settings-panel="people" ${settingsTab==='people'?'':'hidden'}>
           <div class="settings-block-header">
             <div>
               <h3>Personer</h3>
@@ -881,7 +937,7 @@ function renderSettingsModal() {
           <p class="message">${escapeHtml(settingsMessage)}</p>
         </section>
 
-        <section class="settings-block">
+        <section class="settings-block" data-settings-panel="feeds" ${settingsTab==='feeds'?'':'hidden'}>
           <div class="settings-block-header">
             <div>
               <h3>Kalender-import</h3>
@@ -962,6 +1018,7 @@ function renderCalendarFeedRow(feed) {
         ` : ''}
       </div>
       <div class="calendar-feed-actions">
+        <button type="button" data-copy-calendar-feed="${escapeHtml(String(feed.id))}">Kopiér link</button>
         <button type="button" data-edit-calendar-feed="${escapeHtml(String(feed.id))}">Rediger</button>
         <button type="button" data-import-calendar-feed="${escapeHtml(String(feed.id))}" ${isImporting || !isActive ? 'disabled' : ''}>${isImporting ? 'Henter...' : 'Hent nu'}</button>
         <button class="danger-button" type="button" data-delete-calendar-feed="${escapeHtml(String(feed.id))}">Slet</button>
@@ -1286,7 +1343,7 @@ function renderPersonSettingsRow(person, { isNew = false } = {}) {
   const avatar = avatarDisplayUrl(person)
 
   return `
-    <div class="person-settings-row" data-person-row="${escapeHtml(rowId)}">
+    <div class="person-settings-row ${person.is_active===false?'is-archived':''}" data-person-row="${escapeHtml(rowId)}">
       <div class="person-avatar-preview" data-avatar-preview="${escapeHtml(rowId)}">
         ${renderPersonAvatar(person, 'person-settings-avatar')}
       </div>
@@ -1313,7 +1370,7 @@ function renderPersonSettingsRow(person, { isNew = false } = {}) {
       </div>
       <label class="reward-setting"><input type="checkbox" id="${prefix}-reward-enabled" ${rewardEnabled(person) ? 'checked' : ''} />Med i ugentlig opgavebelønning</label>
       <span class="person-settings-swatch" style="background:${escapeHtml(color)}" data-person-color-swatch="${escapeHtml(rowId)}"></span>
-      ${isNew ? '' : `<button class="btn small" type="button" data-save-person="${escapeHtml(rowId)}">Gem</button>`}
+      ${isNew ? '' : `<div class="person-row-actions"><button class="btn small" type="button" data-save-person="${escapeHtml(rowId)}">Gem</button><button type="button" data-archive-person="${escapeHtml(rowId)}">${person.is_active===false?'Gendan':'Arkivér'}</button></div>`}
     </div>
   `
 }
@@ -1389,11 +1446,11 @@ async function handleLogin(event) {
   form.querySelectorAll('button').forEach(button => { button.disabled = true })
   try {
     const { data, error } = signup
-      ? await supabase.auth.signUp({ email, password })
+      ? await supabase.auth.signUp({ email, password, options:{emailRedirectTo:callbackUrl(location)} })
       : await supabase.auth.signInWithPassword({ email, password })
     if (error) throw error
     if (data?.session) await applySession(data.session)
-    else { message = 'Bruger oprettet. Tjek din email for bekræftelse.'; render() }
+    else { authScreen='login';message = 'Bruger oprettet. Tjek din email for bekræftelse.'; render() }
   } catch (error) { message = 'Login kunne ikke gennemføres: ' + error.message; render() }
   finally { authRequestInFlight = false; form.querySelectorAll('button').forEach(button => { button.disabled = false }) }
 }
@@ -1405,6 +1462,7 @@ async function handleLogout() {
   syncEngine?.stop(); realtime.stop(); celebrations.reset()
   if (userId) await localStore.clearUser(userId)
   clearLocalAuth()
+  authScreen='login';sessionStorage.removeItem('familiekalender.recovery');sessionStorage.removeItem('familiekalender.pending-invite');pendingInvite=''
   clearSessionState(); render()
   // Local logout must work without a network; cached household data is already gone.
   void supabase.auth.signOut({scope:'local'}).catch(() => {})
@@ -1470,7 +1528,7 @@ async function handleCreateHousehold(event) {
   isCreatingHousehold = false
 
   if (error) {
-    message = `Kunne ikke oprette household: ${error.message}`
+    message = `Kunne ikke oprette familien: ${error.message}`
     render()
     return
   }
@@ -1743,7 +1801,8 @@ function getPersonPreviewColor(rowId) {
   return getInputValue(`person-${rowId}-color`) || '#64748b'
 }
 
-function openCreateCalendarModal(date = null) {
+function openCreateCalendarModal(date = null,type='Aktivitet') {
+  newCalendarType=type
   editingCalendarItemId = null; editingCalendarSnapshot = null; editingRowsSnapshot = []
   newCalendarDate = date || toDateIso(calendarCursorDate)
   isCalendarModalOpen = true; message = ''
@@ -1761,12 +1820,16 @@ function openEditCalendarModal(itemId) {
 }
 
 function closeCalendarModal() {
+  newCalendarType='Aktivitet'
   isCalendarModalOpen = false
   editingCalendarItemId = null
   render()
 }
 
-function openSettingsModal() {
+function openSettingsModal(tab='people') {
+  tab=typeof tab==='string'?tab:'people'
+  if(mode()==='kiosk'&&!kioskUnlocked){requestKioskAccess(tab);return}
+  settingsTab=tab
   isSettingsModalOpen = true
   settingsMessage = ''
   calendarImportMessage = ''
@@ -1774,6 +1837,7 @@ function openSettingsModal() {
 }
 
 function closeSettingsModal() {
+  kioskUnlocked=false
   pendingAvatarFiles.clear()
   isSettingsModalOpen = false
   settingsMessage = ''
@@ -2018,6 +2082,7 @@ function getCalendarImportHelpText(source = calendarFeedDraft.source) {
 }
 
 function navigateCalendar(direction) {
+  productRoute='calendar'
   const nextDate = new Date(calendarCursorDate)
   nextDate.setDate(nextDate.getDate() + (calendarViewMode === 'week' ? direction * 7 : direction))
   calendarCursorDate = nextDate
@@ -2025,6 +2090,7 @@ function navigateCalendar(direction) {
 }
 
 function toggleCalendarViewMode() {
+  productRoute='calendar'
   calendarViewMode = calendarViewMode === 'week' ? 'day' : 'week'
   hasUserSelectedCalendarView = true
   try { localStorage.setItem(VIEW_KEY, calendarViewMode) } catch {}
@@ -2255,6 +2321,7 @@ function getDefaultCalendarViewMode() {
 }
 
 function syncDefaultCalendarViewMode() {
+  if(productRoute==='today'){calendarViewMode='day';return}
   if (hasUserSelectedCalendarView) {
     return
   }
@@ -2316,6 +2383,7 @@ function formatDayHeaderDate(date) {
 function getRenderableCalendarItems() { return materialize(calendarItems, getVisibleCalendarDates()) }
 
 function getVisibleCalendarDates() {
+  if(productRoute==='tasks')return taskRange==='week'?weekDates(toDateIso(new Date())):[toDateIso(new Date())]
   if (calendarViewMode === 'day') {
     return [toDateIso(calendarCursorDate)]
   }
@@ -2324,7 +2392,7 @@ function getVisibleCalendarDates() {
 }
 
 function findRenderableCalendarItem(itemId) {
-  return getRenderableCalendarItems().find((item) => String(item.id) === String(itemId)) || null
+  return [...getRenderableCalendarItems(),...upcomingItems(calendarItems,householdPeople,activePersonFilter)].find((item) => String(item.id) === String(itemId)) || null
 }
 
 function isRepeatContextItem(item) { return repeatContext(item) }
@@ -2405,6 +2473,207 @@ function escapeHtml(value) {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#039;')
+}
+
+
+function mode() { return resolveMode(window.innerWidth,device,session?.user.id,activeHousehold?.id) }
+function settingsForDevice() { return deviceSettings(device,session?.user.id,activeHousehold?.id) }
+function applyDeviceAppearance() {
+  const config=settingsForDevice(), current=mode()
+  document.body.dataset.mode=current
+  document.body.dataset.route=productRoute
+  document.body.dataset.density=densityFor(current,innerWidth,innerHeight,config.density)
+  document.documentElement.style.setProperty('--accent',['#0f172a','#2563eb','#7c3aed','#047857','#be123c'].includes(config.accent)?config.accent:'#0f172a')
+  document.documentElement.style.setProperty('--bg',({cloud:'#f6f7fb',warm:'#faf7f2',cool:'#f0f7f8'})[config.tone]||'#f6f7fb')
+}
+function setProductRoute(route) {
+  if(route==='family'){openSettingsModal('family');return}
+  productRoute=route;calendarCursorDate=new Date();activePersonFilter='Alle'
+  if(route==='today')calendarViewMode='day'
+  if(route==='calendar'&&mode()==='kiosk')calendarViewMode='week'
+  if(route==='tasks')calendarViewMode='day'
+  hasUserSelectedCalendarView=true
+  render()
+}
+function renderProductNav() {
+  const entries=mode()==='kiosk'?[['today','I dag'],['calendar','Uge'],['tasks','Opgaver']]:[['today','I dag'],['calendar','Kalender'],['tasks','Opgaver'],['family','Familie']]
+  return '<nav class="product-nav" aria-label="Primær navigation">'+entries.map(([id,label])=>'<button type="button" data-product-route="'+id+'" aria-current="'+(productRoute===id?'page':'false')+'">'+label+'</button>').join('')+'</nav>'
+}
+function renderProductHeader() {
+  if(mode()==='kiosk')return '<div class="kiosk-heading"><div><p class="eyebrow">'+escapeHtml(getHouseholdName(activeHousehold))+'</p><time id="device-clock"></time><p id="device-date"></p></div><span class="kiosk-label">Familiens dag</span></div>'
+  return '<div><p class="eyebrow">Familie</p><h1>'+escapeHtml(getHouseholdName(activeHousehold))+'</h1><p>Små planer. Mere tid sammen.</p></div><button id="logout-button" class="logout-button" type="button">Log ud</button>'
+}
+function renderHome() {
+  const upcoming=upcomingItems(calendarItems,householdPeople,activePersonFilter)
+  const next=upcoming[0],later=upcoming.filter(item=>item.date>toDateIso(new Date())).slice(0,4)
+  const eventButton=item=>'<button class="upcoming-event" data-upcoming="'+escapeHtml(item.id)+'" style="border-left-color:'+escapeHtml(getCalendarItemColor(item))+'"><span class="upcoming-date">'+escapeHtml(formatShortDate(parseDateIso(item.date)))+' · '+escapeHtml(item.time||'Heldag')+'</span><strong>'+escapeHtml(getCalendarItemTitle(item))+'</strong><span>'+escapeHtml(getCalendarItemPeople(item).join(', '))+'</span></button>'
+  return '<div class="home-layout"><div class="day-view">'+renderDayCard(calendarCursorDate)+'</div><aside class="home-aside"><section class="panel next-panel"><p class="eyebrow">Næste aftale</p>'+(next?eventButton(next):'<p class="empty-state">Ingen kommende aftaler endnu.</p>')+'</section>'+
+    (mode()==='kiosk'?'<section class="panel upcoming-panel"><h3>De kommende dage</h3>'+(later.length?later.map(eventButton).join(''):'<p class="empty-state">Plads til nye planer.</p>')+'</section>'+renderShortcuts():'')+'</aside></div>'
+}
+function renderShortcuts() {
+  const config=settingsForDevice().shortcuts,links=[['Homey',config.homey],['Sonos',config.sonos],[config.label||'Genvej',config.custom]]
+  return '<div class="kiosk-shortcuts">'+links.filter(([,url])=>url).map(([name,url])=>{
+    try{return '<a href="'+escapeHtml(safeShortcut(url,{sonos:name==='Sonos'}))+'" target="_blank" rel="noopener noreferrer">'+escapeHtml(name)+' ↗</a>'}catch{return ''}
+  }).join('')+'</div>'
+}
+function renderTaskView() {
+  const today=toDateIso(new Date()),dates=taskRange==='week'?weekDates(today):[today]
+  const tasks=materialize(calendarItems,dates,{milestones:false}).filter(item=>item.type==='Opgave'&&doesItemMatchPersonFilter(item))
+  const open=tasks.filter(item=>!item.done),done=tasks.filter(item=>item.done)
+  const group=items=>dates.map(date=>{
+    const daily=items.filter(item=>item.date===date)
+    return daily.length?'<section class="task-date-group"><h3>'+escapeHtml(formatDayHeaderDate(parseDateIso(date)))+'</h3>'+daily.map(renderCalendarItemCard).join('')+'</section>':''
+  }).join('')
+  return '<div class="task-view"><div class="segmented-control"><button data-task-range="today" aria-pressed="'+(taskRange==='today')+'">I dag</button><button data-task-range="week" aria-pressed="'+(taskRange==='week')+'">Denne uge</button><button data-quick-type="Opgave">+ Opgave</button></div>'+
+    (open.length?group(open):'<div class="panel empty-state">Ingen åbne opgaver. Godt gået.</div>')+
+    (done.length?'<details class="completed-tasks" data-completed-date="task-view" '+(expandedTaskDays.has('task-view')?'open':'')+'><summary>'+done.length+' udførte opgaver</summary>'+group(done)+'</details>':'')+'</div>'
+}
+function bindProductSurface() {
+  document.querySelectorAll('[data-upcoming]').forEach(button=>button.onclick=()=>openEditCalendarModal(button.dataset.upcoming))
+  document.querySelectorAll('[data-task-range]').forEach(button=>button.onclick=()=>{taskRange=button.dataset.taskRange;updateCalendarSurface()})
+  document.querySelectorAll('[data-quick-type]').forEach(button=>button.onclick=()=>{openCreateCalendarModal(toDateIso(new Date()),button.dataset.quickType)})
+}
+function bindProductControls(freshSettings=true) {
+  document.querySelectorAll('[data-product-route]').forEach(button=>button.onclick=()=>setProductRoute(button.dataset.productRoute))
+  document.querySelector('#accept-invite')?.addEventListener('click',acceptInvitation)
+  document.querySelectorAll('[data-settings-tab]').forEach(button=>button.onclick=()=>selectSettingsTab(button.dataset.settingsTab))
+  if(freshSettings){
+  document.querySelectorAll('[data-archive-person]').forEach(button=>button.onclick=()=>archivePerson(button.dataset.archivePerson))
+  document.querySelectorAll('[data-copy-calendar-feed]').forEach(button=>button.onclick=async()=>{
+    try{await navigator.clipboard.writeText(calendarFeeds.find(f=>f.id===button.dataset.copyCalendarFeed)?.feed_url||'');button.textContent='Kopieret'}catch{calendarImportMessage='Kunne ikke kopiere. Brug Rediger for at se linket.';render({preserveDialogs:true})}
+  })
+  document.querySelector('#device-settings-form')?.addEventListener('submit',saveDeviceSettings)
+  document.querySelector('#exit-kiosk')?.addEventListener('click',()=>{delete device.kiosk;persistDevice();void wakeScreen.set(false);kioskUnlocked=false;closeSettingsModal();setProductRoute('calendar')})
+  document.querySelector('#appearance-form')?.addEventListener('submit',event=>{
+    event.preventDefault();const data=new FormData(event.target)
+    updateDeviceProfile({accent:data.get('accent'),tone:data.get('tone'),density:data.get('density')});applyDeviceAppearance()
+    document.querySelector('#appearance-message').textContent='Udseende gemt på denne enhed.'
+  })
+  document.querySelector('#account-logout')?.addEventListener('click',handleLogout)
+  document.querySelector('#account-password')?.addEventListener('click',()=>{isSettingsModalOpen=false;authScreen='recovery';message='';render()})
+  document.querySelector('#invite-form')?.addEventListener('submit',createInvitation)
+  }
+  bindProductSurface();clock.tick()
+}
+function selectSettingsTab(tab) {
+  settingsTab=tab
+  document.querySelectorAll('[data-settings-panel]').forEach(panel=>panel.hidden=panel.dataset.settingsPanel!==tab)
+  document.querySelectorAll('[data-settings-tab]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.settingsTab===tab)))
+  if(tab==='family')void loadMemberships()
+}
+function renderSettingsNavigation() {
+  return '<nav class="settings-nav" aria-label="Indstillingssektioner">'+[['family','Familie'],['people','Personer'],['feeds','Kalender-import'],['device','Enhed / Kiosk'],['appearance','Udseende'],['account','Konto']].map(([id,label])=>'<button type="button" data-settings-tab="'+id+'" aria-pressed="'+(settingsTab===id)+'">'+label+'</button>').join('')+'</nav>'
+}
+function renderOtherSettings() {
+ const config=settingsForDevice(),kiosk=mode()==='kiosk'
+ const panel=(id,html)=>'<section class="settings-block" data-settings-panel="'+id+'" '+(settingsTab===id?'':'hidden')+'>'+html+'</section>'
+ return panel('family','<h3>Familiemedlemmer med login</h3><p class="hint">Børneprofiler behøver ikke et login. Personer i kalenderen administreres under Personer.</p><div id="family-admin-content">'+renderMembers()+'</div>'+
+ (canManageFeeds()?'<form id="invite-form" class="stack-form"><h4>Invitér via email</h4><label for="invite-email">Email</label><input id="invite-email" name="email" type="email" required autocomplete="email"><label for="invite-role">Rolle</label><select id="invite-role" name="role"><option value="adult">Voksen</option>'+(householdRole==='owner'?'<option value="admin">Administrator</option>':'')+'</select><p class="hint">Opret et personligt link, og del det via email. Modtageren skal logge ind med denne email.</p><button type="submit">Opret invitation</button><p id="invite-message" class="message" role="status"></p><div id="invite-result"></div></form>':'<p>Kun ejer og administrator kan invitere.</p>'))+
+ panel('device','<h3>Denne enhed</h3><p>Indstillingerne gælder kun her og for '+escapeHtml(getHouseholdName(activeHousehold))+'.</p><form id="device-settings-form" class="stack-form"><label class="checkbox-label"><input id="device-kiosk" name="kiosk" type="checkbox" '+(kiosk?'checked':'')+'>Brug som vægskærm</label>'+
+ (!kiosk?'<label for="device-pin">Vælg en enheds-PIN (4–8 cifre)</label><input id="device-pin" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" autocomplete="new-password"><p class="hint">PIN beskytter mod utilsigtet administration på skærmen.</p>':'<p>Administration er beskyttet af enhedens PIN.</p>')+
+ '<label class="checkbox-label"><input id="device-wake" name="wake" type="checkbox" '+(config.wake?'checked':'')+'>Hold skærmen vågen</label><p id="wake-status" class="hint">'+escapeHtml(wakeScreen.status)+'</p><label for="device-idle">Tilbage til I dag efter inaktivitet</label><select id="device-idle" name="inactivity">'+[10,15,20,30].map(n=>'<option value="'+n+'" '+(n===config.inactivity?'selected':'')+'>'+n+' minutter</option>').join('')+'</select><h4>Genveje på vægskærm</h4>'+
+ [['homey','Homey URL'],['sonos','Sonos URL / app-link'],['custom','Andet link'],['label','Navn på andet link']].map(([key,label])=>'<label for="shortcut-'+key+'">'+label+'</label><input id="shortcut-'+key+'" name="'+key+'" value="'+escapeHtml(config.shortcuts[key])+'" '+(key==='label'?'maxlength="40"':'type="text" placeholder="https://"')+'>').join('')+
+ '<button type="submit">Gem enhed</button><p id="device-message" class="message" role="status"></p></form>'+(kiosk?'<button id="exit-kiosk" class="danger-button">Afslut vægskærmstilstand</button>':''))+
+ panel('appearance','<h3>Udseende på denne enhed</h3><form id="appearance-form" class="stack-form"><label for="appearance-accent">Primærfarve</label><select id="appearance-accent" name="accent">'+[['#0f172a','Midnat'],['#2563eb','Blå'],['#7c3aed','Lilla'],['#047857','Grøn'],['#be123c','Bær']].map(([value,label])=>'<option value="'+value+'" '+(config.accent===value?'selected':'')+'>'+label+'</option>').join('')+'</select><label for="appearance-tone">Baggrund</label><select id="appearance-tone" name="tone">'+[['cloud','Lys'],['warm','Varm'],['cool','Kølig']].map(([value,label])=>'<option value="'+value+'" '+(config.tone===value?'selected':'')+'>'+label+'</option>').join('')+'</select><label for="appearance-density">Tæthed</label><select id="appearance-density" name="density">'+[['auto','Automatisk'],['compact','Kompakt'],['comfortable','Luftig']].map(([value,label])=>'<option value="'+value+'" '+(config.density===value?'selected':'')+'>'+label+'</option>').join('')+'</select><button type="submit">Gem udseende</button><p id="appearance-message" role="status"></p></form>')+
+ panel('account','<h3>Konto</h3><p>'+escapeHtml(session?.user.email||'Offline session')+'</p><p>'+escapeHtml(roleLabel(householdRole))+' i '+escapeHtml(getHouseholdName(activeHousehold))+'</p><div class="account-actions"><button id="account-password">Skift adgangskode</button><button id="account-logout">Log ud</button></div><p class="hint">Log ud rydder lokale kalenderdata og usynkroniseret arbejde. Vægskærmens indstillinger bevares til dit næste login.</p><h4>Kontosletning</h4><p class="hint">Det samlede sletteflow kommer med den kommende appudgivelse.</p>')
+}
+function renderMembers() {
+ if(!navigator.onLine)return '<p>Opret forbindelse for at se familiens logins og invitationer.</p>'
+ return '<ul class="member-list">'+members.map(row=>'<li><span>'+escapeHtml(row.email)+(row.user_id===session?.user.id?' · dig':'')+'</span><strong>'+escapeHtml(roleLabel(row.role))+'</strong></li>').join('')+'</ul>'+
+ (canManageFeeds()?'<h4>Invitationer</h4><ul class="member-list">'+invitations.map(inv=>'<li><span>'+escapeHtml(inv.email)+'<small>'+escapeHtml(roleLabel(inv.role))+' · '+invitationStatus(inv)+'</small></span>'+(invitationStatus(inv)==='Afventer'?'<button data-revoke-invite="'+inv.id+'">Tilbagekald</button>':'')+'</li>').join('')+'</ul>':'')
+}
+async function loadMemberships() {
+ if(!navigator.onLine||!activeHousehold)return
+ const id=activeHousehold.id,epoch=sessionEpoch
+ const [users,invites]=await Promise.all([supabase.rpc('list_household_members',{p_household_id:id}),canManageFeeds()?supabase.from('household_invitations').select('id,email,role,expires_at,accepted_at,revoked_at').eq('household_id',id).order('created_at',{ascending:false}):Promise.resolve({data:[]})])
+ if(epoch!==sessionEpoch||activeHousehold?.id!==id)return
+ members=users.data||[];invitations=invites.data||[]
+ const target=document.querySelector('#family-admin-content')
+ if(target){target.innerHTML=users.error||invites.error?'<p>Kunne ikke hente medlemmer. Prøv igen, når forbindelsen er tilbage.</p>':renderMembers();target.querySelectorAll('[data-revoke-invite]').forEach(button=>button.onclick=async()=>{
+   button.disabled=true;const {error}=await supabase.rpc('revoke_household_invitation',{p_invitation_id:button.dataset.revokeInvite})
+   if(error){button.disabled=false;document.querySelector('#invite-message').textContent='Kunne ikke tilbagekalde invitationen.'}else await loadMemberships()
+ })}
+}
+async function createInvitation(event) {
+ event.preventDefault();const form=event.target,button=form.querySelector('button[type=submit]'),data=new FormData(form),email=String(data.get('email')).trim()
+ button.disabled=true
+ const {data:token,error}=await supabase.rpc('invite_household_member',{p_household_id:activeHousehold.id,p_email:email,p_role:data.get('role')})
+ const info=form.querySelector('#invite-message')
+ if(error){button.disabled=false;info.textContent='Kunne ikke oprette invitation: '+error.message;return}
+ const link=callbackUrl(location)+'#invite='+encodeURIComponent(token)
+ form.querySelector('#invite-result').innerHTML='<label for="new-invite-link">Invitationslink · vises kun nu</label><input id="new-invite-link" readonly><div class="account-actions"><button id="copy-invite" type="button">Kopiér link</button><a id="email-invite">Åbn email</a></div>'
+ form.querySelector('#new-invite-link').value=link
+ form.querySelector('#email-invite').href='mailto:'+encodeURIComponent(email)+'?subject='+encodeURIComponent('Invitation til Familiekalender')+'&body='+encodeURIComponent('Du er inviteret til vores familiekalender. Log ind eller opret en bruger med denne email, og acceptér invitationen:\n'+link)
+ form.querySelector('#copy-invite').onclick=async()=>{try{await navigator.clipboard.writeText(link);info.textContent='Link kopieret. Del det med modtageren.'}catch{info.textContent='Markér og kopiér linket i feltet ovenfor.'}}
+ info.textContent='Invitation oprettet. Del linket via email; gyldigt i 7 dage.'
+ await loadMemberships();button.disabled=false
+}
+function renderInvitation() { return pendingInvite?'<section class="panel invitation-banner"><p>Du har en familieinvitation. Brug den email, invitationen blev sendt til.</p><button id="accept-invite" type="button">Acceptér invitation</button><p id="invite-accept-message" role="status"></p></section>':'' }
+async function acceptInvitation() {
+ const button=document.querySelector('#accept-invite');button.disabled=true
+ const {data,error}=await supabase.rpc('accept_household_invitation',{p_token:pendingInvite})
+ if(error){document.querySelector('#invite-accept-message').textContent='Invitationen er udløbet, tilbagekaldt eller til en anden email. Kontrollér også, at din email er bekræftet.';button.disabled=false;return}
+ pendingInvite='';sessionStorage.removeItem('familiekalender.pending-invite');await loadHouseholds()
+ await activateHousehold(households.find(h=>h.id===data));render();await refreshHousehold()
+}
+async function archivePerson(id) {
+ if(!navigator.onLine)return
+ const person=householdPeople.find(p=>p.id===id),button=document.querySelector('[data-archive-person="'+id+'"]');button.disabled=true
+ const archive=person.is_active!==false
+ const {error}=await supabase.from('household_people').update({is_active:!archive,...(archive?{reward_enabled:false}:{})}).eq('id',id).eq('household_id',activeHousehold.id)
+ if(error){settingsMessage='Kunne ikke ændre personen: '+error.message}else{await loadHouseholdPeople();settingsMessage=archive?'Person arkiveret. Historikken er bevaret, og opgavebelønning er slået fra.':'Person gendannet. Du kan slå opgavebelønning til igen.'}
+ render()
+}
+function persistDevice() {saveDevice(localStorage,device,deviceKey)}
+function updateDeviceProfile(values) {
+ const key=session.user.id+':'+activeHousehold.id
+ device={...device,profiles:{...device.profiles,[key]:{...settingsForDevice(),...values}}};persistDevice()
+}
+async function saveDeviceSettings(event) {
+ event.preventDefault();const before=structuredClone(device),form=event.target,data=new FormData(form),button=form.querySelector('button[type=submit]');button.disabled=true
+ try{
+   const shortcuts=Object.fromEntries(['homey','sonos','custom'].map(key=>[key,safeShortcut(data.get(key),{sonos:key==='sonos'})]));shortcuts.label=String(data.get('label')||'').slice(0,40)
+   if(data.has('kiosk')&&mode()!=='kiosk')device.kiosk={userId:session.user.id,householdId:activeHousehold.id,pin:await makePin(String(data.get('pin')||''))}
+   else if(!data.has('kiosk'))delete device.kiosk
+   updateDeviceProfile({shortcuts,wake:data.has('wake'),inactivity:[10,15,20,30].includes(Number(data.get('inactivity')))?Number(data.get('inactivity')):15})
+   await wakeScreen.set(data.has('wake')&&mode()==='kiosk')
+   isSettingsModalOpen=false;kioskUnlocked=false;setProductRoute(mode()==='kiosk'?'today':'calendar')
+ }catch(error){device=before;form.querySelector('#device-message').textContent=error.message;button.disabled=false}
+}
+function requestKioskAccess(tab) {
+ pinRoot.innerHTML='<div id="pin-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="pin-title"><form id="pin-form" class="calendar-modal stack-form"><header class="modal-header"><h2 id="pin-title">Enhedsindstillinger</h2><button id="pin-close" type="button" aria-label="Luk">×</button></header><label for="kiosk-pin">Enheds-PIN</label><input id="kiosk-pin" type="password" inputmode="numeric" autocomplete="off"><button type="submit">Åbn indstillinger</button><button id="pin-use-account" type="button">Glemt PIN? Brug din adgangskode</button><p id="pin-message" role="status"></p></form></div>'
+ const form=pinRoot.querySelector('form');let useAccount=false
+ pinRoot.querySelector('#pin-close').onclick=()=>pinRoot.innerHTML=''
+ pinRoot.querySelector('#pin-use-account').onclick=()=>{useAccount=true;form.querySelector('label').textContent='Din kontos adgangskode';form.querySelector('input').inputMode='text';form.querySelector('input').value='';form.querySelector('#pin-message').textContent='Bekræft '+(session.user.email||'din konto')+' for at få adgang.'}
+ form.onsubmit=async event=>{
+  event.preventDefault();const button=form.querySelector('button[type=submit]'),info=form.querySelector('#pin-message');button.disabled=true
+  try{
+   if(Date.now()<pinBlockedUntil)throw Error('Vent et øjeblik, og prøv igen.')
+   let valid=false
+   if(useAccount){const {data,error}=await supabase.auth.signInWithPassword({email:session.user.email,password:form.querySelector('input').value});valid=!error&&data.user?.id===session.user.id}
+   else valid=await checkPin(form.querySelector('input').value,device.kiosk.pin)
+   if(!valid){pinAttempts++;if(pinAttempts>=5){pinBlockedUntil=Date.now()+30000;pinAttempts=0}throw Error('Forkert PIN eller adgangskode.')}
+   pinAttempts=0;kioskUnlocked=true;pinRoot.innerHTML='';openSettingsModal(tab)
+  }catch(error){info.textContent=error.message;button.disabled=false}
+ }
+}
+function installProductRuntime() {
+ const disposeA11y=installDialogAccessibility()
+ document.addEventListener('dismiss-dialog',event=>{
+   const id=event.target.id
+   if(id==='calendar-modal')closeCalendarModal()
+   else if(id==='settings-modal')closeSettingsModal()
+   else if(id==='sync-panel-backdrop'){syncPanelOpen=false;renderSyncPanel()}
+   else if(id==='pin-modal')pinRoot.innerHTML=''
+   else if(event.target.classList.contains('celebration-backdrop'))celebrations.close()
+ })
+ const interact=()=>{clock.touch();if(mode()==='kiosk')void wakeScreen.request()}
+ document.addEventListener('pointerdown',interact,{passive:true});document.addEventListener('keydown',interact)
+ document.addEventListener('visibilitychange',()=>{void wakeScreen.visibility();if(!document.hidden)clock.tick()})
+ let resizeTimer
+ window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{applyDeviceAppearance();if(session&&!isCalendarModalOpen&&!isSettingsModalOpen)render({preserveDialogs:true})},100)})
+ clock.start()
+ if(import.meta.hot)import.meta.hot.dispose(()=>{clock.stop();disposeA11y();void wakeScreen.set(false)})
 }
 
 init()

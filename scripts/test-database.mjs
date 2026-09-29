@@ -36,3 +36,7 @@ console.log('PASS: ' + (calendarAcceptance.match(/select pg_temp\.(assert_true|e
 const rewardsAcceptance = readFileSync('supabase/tests/database/rewards.sql', 'utf8')
 sql(rewardsAcceptance)
 console.log('PASS: ' + (rewardsAcceptance.match(/select pg_temp\.(assert_true|expect_error)\(/g) || []).length + ' reward, receipt and offline conflict SQL checks')
+
+const productAcceptance=readFileSync('supabase/tests/database/product.sql','utf8')
+sql(productAcceptance)
+console.log('PASS: '+(productAcceptance.match(/select pg_temp\.(assert_true|expect_error)\(/g)||[]).length+' product member/privacy/invitation SQL checks')

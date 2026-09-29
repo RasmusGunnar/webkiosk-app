@@ -1,0 +1,5 @@
+# Narrow live Auth patch: only callback allowlist; Site URL must be updated after hosting.
+# Review config diff before config push. Never push the root local-stack config.
+project_id = "familiekalender"
+[auth]
+additional_redirect_urls = ["http://localhost:5173/**", "http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5178", "http://127.0.0.1:5178", "http://localhost:5179", "http://127.0.0.1:5179", "http://127.0.0.1:5178/**", "http://127.0.0.1:5179/**", "familiekalender://auth/callback"]

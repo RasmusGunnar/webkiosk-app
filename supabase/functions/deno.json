@@ -5,7 +5,7 @@
     "strict": true
   },
   "tasks": {
-    "check": "deno check import-calendar-feed/index.ts",
+    "check": "deno check import-calendar-feed/index.ts delete-account/index.ts",
     "test": "deno test --allow-env --allow-read tests/"
   }
 }

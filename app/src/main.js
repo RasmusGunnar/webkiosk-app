@@ -15,9 +15,26 @@ import { taskEmoji, taskOccurrenceKey, weeklyProgress, rewardEnabled } from './l
 import { CelebrationPopup } from './lib/celebration-ui.js'
 import { DEVICE_KEY, readDevice, saveDevice, deviceSettings, resolveMode, densityFor, safeShortcut, makePin, checkPin, WakeScreen, DeviceClock } from './lib/device-mode.js'
 import { upcomingItems, roleLabel, invitationStatus, callbackUrl, consumeInvite } from './lib/product-model.js'
+import { platform, nativeWakeApi } from './lib/platform.js'
+import { publicBase, authCallback, inviteLink, parseAppLink, consumeAuthLink } from './lib/app-links.js'
+import { installNativeRuntime } from './lib/native-runtime.js'
+import { DeviceRegistration } from './lib/device-registration.js'
+import { PushNotifications } from '@capacitor/push-notifications'
+import { App } from '@capacitor/app'
+import { exportFamilyData, clearNativeExports } from './lib/account-data.js'
+import { renderPublicPage } from './lib/public-pages.js'
 import { installDialogAccessibility } from './lib/dialog-accessibility.js'
 
 const app = document.querySelector('#app')
+const publicUrl=publicBase(import.meta.env,location)
+const accountPath=location.pathname==='/delete-account'
+const isPublicPage=['/privacy','/support'].includes(location.pathname)
+const callback=()=>authCallback({native:platform.native,base:publicUrl})
+const devices=supabase&&platform.native?new DeviceRegistration({client:supabase,push:PushNotifications,storage:localStorage,platform,enabled:import.meta.env.VITE_NATIVE_PUSH_ENABLED==='true',onStatus:text=>{const target=document.querySelector('#push-status');if(target)target.textContent=text}}):null
+let pendingCalendarLink=parseAppLink(location.href,{base:publicUrl,localOrigin:location.origin})
+if(pendingCalendarLink?.kind!=='calendar')pendingCalendarLink=null
+let nativeActive=true,nativeResumePending=null,reconnectInFlight=null
+
 const localStore = new LocalStore(DATABASE_NAME + ':' + cacheNamespace)
 let syncEngine = null, syncStatus = { offline: !navigator.onLine, syncing: false }
 let liveFeedMetadata = [], surfaceFrame = null, syncPanelOpen = false
@@ -44,7 +61,8 @@ let householdPeopleHouseholdId = null
 let calendarFeeds = []
 let calendarFeedsHouseholdId = null
 let activePersonFilter = 'Alle'
-let message = ''
+let initialAuthError=parseAppLink(location.href,{base:publicUrl,localOrigin:location.origin})?.kind==='auth-error'?'Linket er udløbet eller ugyldigt. Bed om et nyt link.':''
+let message=initialAuthError
 let isCreatingHousehold = false
 let isLoadingCalendar = false
 let isLoadingPeople = false
@@ -83,7 +101,7 @@ let kioskUnlocked=false,pinAttempts=0,pinBlockedUntil=0,members=[],invitations=[
 const pinRoot=document.createElement('div');document.body.append(pinRoot)
 let pendingInvite=consumeInvite(location,history,sessionStorage)
 let authScreen=location.hash.includes('type=recovery')||sessionStorage.getItem('familiekalender.recovery')?'recovery':'login'
-const wakeScreen=new WakeScreen({onStatus:status=>{const el=document.querySelector('#wake-status');if(el)el.textContent=status}})
+const wakeScreen=new WakeScreen({api:nativeWakeApi||navigator.wakeLock,visible:()=>nativeActive&&!document.hidden,onStatus:status=>{const el=document.querySelector('#wake-status');if(el)el.textContent=status}})
 let lastClockMinute=''
 const clock=new DeviceClock({
  onTick:now=>{
@@ -107,8 +125,12 @@ function preferredHousehold(fallback) {
 
 async function init() {
   installProductRuntime()
+  void clearNativeExports().catch(()=>{})
+  if (!platform.native && import.meta.env.PROD && 'serviceWorker' in navigator) navigator.serviceWorker.register(import.meta.env.BASE_URL + 'sw.js').catch(() => {})
+  if(isPublicPage){app.innerHTML=renderPublicPage(location.pathname);return}
   if (configurationError) { app.innerHTML = '<main class="app-shell"><p>' + escapeHtml(configurationError) + '</p></main>'; return }
-  if (import.meta.env.PROD && 'serviceWorker' in navigator) navigator.serviceWorker.register(import.meta.env.BASE_URL + 'sw.js').catch(() => {})
+
+  if(devices){try{const info=await App.getInfo();devices.appVersion=info.version+' ('+info.build+')'}catch{}}
   try {
     const remembered = await localStore.get('last-session')
     if (remembered) await applySession({ user: { id: remembered.user_id }, offlineOnly: true }, 'OFFLINE')
@@ -119,6 +141,12 @@ async function init() {
     await applySession(next, event)
     if(event==='PASSWORD_RECOVERY')render()
   }, error => { message = 'Login kunne ikke indlæses: ' + error.message; if (!session) render() })
+  await installNativeRuntime({onUrl:handleAppUrl,onResume:async()=>{
+    nativeActive=true;clock.tick();await wakeScreen.visibility()
+    supabase.auth.startAutoRefresh()
+    if(!nativeResumePending)nativeResumePending=Promise.all([reconnectCalendar(),devices?.resume()]).finally(()=>nativeResumePending=null)
+    await nativeResumePending
+  },onPause:async()=>{nativeActive=false;realtime.stop();supabase.auth.stopAutoRefresh();await wakeScreen.visibility()},onBack:handleNativeBack})
   window.addEventListener('offline', () => { syncEngine?.emit(); realtime.stop(); updateCalendarSurface() })
   window.addEventListener('online', reconnectCalendar)
   document.addEventListener('visibilitychange', () => { if (!document.hidden) reconnectCalendar() })
@@ -147,7 +175,7 @@ async function applySession(nextSession) {
   if (previousId && nextSession && previousId !== nextSession.user.id) await localStore.clearUser(previousId)
   session = nextSession
   const epoch = sessionEpoch
-  if (!session) { render(); return }
+  if (!session) { if(initialAuthError){message=initialAuthError;initialAuthError='';history.replaceState(null,'','/')} render(); return }
   try {
     const cached = await localStore.get('user:' + session.user.id)
     households = cached?.households || []
@@ -188,6 +216,7 @@ async function activateHousehold(household) {
   })
   await syncEngine.init()
   await rememberHouseholds()
+  if(!session.offlineOnly)void devices?.attach(session.user.id,household.id)
 }
 async function rememberHouseholds() {
   if (!session) return
@@ -201,12 +230,19 @@ async function refreshHousehold() {
   await Promise.all([loadCalendarItems(), loadHouseholdPeople(), loadCalendarFeeds(), loadRewardState()])
   if (engine !== syncEngine) return
   await engine?.replay()
-  if (engine === syncEngine) updateCalendarSurface()
+  if (engine === syncEngine) {updateCalendarSurface();applyCalendarLink()}
 }
 async function reconnectCalendar() {
-  if (!navigator.onLine || !session || session.offlineOnly || !activeHousehold) return
-  realtime.start(activeHousehold.id)
-  await refreshHousehold()
+  if (!nativeActive || !navigator.onLine || !session || session.offlineOnly || !activeHousehold) return
+  const id=activeHousehold.id,epoch=sessionEpoch,userId=session.user.id
+  if(reconnectInFlight?.id===id)return reconnectInFlight.promise
+  const current={id,promise:null};reconnectInFlight=current
+  current.promise=(async()=>{
+   if(devices&&devices.context?.householdId!==id)await devices.attach(userId,id)
+   if(epoch!==sessionEpoch||activeHousehold?.id!==id)return
+   realtime.start(id);await refreshHousehold()
+  })().finally(()=>{if(reconnectInFlight===current)reconnectInFlight=null})
+  return current.promise
 }
 async function loadRewardState() {
   if (!navigator.onLine || !syncEngine) return
@@ -220,7 +256,7 @@ function clearSessionState() {
   realtime.stop(); syncEngine?.stop(); syncEngine = null; celebrations.reset()
   syncPanelOpen = false; syncPanelRoot.innerHTML = ''; liveFeedMetadata = []; expandedTaskDays.clear()
   editingCalendarSnapshot = null; editingRowsSnapshot = []
-  sessionEpoch++
+  sessionEpoch++;reconnectInFlight=null
   session = null
   households = []; activeHousehold = null; householdRole = null
   calendarItems = []; calendarItemsHouseholdId = null
@@ -239,6 +275,8 @@ function clearSessionState() {
 function canManageFeeds() { return ['owner', 'admin'].includes(householdRole) }
 
 function render({ preserveDialogs = false } = {}) {
+  if(isPublicPage){app.innerHTML=renderPublicPage(location.pathname);return}
+  if(accountPath&&session&&authScreen!=='recovery'){renderAccountPage();return}
   applyDeviceAppearance()
   if(authScreen==='recovery'&&document.querySelector('#recovery-form'))return
   if (!session || authScreen==='recovery') {
@@ -277,13 +315,13 @@ function renderLogin() {
  (recovery?'<form id="recovery-form" class="stack-form"><label for="new-password">Ny adgangskode</label><input id="new-password" name="password" type="password" minlength="8" required autocomplete="new-password"><label for="repeat-password">Gentag adgangskode</label><input id="repeat-password" name="repeat" type="password" minlength="8" required autocomplete="new-password"><button type="submit">Gem adgangskode</button></form>':
  reset?'<form id="reset-form" class="stack-form"><p>Vi sender et link, så du kan vælge en ny adgangskode.</p><label for="email">Email</label><input id="email" name="email" type="email" required autocomplete="email"><button type="submit">Send nulstillingslink</button></form>':
  '<div class="auth-tabs"><button data-auth-screen="login" aria-pressed="'+!signup+'">Har en konto</button><button data-auth-screen="signup" aria-pressed="'+signup+'">Ny bruger</button></div><form id="login-form" class="stack-form"><label for="email">Email</label><input id="email" name="email" type="email" required autocomplete="email"><label for="password">Adgangskode</label><div class="password-field"><input id="password" name="password" type="password" required '+(signup?'minlength="8" autocomplete="new-password"':'autocomplete="current-password"')+'><button id="show-password" type="button" aria-label="Vis adgangskode">Vis</button></div><button type="submit" name="authAction" value="'+(signup?'signup':'login')+'">'+(signup?'Opret bruger':'Log ind')+'</button></form><button class="text-button" data-auth-screen="reset">Glemt adgangskode?</button>')+
- '<p id="message" class="message" role="status">'+escapeHtml(message)+'</p>'+((reset||recovery)?'<button data-auth-screen="login" class="text-button">'+(session?'Tilbage til kalender':'Tilbage til login')+'</button>':'')+'</section></main>'
+ '<p id="message" class="message" role="status">'+escapeHtml(message)+'</p>'+((reset||recovery)?'<button data-auth-screen="login" class="text-button">'+(session?'Tilbage til kalender':'Tilbage til login')+'</button>':'')+'<p class="legal-links"><a href="/privacy">Privatliv</a> · <a href="/support">Support</a></p></section></main>'
  document.querySelectorAll('[data-auth-screen]').forEach(button=>button.onclick=()=>{authScreen=button.dataset.authScreen;message='';render()})
  document.querySelector('#login-form')?.addEventListener('submit',handleLogin)
  document.querySelector('#show-password')?.addEventListener('click',event=>{const input=document.querySelector('#password');input.type=input.type==='password'?'text':'password';event.target.textContent=input.type==='password'?'Vis':'Skjul';event.target.setAttribute('aria-label',input.type==='password'?'Vis adgangskode':'Skjul adgangskode')})
  document.querySelector('#reset-form')?.addEventListener('submit',async event=>{
    event.preventDefault();const button=event.target.querySelector('button');button.disabled=true
-   const {error}=await supabase.auth.resetPasswordForEmail(new FormData(event.target).get('email'),{redirectTo:callbackUrl(location)})
+   const {error}=await supabase.auth.resetPasswordForEmail(new FormData(event.target).get('email'),{redirectTo:callback()})
    message=error?'Linket kunne ikke sendes. Prøv igen om lidt.':'Hvis emailen har en konto, har vi sendt et link. Tjek også spam.'
    document.querySelector('#message').textContent=message;button.disabled=false
  })
@@ -293,7 +331,7 @@ function renderLogin() {
    button.disabled=true
    const {error}=await supabase.auth.updateUser({password:String(data.get('password'))})
    if(error){document.querySelector('#message').textContent='Adgangskoden kunne ikke ændres. Linket kan være udløbet; bed om et nyt link.';button.disabled=false;return}
-   sessionStorage.removeItem('familiekalender.recovery');authScreen='login';message='Adgangskode opdateret.';render()
+   sessionStorage.removeItem('familiekalender.recovery');history.replaceState(null,'','/');authScreen='login';message='Adgangskode opdateret.';render()
  })
 }
 
@@ -1446,7 +1484,7 @@ async function handleLogin(event) {
   form.querySelectorAll('button').forEach(button => { button.disabled = true })
   try {
     const { data, error } = signup
-      ? await supabase.auth.signUp({ email, password, options:{emailRedirectTo:callbackUrl(location)} })
+      ? await supabase.auth.signUp({ email, password, options:{emailRedirectTo:callback()} })
       : await supabase.auth.signInWithPassword({ email, password })
     if (error) throw error
     if (data?.session) await applySession(data.session)
@@ -1460,6 +1498,8 @@ async function handleLogout() {
   const pending = syncEngine?.state.queue.length || 0
   if (pending && !window.confirm(pending + ' ændringer er ikke synkroniseret. Log ud rydder dem fra denne enhed. Fortsæt?')) return
   syncEngine?.stop(); realtime.stop(); celebrations.reset()
+  await devices?.detach().catch(()=>{})
+  await clearNativeExports({all:true}).catch(()=>{})
   if (userId) await localStore.clearUser(userId)
   clearLocalAuth()
   authScreen='login';sessionStorage.removeItem('familiekalender.recovery');sessionStorage.removeItem('familiekalender.pending-invite');pendingInvite=''
@@ -2549,6 +2589,7 @@ function bindProductControls(freshSettings=true) {
     updateDeviceProfile({accent:data.get('accent'),tone:data.get('tone'),density:data.get('density')});applyDeviceAppearance()
     document.querySelector('#appearance-message').textContent='Udseende gemt på denne enhed.'
   })
+  bindAccountControls()
   document.querySelector('#account-logout')?.addEventListener('click',handleLogout)
   document.querySelector('#account-password')?.addEventListener('click',()=>{isSettingsModalOpen=false;authScreen='recovery';message='';render()})
   document.querySelector('#invite-form')?.addEventListener('submit',createInvitation)
@@ -2575,7 +2616,7 @@ function renderOtherSettings() {
  [['homey','Homey URL'],['sonos','Sonos URL / app-link'],['custom','Andet link'],['label','Navn på andet link']].map(([key,label])=>'<label for="shortcut-'+key+'">'+label+'</label><input id="shortcut-'+key+'" name="'+key+'" value="'+escapeHtml(config.shortcuts[key])+'" '+(key==='label'?'maxlength="40"':'type="text" placeholder="https://"')+'>').join('')+
  '<button type="submit">Gem enhed</button><p id="device-message" class="message" role="status"></p></form>'+(kiosk?'<button id="exit-kiosk" class="danger-button">Afslut vægskærmstilstand</button>':''))+
  panel('appearance','<h3>Udseende på denne enhed</h3><form id="appearance-form" class="stack-form"><label for="appearance-accent">Primærfarve</label><select id="appearance-accent" name="accent">'+[['#0f172a','Midnat'],['#2563eb','Blå'],['#7c3aed','Lilla'],['#047857','Grøn'],['#be123c','Bær']].map(([value,label])=>'<option value="'+value+'" '+(config.accent===value?'selected':'')+'>'+label+'</option>').join('')+'</select><label for="appearance-tone">Baggrund</label><select id="appearance-tone" name="tone">'+[['cloud','Lys'],['warm','Varm'],['cool','Kølig']].map(([value,label])=>'<option value="'+value+'" '+(config.tone===value?'selected':'')+'>'+label+'</option>').join('')+'</select><label for="appearance-density">Tæthed</label><select id="appearance-density" name="density">'+[['auto','Automatisk'],['compact','Kompakt'],['comfortable','Luftig']].map(([value,label])=>'<option value="'+value+'" '+(config.density===value?'selected':'')+'>'+label+'</option>').join('')+'</select><button type="submit">Gem udseende</button><p id="appearance-message" role="status"></p></form>')+
- panel('account','<h3>Konto</h3><p>'+escapeHtml(session?.user.email||'Offline session')+'</p><p>'+escapeHtml(roleLabel(householdRole))+' i '+escapeHtml(getHouseholdName(activeHousehold))+'</p><div class="account-actions"><button id="account-password">Skift adgangskode</button><button id="account-logout">Log ud</button></div><p class="hint">Log ud rydder lokale kalenderdata og usynkroniseret arbejde. Vægskærmens indstillinger bevares til dit næste login.</p><h4>Kontosletning</h4><p class="hint">Det samlede sletteflow kommer med den kommende appudgivelse.</p>')
+ panel('account','<h3>Konto</h3><p>'+escapeHtml(session?.user.email||'Offline session')+'</p><p>'+escapeHtml(roleLabel(householdRole))+' i '+escapeHtml(getHouseholdName(activeHousehold))+'</p><div class="account-actions"><button id="account-password">Skift adgangskode</button><button id="account-logout">Log ud</button></div><p class="hint">Log ud rydder lokale kalenderdata og usynkroniseret arbejde. Vægskærmens indstillinger bevares til dit næste login.</p><h4>Dine data</h4><button id="export-family" type="button">Eksportér mine familiedata</button><p id="export-message" role="status"></p><p><a href="/privacy">Privatliv</a> · <a href="/support">Support</a></p>'+(platform.native?'<h4>Notifikationer</h4><button id="enable-push" type="button">Tillad notifikationer</button><p id="push-status" role="status">Påmindelser er endnu ikke aktiveret.</p>':'')+'<h4>Kontosletning</h4><button id="start-delete-account" type="button" class="danger-button">Slet min konto</button><div id="delete-account-content"></div>')
 }
 function renderMembers() {
  if(!navigator.onLine)return '<p>Opret forbindelse for at se familiens logins og invitationer.</p>'
@@ -2596,11 +2637,12 @@ async function loadMemberships() {
 }
 async function createInvitation(event) {
  event.preventDefault();const form=event.target,button=form.querySelector('button[type=submit]'),data=new FormData(form),email=String(data.get('email')).trim()
+ if(!publicUrl){form.querySelector('#invite-message').textContent='Appens offentlige adresse mangler i denne build.';return}
  button.disabled=true
  const {data:token,error}=await supabase.rpc('invite_household_member',{p_household_id:activeHousehold.id,p_email:email,p_role:data.get('role')})
  const info=form.querySelector('#invite-message')
  if(error){button.disabled=false;info.textContent='Kunne ikke oprette invitation: '+error.message;return}
- const link=callbackUrl(location)+'#invite='+encodeURIComponent(token)
+ const link=inviteLink(publicUrl,token)
  form.querySelector('#invite-result').innerHTML='<label for="new-invite-link">Invitationslink · vises kun nu</label><input id="new-invite-link" readonly><div class="account-actions"><button id="copy-invite" type="button">Kopiér link</button><a id="email-invite">Åbn email</a></div>'
  form.querySelector('#new-invite-link').value=link
  form.querySelector('#email-invite').href='mailto:'+encodeURIComponent(email)+'?subject='+encodeURIComponent('Invitation til Familiekalender')+'&body='+encodeURIComponent('Du er inviteret til vores familiekalender. Log ind eller opret en bruger med denne email, og acceptér invitationen:\n'+link)
@@ -2608,7 +2650,7 @@ async function createInvitation(event) {
  info.textContent='Invitation oprettet. Del linket via email; gyldigt i 7 dage.'
  await loadMemberships();button.disabled=false
 }
-function renderInvitation() { return pendingInvite?'<section class="panel invitation-banner"><p>Du har en familieinvitation. Brug den email, invitationen blev sendt til.</p><button id="accept-invite" type="button">Acceptér invitation</button><p id="invite-accept-message" role="status"></p></section>':'' }
+function renderInvitation() { return pendingInvite?'<section class="panel invitation-banner"><p>Du har en familieinvitation. Brug den email, invitationen blev sendt til.</p><button id="accept-invite" type="button">Acceptér invitation</button>'+(!platform.native?'<p><a href="familiekalender://invite#invite='+encodeURIComponent(pendingInvite)+'">Åbn invitation i appen</a></p>':'')+'<p id="invite-accept-message" role="status"></p></section>':'' }
 async function acceptInvitation() {
  const button=document.querySelector('#accept-invite');button.disabled=true
  const {data,error}=await supabase.rpc('accept_household_invitation',{p_token:pendingInvite})
@@ -2674,6 +2716,84 @@ function installProductRuntime() {
  window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{applyDeviceAppearance();if(session&&!isCalendarModalOpen&&!isSettingsModalOpen)render({preserveDialogs:true})},100)})
  clock.start()
  if(import.meta.hot)import.meta.hot.dispose(()=>{clock.stop();disposeA11y();void wakeScreen.set(false)})
+}
+
+function handleNativeBack(){
+ const dialog=[...document.querySelectorAll('[role="dialog"]')].filter(el=>!el.hidden).at(-1)
+ if(dialog){dialog.dispatchEvent(new CustomEvent('dismiss-dialog',{bubbles:true}));return}
+ if(mode()==='kiosk')return
+ if(productRoute!=='today'){setProductRoute('today');return}
+ void App.minimizeApp()
+}
+async function handleAppUrl(url){
+ const link=parseAppLink(url,{base:publicUrl,localOrigin:location.origin})
+ if(!link)return
+ if(link.kind==='invite'){
+  pendingInvite=link.token;sessionStorage.setItem('familiekalender.pending-invite',pendingInvite)
+  render({preserveDialogs:true});return
+ }
+ if(link.kind==='calendar'){pendingCalendarLink=link;applyCalendarLink();return}
+ if(link.kind==='auth-error'){message='Linket er udløbet eller ugyldigt. Bed om et nyt login- eller nulstillingslink.';authScreen='login';render();return}
+ try{
+  if(link.recovery){authScreen='recovery';sessionStorage.setItem('familiekalender.recovery','1')}
+  const next=await consumeAuthLink(supabase,link)
+  await applySession(next)
+  history.replaceState(null,'','/')
+  render()
+ }catch(error){authScreen='login';sessionStorage.removeItem('familiekalender.recovery');message=error.message;render()}
+}
+function applyCalendarLink(){
+ if(!pendingCalendarLink||!session||!activeHousehold||isCalendarModalOpen||isSettingsModalOpen)return
+ const link=pendingCalendarLink;pendingCalendarLink=null;productRoute='calendar';calendarCursorDate=parseDateIso(link.date)
+ calendarViewMode='day';render({preserveDialogs:true})
+ // Item links select a date; access remains scoped to the active household.
+ if(link.item&&!calendarItems.some(item=>item.id===link.item)){message='Aftalen findes ikke i den valgte familie.'}
+}
+function bindAccountControls(){
+ document.querySelector('#start-delete-account')?.addEventListener('click',loadAccountDeletion)
+ document.querySelector('#enable-push')?.addEventListener('click',async()=>{try{await devices?.request()}catch{document.querySelector('#push-status').textContent='Notifikationer kunne ikke aktiveres.'}})
+ document.querySelector('#export-family')?.addEventListener('click',async event=>{
+  const info=document.querySelector('#export-message');event.target.disabled=true
+  try{await exportFamilyData(supabase,activeHousehold.id);info.textContent='Eksport klar. Gem den et sted, hvor kun du har adgang.'}catch(error){info.textContent=error.message}
+  finally{event.target.disabled=false}
+ })
+}
+function renderAccountPage(){
+ if(document.querySelector('#delete-account-form'))return
+ app.innerHTML='<main class="app-shell public-page"><section class="panel"><p class="eyebrow">Familiekalender</p><h1>Slet min konto</h1><p>'+escapeHtml(session?.user.email||'')+'</p><button id="start-delete-account" class="danger-button">Gennemgå kontosletning</button><div id="delete-account-content"></div><p><a href="/">Til kalenderen</a> · <a href="/privacy">Privatliv</a></p></section></main>'
+ bindAccountControls()
+}
+async function loadAccountDeletion(){
+ const target=document.querySelector('#delete-account-content'),button=document.querySelector('#start-delete-account')
+ if(!navigator.onLine){target.textContent='Opret forbindelse for at slette din konto.';return}
+ button.disabled=true
+ const {data:plan,error}=await supabase.rpc('account_deletion_plan')
+ button.disabled=false
+ if(error){target.textContent='Kunne ikke hente sletteoversigten. Log ind igen og prøv igen.';return}
+ target.innerHTML='<form id="delete-account-form" class="stack-form"><h4>Dette kan ikke fortrydes</h4><p>Dit login, din profil, dine medlemskaber og enhedsregistreringer slettes. Forfatterreferencer anonymiseres. Andre ejeres familiedata og børneprofiler bevares. Lokale, usynkroniserede ændringer går tabt.</p>'+
+ (plan.pending?'<p>Sletningen er allerede startet. Bekræft din adgangskode igen for at færdiggøre oprydningen.</p>':'')+
+ plan.households.map(h=>h.requires_deletion?'<label class="checkbox-label"><input type="checkbox" name="delete-household" value="'+h.id+'" required>Jeg sletter også hele familien '+escapeHtml(h.name)+' ('+h.members+' loginmedlemmer), inklusive kalender, opgaver, personer, feeds og avatarer.</label>':'<p>Familien '+escapeHtml(h.name)+' bevares. Dit medlemskab fjernes.</p>').join('')+
+ '<p>Som eneste ejer skal du bekræfte familiesletning. Afbryd flowet, hvis familien skal bevares.</p><label for="delete-password">Din nuværende adgangskode</label><input id="delete-password" name="password" type="password" required autocomplete="current-password"><label for="delete-confirmation">Skriv SLET MIN KONTO</label><input id="delete-confirmation" name="confirmation" required autocomplete="off" pattern="SLET MIN KONTO"><button type="submit" class="danger-button">Slet min konto permanent</button><p id="delete-message" role="status"></p></form>'
+ target.querySelector('form').onsubmit=async event=>{
+  event.preventDefault();const form=event.target,data=new FormData(form),submit=form.querySelector('button[type=submit]'),info=form.querySelector('#delete-message')
+  submit.disabled=true;info.textContent='Sletningen behandles…'
+  try{
+   const result=await supabase.functions.invoke('delete-account',{body:{password:String(data.get('password')),confirmation:String(data.get('confirmation')),delete_household_ids:data.getAll('delete-household')}})
+   form.querySelector('#delete-password').value=''
+   if(result.error){
+    let body;try{body=await result.error.context?.json()}catch{}
+    throw Error(body?.error||'Sletningen kunne ikke bekræftes. Log ind igen, og prøv igen.')
+   }
+   if(!result.data?.deleted)throw Error('Sletningen afventer oprydning. Prøv igen.')
+   const uid=session?.user.id
+   syncEngine?.stop();realtime.stop();await devices?.detach().catch(()=>{});await clearNativeExports({all:true}).catch(()=>{})
+   if(uid)await localStore.clearUser(uid)
+   if(uid){device.profiles=Object.fromEntries(Object.entries(device.profiles||{}).filter(([key])=>!key.startsWith(uid+':')));if(device.kiosk?.userId===uid)delete device.kiosk;persistDevice()}
+   clearLocalAuth();clearSessionState();pendingInvite='';sessionStorage.removeItem('familiekalender.pending-invite');sessionStorage.removeItem('familiekalender.recovery')
+   await supabase.auth.signOut({scope:'local'}).catch(()=>{})
+   authScreen='login';message='Din konto og de bekræftede familier er slettet.';render()
+  }catch(error){info.textContent=error.message;submit.disabled=false}
+ }
 }
 
 init()

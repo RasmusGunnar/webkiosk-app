@@ -1,0 +1,2720 @@
+{
+  "captured_at": "2026-09-29T10:11:14.586Z",
+  "project_ref": "oyyqniwppytipdktzwsy",
+  "scope": "Public and private schema functions, storage policies and grants after Mega 5; no application rows",
+  "schema": {
+    "columns": [
+      {
+        "column_default": null,
+        "column_name": "user_id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "ordinal_position": 1,
+        "table_name": "account_deletion_jobs",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": null,
+        "column_name": "household_ids",
+        "data_type": "ARRAY",
+        "is_nullable": "NO",
+        "ordinal_position": 2,
+        "table_name": "account_deletion_jobs",
+        "udt_name": "_uuid"
+      },
+      {
+        "column_default": "now()",
+        "column_name": "created_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "ordinal_position": 3,
+        "table_name": "account_deletion_jobs",
+        "udt_name": "timestamptz"
+      },
+      {
+        "column_default": "gen_random_uuid()",
+        "column_name": "id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "ordinal_position": 1,
+        "table_name": "calendar_feeds",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": null,
+        "column_name": "household_id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "ordinal_position": 2,
+        "table_name": "calendar_feeds",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": null,
+        "column_name": "source",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "ordinal_position": 3,
+        "table_name": "calendar_feeds",
+        "udt_name": "text"
+      },
+      {
+        "column_default": null,
+        "column_name": "name",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "ordinal_position": 4,
+        "table_name": "calendar_feeds",
+        "udt_name": "text"
+      },
+      {
+        "column_default": null,
+        "column_name": "feed_url",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "ordinal_position": 5,
+        "table_name": "calendar_feeds",
+        "udt_name": "text"
+      },
+      {
+        "column_default": null,
+        "column_name": "assigned_person_name",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "ordinal_position": 6,
+        "table_name": "calendar_feeds",
+        "udt_name": "text"
+      },
+      {
+        "column_default": "true",
+        "column_name": "is_active",
+        "data_type": "boolean",
+        "is_nullable": "NO",
+        "ordinal_position": 7,
+        "table_name": "calendar_feeds",
+        "udt_name": "bool"
+      },
+      {
+        "column_default": null,
+        "column_name": "last_sync_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "ordinal_position": 8,
+        "table_name": "calendar_feeds",
+        "udt_name": "timestamptz"
+      },
+      {
+        "column_default": null,
+        "column_name": "last_sync_status",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "ordinal_position": 9,
+        "table_name": "calendar_feeds",
+        "udt_name": "text"
+      },
+      {
+        "column_default": null,
+        "column_name": "last_sync_message",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "ordinal_position": 10,
+        "table_name": "calendar_feeds",
+        "udt_name": "text"
+      },
+      {
+        "column_default": "now()",
+        "column_name": "created_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "ordinal_position": 11,
+        "table_name": "calendar_feeds",
+        "udt_name": "timestamptz"
+      },
+      {
+        "column_default": "now()",
+        "column_name": "updated_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "ordinal_position": 12,
+        "table_name": "calendar_feeds",
+        "udt_name": "timestamptz"
+      },
+      {
+        "column_default": null,
+        "column_name": "assigned_person_id",
+        "data_type": "uuid",
+        "is_nullable": "YES",
+        "ordinal_position": 13,
+        "table_name": "calendar_feeds",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": null,
+        "column_name": "last_import_count",
+        "data_type": "integer",
+        "is_nullable": "YES",
+        "ordinal_position": 14,
+        "table_name": "calendar_feeds",
+        "udt_name": "int4"
+      },
+      {
+        "column_default": null,
+        "column_name": "import_token",
+        "data_type": "uuid",
+        "is_nullable": "YES",
+        "ordinal_position": 15,
+        "table_name": "calendar_feeds",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": null,
+        "column_name": "import_started_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "ordinal_position": 16,
+        "table_name": "calendar_feeds",
+        "udt_name": "timestamptz"
+      },
+      {
+        "column_default": "gen_random_uuid()",
+        "column_name": "id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "ordinal_position": 1,
+        "table_name": "calendar_items",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": null,
+        "column_name": "household_id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "ordinal_position": 2,
+        "table_name": "calendar_items",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": null,
+        "column_name": "title",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "ordinal_position": 3,
+        "table_name": "calendar_items",
+        "udt_name": "text"
+      },
+      {
+        "column_default": null,
+        "column_name": "date",
+        "data_type": "date",
+        "is_nullable": "YES",
+        "ordinal_position": 4,
+        "table_name": "calendar_items",
+        "udt_name": "date"
+      },
+      {
+        "column_default": null,
+        "column_name": "time",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "ordinal_position": 5,
+        "table_name": "calendar_items",
+        "udt_name": "text"
+      },
+      {
+        "column_default": null,
+        "column_name": "person",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "ordinal_position": 6,
+        "table_name": "calendar_items",
+        "udt_name": "text"
+      },
+      {
+        "column_default": null,
+        "column_name": "type",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "ordinal_position": 7,
+        "table_name": "calendar_items",
+        "udt_name": "text"
+      },
+      {
+        "column_default": null,
+        "column_name": "note",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "ordinal_position": 8,
+        "table_name": "calendar_items",
+        "udt_name": "text"
+      },
+      {
+        "column_default": "false",
+        "column_name": "done",
+        "data_type": "boolean",
+        "is_nullable": "NO",
+        "ordinal_position": 9,
+        "table_name": "calendar_items",
+        "udt_name": "bool"
+      },
+      {
+        "column_default": "'{}'::jsonb",
+        "column_name": "data",
+        "data_type": "jsonb",
+        "is_nullable": "NO",
+        "ordinal_position": 10,
+        "table_name": "calendar_items",
+        "udt_name": "jsonb"
+      },
+      {
+        "column_default": null,
+        "column_name": "created_by",
+        "data_type": "uuid",
+        "is_nullable": "YES",
+        "ordinal_position": 11,
+        "table_name": "calendar_items",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": "now()",
+        "column_name": "created_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "ordinal_position": 12,
+        "table_name": "calendar_items",
+        "udt_name": "timestamptz"
+      },
+      {
+        "column_default": "now()",
+        "column_name": "updated_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "ordinal_position": 13,
+        "table_name": "calendar_items",
+        "udt_name": "timestamptz"
+      },
+      {
+        "column_default": null,
+        "column_name": "source",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "ordinal_position": 14,
+        "table_name": "calendar_items",
+        "udt_name": "text"
+      },
+      {
+        "column_default": null,
+        "column_name": "external_id",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "ordinal_position": 15,
+        "table_name": "calendar_items",
+        "udt_name": "text"
+      },
+      {
+        "column_default": null,
+        "column_name": "calendar_id",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "ordinal_position": 16,
+        "table_name": "calendar_items",
+        "udt_name": "text"
+      },
+      {
+        "column_default": "false",
+        "column_name": "detached_from_feed",
+        "data_type": "boolean",
+        "is_nullable": "NO",
+        "ordinal_position": 17,
+        "table_name": "calendar_items",
+        "udt_name": "bool"
+      },
+      {
+        "column_default": null,
+        "column_name": "location",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "ordinal_position": 18,
+        "table_name": "calendar_items",
+        "udt_name": "text"
+      },
+      {
+        "column_default": null,
+        "column_name": "duration_min",
+        "data_type": "integer",
+        "is_nullable": "YES",
+        "ordinal_position": 19,
+        "table_name": "calendar_items",
+        "udt_name": "int4"
+      },
+      {
+        "column_default": "'{}'::uuid[]",
+        "column_name": "person_ids",
+        "data_type": "ARRAY",
+        "is_nullable": "NO",
+        "ordinal_position": 20,
+        "table_name": "calendar_items",
+        "udt_name": "_uuid"
+      },
+      {
+        "column_default": null,
+        "column_name": "id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "ordinal_position": 1,
+        "table_name": "calendar_mutation_receipts",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": null,
+        "column_name": "household_id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "ordinal_position": 2,
+        "table_name": "calendar_mutation_receipts",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": null,
+        "column_name": "user_id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "ordinal_position": 3,
+        "table_name": "calendar_mutation_receipts",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": null,
+        "column_name": "row_versions",
+        "data_type": "jsonb",
+        "is_nullable": "NO",
+        "ordinal_position": 4,
+        "table_name": "calendar_mutation_receipts",
+        "udt_name": "jsonb"
+      },
+      {
+        "column_default": "now()",
+        "column_name": "created_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "ordinal_position": 5,
+        "table_name": "calendar_mutation_receipts",
+        "udt_name": "timestamptz"
+      },
+      {
+        "column_default": null,
+        "column_name": "household_id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "ordinal_position": 1,
+        "table_name": "calendar_revisions",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": "0",
+        "column_name": "items_version",
+        "data_type": "bigint",
+        "is_nullable": "NO",
+        "ordinal_position": 2,
+        "table_name": "calendar_revisions",
+        "udt_name": "int8"
+      },
+      {
+        "column_default": "0",
+        "column_name": "people_version",
+        "data_type": "bigint",
+        "is_nullable": "NO",
+        "ordinal_position": 3,
+        "table_name": "calendar_revisions",
+        "udt_name": "int8"
+      },
+      {
+        "column_default": "0",
+        "column_name": "feeds_version",
+        "data_type": "bigint",
+        "is_nullable": "NO",
+        "ordinal_position": 4,
+        "table_name": "calendar_revisions",
+        "udt_name": "int8"
+      },
+      {
+        "column_default": "gen_random_uuid()",
+        "column_name": "id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "ordinal_position": 1,
+        "table_name": "household_invitations",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": null,
+        "column_name": "household_id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "ordinal_position": 2,
+        "table_name": "household_invitations",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": null,
+        "column_name": "email",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "ordinal_position": 3,
+        "table_name": "household_invitations",
+        "udt_name": "text"
+      },
+      {
+        "column_default": null,
+        "column_name": "role",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "ordinal_position": 4,
+        "table_name": "household_invitations",
+        "udt_name": "text"
+      },
+      {
+        "column_default": null,
+        "column_name": "token_hash",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "ordinal_position": 5,
+        "table_name": "household_invitations",
+        "udt_name": "text"
+      },
+      {
+        "column_default": null,
+        "column_name": "invited_by",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "ordinal_position": 6,
+        "table_name": "household_invitations",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": "(now() + '7 days'::interval)",
+        "column_name": "expires_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "ordinal_position": 7,
+        "table_name": "household_invitations",
+        "udt_name": "timestamptz"
+      },
+      {
+        "column_default": null,
+        "column_name": "accepted_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "ordinal_position": 8,
+        "table_name": "household_invitations",
+        "udt_name": "timestamptz"
+      },
+      {
+        "column_default": null,
+        "column_name": "revoked_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "ordinal_position": 9,
+        "table_name": "household_invitations",
+        "udt_name": "timestamptz"
+      },
+      {
+        "column_default": "now()",
+        "column_name": "created_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "ordinal_position": 10,
+        "table_name": "household_invitations",
+        "udt_name": "timestamptz"
+      },
+      {
+        "column_default": null,
+        "column_name": "household_id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "ordinal_position": 1,
+        "table_name": "household_members",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": null,
+        "column_name": "user_id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "ordinal_position": 2,
+        "table_name": "household_members",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": null,
+        "column_name": "role",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "ordinal_position": 3,
+        "table_name": "household_members",
+        "udt_name": "text"
+      },
+      {
+        "column_default": "now()",
+        "column_name": "created_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "ordinal_position": 4,
+        "table_name": "household_members",
+        "udt_name": "timestamptz"
+      },
+      {
+        "column_default": "gen_random_uuid()",
+        "column_name": "id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "ordinal_position": 1,
+        "table_name": "household_people",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": null,
+        "column_name": "household_id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "ordinal_position": 2,
+        "table_name": "household_people",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": null,
+        "column_name": "name",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "ordinal_position": 3,
+        "table_name": "household_people",
+        "udt_name": "text"
+      },
+      {
+        "column_default": "'child'::text",
+        "column_name": "role",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "ordinal_position": 4,
+        "table_name": "household_people",
+        "udt_name": "text"
+      },
+      {
+        "column_default": null,
+        "column_name": "color",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "ordinal_position": 5,
+        "table_name": "household_people",
+        "udt_name": "text"
+      },
+      {
+        "column_default": null,
+        "column_name": "avatar_url",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "ordinal_position": 6,
+        "table_name": "household_people",
+        "udt_name": "text"
+      },
+      {
+        "column_default": "0",
+        "column_name": "sort_order",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "ordinal_position": 7,
+        "table_name": "household_people",
+        "udt_name": "int4"
+      },
+      {
+        "column_default": "true",
+        "column_name": "is_active",
+        "data_type": "boolean",
+        "is_nullable": "NO",
+        "ordinal_position": 8,
+        "table_name": "household_people",
+        "udt_name": "bool"
+      },
+      {
+        "column_default": "now()",
+        "column_name": "created_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "ordinal_position": 9,
+        "table_name": "household_people",
+        "udt_name": "timestamptz"
+      },
+      {
+        "column_default": "now()",
+        "column_name": "updated_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "ordinal_position": 10,
+        "table_name": "household_people",
+        "udt_name": "timestamptz"
+      },
+      {
+        "column_default": null,
+        "column_name": "avatar_path",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "ordinal_position": 11,
+        "table_name": "household_people",
+        "udt_name": "text"
+      },
+      {
+        "column_default": "'{}'::text[]",
+        "column_name": "name_aliases",
+        "data_type": "ARRAY",
+        "is_nullable": "NO",
+        "ordinal_position": 12,
+        "table_name": "household_people",
+        "udt_name": "_text"
+      },
+      {
+        "column_default": null,
+        "column_name": "reward_enabled",
+        "data_type": "boolean",
+        "is_nullable": "NO",
+        "ordinal_position": 13,
+        "table_name": "household_people",
+        "udt_name": "bool"
+      },
+      {
+        "column_default": "gen_random_uuid()",
+        "column_name": "id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "ordinal_position": 1,
+        "table_name": "households",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": null,
+        "column_name": "name",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "ordinal_position": 2,
+        "table_name": "households",
+        "udt_name": "text"
+      },
+      {
+        "column_default": null,
+        "column_name": "created_by",
+        "data_type": "uuid",
+        "is_nullable": "YES",
+        "ordinal_position": 3,
+        "table_name": "households",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": "now()",
+        "column_name": "created_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "ordinal_position": 4,
+        "table_name": "households",
+        "udt_name": "timestamptz"
+      },
+      {
+        "column_default": null,
+        "column_name": "user_id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "ordinal_position": 1,
+        "table_name": "native_devices",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": null,
+        "column_name": "installation_id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "ordinal_position": 2,
+        "table_name": "native_devices",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": null,
+        "column_name": "household_id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "ordinal_position": 3,
+        "table_name": "native_devices",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": null,
+        "column_name": "platform",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "ordinal_position": 4,
+        "table_name": "native_devices",
+        "udt_name": "text"
+      },
+      {
+        "column_default": null,
+        "column_name": "app_version",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "ordinal_position": 5,
+        "table_name": "native_devices",
+        "udt_name": "text"
+      },
+      {
+        "column_default": null,
+        "column_name": "push_token",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "ordinal_position": 6,
+        "table_name": "native_devices",
+        "udt_name": "text"
+      },
+      {
+        "column_default": "now()",
+        "column_name": "last_seen",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "ordinal_position": 7,
+        "table_name": "native_devices",
+        "udt_name": "timestamptz"
+      },
+      {
+        "column_default": "(now() + '1 day'::interval)",
+        "column_name": "expires_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "ordinal_position": 8,
+        "table_name": "native_devices",
+        "udt_name": "timestamptz"
+      },
+      {
+        "column_default": null,
+        "column_name": "id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "ordinal_position": 1,
+        "table_name": "profiles",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": null,
+        "column_name": "display_name",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "ordinal_position": 2,
+        "table_name": "profiles",
+        "udt_name": "text"
+      },
+      {
+        "column_default": null,
+        "column_name": "avatar_url",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "ordinal_position": 3,
+        "table_name": "profiles",
+        "udt_name": "text"
+      },
+      {
+        "column_default": "now()",
+        "column_name": "created_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "ordinal_position": 4,
+        "table_name": "profiles",
+        "udt_name": "timestamptz"
+      },
+      {
+        "column_default": "now()",
+        "column_name": "updated_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "ordinal_position": 5,
+        "table_name": "profiles",
+        "udt_name": "timestamptz"
+      },
+      {
+        "column_default": "gen_random_uuid()",
+        "column_name": "id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "ordinal_position": 1,
+        "table_name": "reward_celebrations",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": null,
+        "column_name": "household_id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "ordinal_position": 2,
+        "table_name": "reward_celebrations",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": null,
+        "column_name": "person_id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "ordinal_position": 3,
+        "table_name": "reward_celebrations",
+        "udt_name": "uuid"
+      },
+      {
+        "column_default": null,
+        "column_name": "iso_year",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "ordinal_position": 4,
+        "table_name": "reward_celebrations",
+        "udt_name": "int4"
+      },
+      {
+        "column_default": null,
+        "column_name": "iso_week",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "ordinal_position": 5,
+        "table_name": "reward_celebrations",
+        "udt_name": "int4"
+      },
+      {
+        "column_default": null,
+        "column_name": "threshold",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "ordinal_position": 6,
+        "table_name": "reward_celebrations",
+        "udt_name": "int4"
+      },
+      {
+        "column_default": null,
+        "column_name": "completed_count",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "ordinal_position": 7,
+        "table_name": "reward_celebrations",
+        "udt_name": "int4"
+      },
+      {
+        "column_default": "'[]'::jsonb",
+        "column_name": "tasks",
+        "data_type": "jsonb",
+        "is_nullable": "NO",
+        "ordinal_position": 8,
+        "table_name": "reward_celebrations",
+        "udt_name": "jsonb"
+      },
+      {
+        "column_default": "now()",
+        "column_name": "created_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "NO",
+        "ordinal_position": 9,
+        "table_name": "reward_celebrations",
+        "udt_name": "timestamptz"
+      }
+    ],
+    "constraints": [
+      {
+        "definition": "PRIMARY KEY (id)",
+        "name": "profiles_pkey",
+        "table": "profiles"
+      },
+      {
+        "definition": "FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE",
+        "name": "profiles_id_fkey",
+        "table": "profiles"
+      },
+      {
+        "definition": "PRIMARY KEY (id)",
+        "name": "households_pkey",
+        "table": "households"
+      },
+      {
+        "definition": "FOREIGN KEY (created_by) REFERENCES auth.users(id)",
+        "name": "households_created_by_fkey",
+        "table": "households"
+      },
+      {
+        "definition": "CHECK ((role = ANY (ARRAY['owner'::text, 'admin'::text, 'adult'::text, 'child'::text])))",
+        "name": "household_members_role_check",
+        "table": "household_members"
+      },
+      {
+        "definition": "PRIMARY KEY (household_id, user_id)",
+        "name": "household_members_pkey",
+        "table": "household_members"
+      },
+      {
+        "definition": "FOREIGN KEY (household_id) REFERENCES households(id) ON DELETE CASCADE",
+        "name": "household_members_household_id_fkey",
+        "table": "household_members"
+      },
+      {
+        "definition": "FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE",
+        "name": "household_members_user_id_fkey",
+        "table": "household_members"
+      },
+      {
+        "definition": "PRIMARY KEY (id)",
+        "name": "calendar_items_pkey",
+        "table": "calendar_items"
+      },
+      {
+        "definition": "FOREIGN KEY (household_id) REFERENCES households(id) ON DELETE CASCADE",
+        "name": "calendar_items_household_id_fkey",
+        "table": "calendar_items"
+      },
+      {
+        "definition": "FOREIGN KEY (created_by) REFERENCES auth.users(id)",
+        "name": "calendar_items_created_by_fkey",
+        "table": "calendar_items"
+      },
+      {
+        "definition": "FOREIGN KEY (household_id, assigned_person_id) REFERENCES household_people(household_id, id)",
+        "name": "calendar_feeds_person_household_fk",
+        "table": "calendar_feeds"
+      },
+      {
+        "definition": "CHECK ((role = ANY (ARRAY['adult'::text, 'child'::text, 'other'::text])))",
+        "name": "household_people_role_check",
+        "table": "household_people"
+      },
+      {
+        "definition": "PRIMARY KEY (id)",
+        "name": "household_people_pkey",
+        "table": "household_people"
+      },
+      {
+        "definition": "FOREIGN KEY (household_id) REFERENCES households(id) ON DELETE CASCADE",
+        "name": "household_people_household_id_fkey",
+        "table": "household_people"
+      },
+      {
+        "definition": "CHECK ((source = ANY (ARRAY['aula'::text, 'google'::text, 'ics'::text])))",
+        "name": "calendar_feeds_source_check",
+        "table": "calendar_feeds"
+      },
+      {
+        "definition": "PRIMARY KEY (id)",
+        "name": "calendar_feeds_pkey",
+        "table": "calendar_feeds"
+      },
+      {
+        "definition": "FOREIGN KEY (household_id) REFERENCES households(id) ON DELETE CASCADE",
+        "name": "calendar_feeds_household_id_fkey",
+        "table": "calendar_feeds"
+      },
+      {
+        "definition": "CHECK ((role = ANY (ARRAY['admin'::text, 'adult'::text, 'child'::text])))",
+        "name": "household_invitations_role_check",
+        "table": "household_invitations"
+      },
+      {
+        "definition": "PRIMARY KEY (id)",
+        "name": "household_invitations_pkey",
+        "table": "household_invitations"
+      },
+      {
+        "definition": "UNIQUE (token_hash)",
+        "name": "household_invitations_token_hash_key",
+        "table": "household_invitations"
+      },
+      {
+        "definition": "FOREIGN KEY (household_id) REFERENCES households(id) ON DELETE CASCADE",
+        "name": "household_invitations_household_id_fkey",
+        "table": "household_invitations"
+      },
+      {
+        "definition": "FOREIGN KEY (invited_by) REFERENCES auth.users(id)",
+        "name": "household_invitations_invited_by_fkey",
+        "table": "household_invitations"
+      },
+      {
+        "definition": "PRIMARY KEY (household_id)",
+        "name": "calendar_revisions_pkey",
+        "table": "calendar_revisions"
+      },
+      {
+        "definition": "FOREIGN KEY (household_id) REFERENCES households(id) ON DELETE CASCADE",
+        "name": "calendar_revisions_household_id_fkey",
+        "table": "calendar_revisions"
+      },
+      {
+        "definition": "CHECK (((iso_week >= 1) AND (iso_week <= 53)))",
+        "name": "reward_celebrations_iso_week_check",
+        "table": "reward_celebrations"
+      },
+      {
+        "definition": "CHECK ((threshold = ANY (ARRAY[7, 9, 12])))",
+        "name": "reward_celebrations_threshold_check",
+        "table": "reward_celebrations"
+      },
+      {
+        "definition": "PRIMARY KEY (id)",
+        "name": "reward_celebrations_pkey",
+        "table": "reward_celebrations"
+      },
+      {
+        "definition": "UNIQUE (household_id, person_id, iso_year, iso_week, threshold)",
+        "name": "reward_celebrations_household_id_person_id_iso_year_iso_wee_key",
+        "table": "reward_celebrations"
+      },
+      {
+        "definition": "FOREIGN KEY (household_id) REFERENCES households(id) ON DELETE CASCADE",
+        "name": "reward_celebrations_household_id_fkey",
+        "table": "reward_celebrations"
+      },
+      {
+        "definition": "FOREIGN KEY (household_id, person_id) REFERENCES household_people(household_id, id) ON DELETE CASCADE",
+        "name": "reward_celebrations_household_id_person_id_fkey",
+        "table": "reward_celebrations"
+      },
+      {
+        "definition": "PRIMARY KEY (id)",
+        "name": "calendar_mutation_receipts_pkey",
+        "table": "calendar_mutation_receipts"
+      },
+      {
+        "definition": "FOREIGN KEY (household_id) REFERENCES households(id) ON DELETE CASCADE",
+        "name": "calendar_mutation_receipts_household_id_fkey",
+        "table": "calendar_mutation_receipts"
+      },
+      {
+        "definition": "FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE",
+        "name": "calendar_mutation_receipts_user_id_fkey",
+        "table": "calendar_mutation_receipts"
+      },
+      {
+        "definition": "CHECK ((platform = ANY (ARRAY['android'::text, 'ios'::text])))",
+        "name": "native_devices_platform_check",
+        "table": "native_devices"
+      },
+      {
+        "definition": "CHECK (((length(app_version) >= 1) AND (length(app_version) <= 40)))",
+        "name": "native_devices_app_version_check",
+        "table": "native_devices"
+      },
+      {
+        "definition": "CHECK (((length(push_token) >= 16) AND (length(push_token) <= 4096)))",
+        "name": "native_devices_push_token_check",
+        "table": "native_devices"
+      },
+      {
+        "definition": "PRIMARY KEY (user_id, installation_id)",
+        "name": "native_devices_pkey",
+        "table": "native_devices"
+      },
+      {
+        "definition": "FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE",
+        "name": "native_devices_user_id_fkey",
+        "table": "native_devices"
+      },
+      {
+        "definition": "FOREIGN KEY (household_id) REFERENCES households(id) ON DELETE CASCADE",
+        "name": "native_devices_household_id_fkey",
+        "table": "native_devices"
+      },
+      {
+        "definition": "PRIMARY KEY (user_id)",
+        "name": "account_deletion_jobs_pkey",
+        "table": "account_deletion_jobs"
+      },
+      {
+        "definition": "FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE",
+        "name": "account_deletion_jobs_user_id_fkey",
+        "table": "account_deletion_jobs"
+      }
+    ],
+    "functions": [
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "authenticated=X/postgres",
+          "service_role=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION public.create_household(p_name text)\n RETURNS uuid\n LANGUAGE sql\n SET search_path TO ''\nAS $function$ select private.create_household(p_name); $function$\n",
+        "name": "create_household"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "authenticated=X/postgres",
+          "service_role=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION public.list_household_members(p_household_id uuid)\n RETURNS TABLE(user_id uuid, email text, role text, joined_at timestamp with time zone)\n LANGUAGE sql\n STABLE\n SET search_path TO ''\nAS $function$ select * from private.list_household_members(p_household_id); $function$\n",
+        "name": "list_household_members"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "authenticated=X/postgres",
+          "service_role=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION public.revoke_household_invitation(p_invitation_id uuid)\n RETURNS void\n LANGUAGE sql\n SET search_path TO ''\nAS $function$select private.revoke_household_invitation(p_invitation_id);$function$\n",
+        "name": "revoke_household_invitation"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "authenticated=X/postgres",
+          "service_role=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION public.unregister_device(p_installation_id uuid)\n RETURNS void\n LANGUAGE sql\n SET search_path TO ''\nAS $function$ delete from public.native_devices where user_id=auth.uid() and installation_id=p_installation_id; $function$\n",
+        "name": "unregister_device"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "authenticated=X/postgres",
+          "service_role=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION public.is_household_member(hid uuid, uid uuid)\n RETURNS boolean\n LANGUAGE sql\n STABLE\n SET search_path TO ''\nAS $function$\n  select uid=(select auth.uid()) and private.is_household_member(hid);\n$function$\n",
+        "name": "is_household_member"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "authenticated=X/postgres",
+          "service_role=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION public.is_household_admin(hid uuid, uid uuid)\n RETURNS boolean\n LANGUAGE sql\n STABLE\n SET search_path TO ''\nAS $function$\n  select uid=(select auth.uid()) and private.is_household_admin(hid);\n$function$\n",
+        "name": "is_household_admin"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "authenticated=X/postgres",
+          "service_role=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION public.invite_household_member(p_household_id uuid, p_email text, p_role text DEFAULT 'adult'::text)\n RETURNS text\n LANGUAGE sql\n SET search_path TO ''\nAS $function$ select private.invite_household_member(p_household_id,p_email,p_role); $function$\n",
+        "name": "invite_household_member"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "authenticated=X/postgres",
+          "service_role=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION public.accept_household_invitation(p_token text)\n RETURNS uuid\n LANGUAGE sql\n SET search_path TO ''\nAS $function$ select private.accept_household_invitation(p_token); $function$\n",
+        "name": "accept_household_invitation"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "service_role=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION public.begin_calendar_feed_import(p_feed_id uuid, p_actor_id uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare f public.calendar_feeds;\nbegin\n  select * into f from public.calendar_feeds where id=p_feed_id for update;\n  if f.id is null or not exists(select 1 from public.household_members where household_id=f.household_id and user_id=p_actor_id and role in ('owner','admin')) then\n    raise exception 'Feed unavailable' using errcode='42501';\n  end if;\n  if not f.is_active then raise exception 'Feed inactive'; end if;\n  if f.import_token is not null and f.import_started_at>now()-interval '2 minutes' then raise exception 'Import already running'; end if;\n  update public.calendar_feeds set import_token=gen_random_uuid(),import_started_at=now(),\n    last_sync_status='syncing',last_sync_message=null where id=f.id returning * into f;\n  return to_jsonb(f);\nend $function$\n",
+        "name": "begin_calendar_feed_import"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "service_role=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION public.fail_calendar_feed_import(p_feed_id uuid, p_token uuid, p_message text)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\nbegin\n  update public.calendar_feeds set last_sync_status='error',\n    last_sync_message=case when p_message in ('FETCH_FAILED','INVALID_ICS','IMPORT_LIMIT','IMPORT_FAILED','URL_NOT_ALLOWED')\n      then p_message else 'IMPORT_FAILED' end,\n    import_token=null,import_started_at=null\n    where id=p_feed_id and import_token=p_token;\nend $function$\n",
+        "name": "fail_calendar_feed_import"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "service_role=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION public.apply_calendar_feed_import(p_feed_id uuid, p_actor_id uuid, p_token uuid, p_rows jsonb, p_range_start date, p_range_end date, p_cleanup boolean DEFAULT true)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare f public.calendar_feeds; row_data jsonb; payload jsonb; ek text; ids uuid[]; person_name text;\n inserted integer:=0; updated integer:=0; deleted integer:=0; skipped integer:=0;\n existing_id uuid; incoming text[]:='{}'; touched integer; effective_ids uuid[];\nbegin\n  select * into f from public.calendar_feeds where id=p_feed_id for update;\n  if f.id is null or not exists(select 1 from public.household_members where household_id=f.household_id and user_id=p_actor_id and role in ('owner','admin')) then\n    raise exception 'Feed unavailable' using errcode='42501';\n  end if;\n  if not f.is_active or f.import_token is distinct from p_token or p_token is null then raise exception 'Import is no longer current'; end if;\n  if jsonb_typeof(p_rows) is distinct from 'array' then raise exception 'Invalid import batch'; end if;\n  if jsonb_array_length(p_rows)>10000 or p_range_start is null or p_range_end is null or p_range_end<p_range_start then\n    raise exception 'Invalid import batch';\n  end if;\n  ids:='{}';\n  person_name:=coalesce(nullif(f.assigned_person_name,''),'Alle');\n  if f.assigned_person_id is not null then\n    select name into person_name from public.household_people where id=f.assigned_person_id and household_id=f.household_id;\n    ids:=array[f.assigned_person_id];\n  else\n    select array_agg(id) into effective_ids from public.household_people\n      where household_id=f.household_id and (lower(name)=lower(person_name) or lower(person_name)=any(select lower(unnest(name_aliases))));\n    if cardinality(effective_ids)=1 then ids:=effective_ids; end if;\n  end if;\n  for row_data in select value from jsonb_array_elements(p_rows) loop\n    ek:=row_data->>'externalKey'; payload:=row_data->'payload';\n    if ek is null or ek='' or jsonb_typeof(payload) is distinct from 'object' or payload->>'date' is null\n      or (payload->>'date')::date not between p_range_start and p_range_end\n      or (payload ? 'data' and jsonb_typeof(payload->'data') is distinct from 'object') then raise exception 'Invalid calendar row'; end if;\n    if ek=any(incoming) then raise exception 'Duplicate external key'; end if;\n    incoming:=array_append(incoming,ek);\n    -- Preserve detached edits, including when the source title/time changes the old external key.\n    if exists(select 1 from public.calendar_items c\n      where c.household_id=f.household_id and c.source=f.source\n      and coalesce(c.calendar_id,c.data->>'calendarId',c.data->>'feedId')=f.id::text\n      and (c.detached_from_feed or c.data->>'detachedFromFeed'='true')\n      and (c.external_id=ek or (c.data->>'uid'=payload->'data'->>'uid' and c.data->>'occurrenceDate'=payload->'data'->>'occurrenceDate'))\n    ) then skipped:=skipped+1; continue; end if;\n    select id into existing_id from public.calendar_items where household_id=f.household_id and source=f.source and external_id=ek;\n    insert into public.calendar_items(household_id,title,date,time,person,person_ids,type,note,done,created_by,source,external_id,calendar_id,location,duration_min,data)\n    values(f.household_id,coalesce(nullif(payload->>'title',''),'(uden titel)'),(payload->>'date')::date,payload->>'time',person_name,ids,\n      'Aktivitet',payload->>'note',false,p_actor_id,f.source,ek,f.id::text,payload->'data'->>'location',(payload->'data'->>'durationMin')::integer,\n      coalesce(payload->'data','{}'::jsonb) || jsonb_build_object('source',f.source,'feedId',f.id,'calendarId',f.id,'externalId',ek,'externalKey',ek,'person',person_name,'people',jsonb_build_array(person_name),'personIds',to_jsonb(ids)))\n    on conflict(household_id,source,external_id) do update set\n      title=excluded.title,date=excluded.date,time=excluded.time,person=excluded.person,person_ids=excluded.person_ids,\n      type=excluded.type,note=excluded.note,calendar_id=excluded.calendar_id,location=excluded.location,duration_min=excluded.duration_min,\n      data=calendar_items.data || excluded.data || jsonb_build_object('done',calendar_items.done)\n    where not calendar_items.detached_from_feed and coalesce(calendar_items.data->>'detachedFromFeed','false')<>'true';\n    get diagnostics touched=row_count;\n    if touched>0 then if existing_id is null then inserted:=inserted+1; else updated:=updated+1; end if; end if;\n  end loop;\n  delete from public.calendar_items c where p_cleanup is true and c.household_id=f.household_id and c.source=f.source\n    and coalesce(c.calendar_id,c.data->>'calendarId',c.data->>'feedId')=f.id::text\n    and not c.detached_from_feed and coalesce(c.data->>'detachedFromFeed','false')<>'true'\n    and c.date between p_range_start and p_range_end\n    and not(coalesce(c.external_id,c.data->>'externalKey','')=any(incoming));\n  get diagnostics deleted=row_count;\n  update public.calendar_feeds set last_sync_at=now(),last_sync_status='success',\n    last_sync_message=null,last_import_count=inserted+updated,import_token=null,import_started_at=null\n    where id=f.id;\n  return jsonb_build_object('insertedCount',inserted,'updatedCount',updated,'deletedCount',deleted,'skippedCount',skipped,'importedCount',inserted+updated);\nend $function$\n",
+        "name": "apply_calendar_feed_import"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "authenticated=X/postgres",
+          "service_role=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION public.mutate_calendar(p_household_id uuid, p_expected jsonb, p_upserts jsonb, p_delete_ids uuid[])\n RETURNS void\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\ndeclare entry jsonb; current_row public.calendar_items; rid uuid; seen uuid[] := '{}';\nbegin\n  if auth.uid() is null or not private.is_household_member(p_household_id) then\n    raise exception 'Household access denied' using errcode='42501';\n  end if;\n  if jsonb_typeof(p_expected) is distinct from 'array' or jsonb_typeof(p_upserts) is distinct from 'array'\n    or p_delete_ids is null or jsonb_array_length(p_expected)>2000 or jsonb_array_length(p_upserts)>2000 or cardinality(p_delete_ids)>2000 then\n    raise exception 'Invalid calendar batch';\n  end if;\n  perform pg_advisory_xact_lock(hashtextextended(p_household_id::text,0));\n  for entry in select value from jsonb_array_elements(p_expected) loop\n    select * into current_row from public.calendar_items where id=(entry->>'id')::uuid and household_id=p_household_id for update;\n    if not found or current_row.updated_at is distinct from (entry->>'updated_at')::timestamptz then\n      raise exception 'Kalenderen er ændret på en anden enhed. Luk og åbn aftalen igen.';\n    end if;\n  end loop;\n  foreach rid in array p_delete_ids loop\n    if not exists(select 1 from jsonb_array_elements(p_expected) e where (e->>'id')::uuid=rid) then raise exception 'Expected version required'; end if;\n    delete from public.calendar_items where id=rid and household_id=p_household_id;\n    if not found then raise exception 'Calendar item missing'; end if;\n  end loop;\n  for entry in select value from jsonb_array_elements(p_upserts) loop\n    rid=(entry->>'id')::uuid;\n    if rid is null or rid=any(seen) or rid=any(p_delete_ids) or length(btrim(coalesce(entry->>'title',''))) not between 1 and 1000\n      or jsonb_typeof(entry->'data') is distinct from 'object' then raise exception 'Invalid calendar item'; end if;\n    seen=array_append(seen,rid);\n    if exists(select 1 from jsonb_array_elements(p_expected) e where (e->>'id')::uuid=rid) then\n      update public.calendar_items set\n        title=entry->>'title',date=(entry->>'date')::date,time=entry->>'time',person=entry->>'person',\n        person_ids=array(select jsonb_array_elements_text(entry->'person_ids'))::uuid[],type=entry->>'type',\n        note=entry->>'note',done=(entry->>'done')::boolean,location=entry->>'location',\n        duration_min=(entry->>'duration_min')::integer,data=entry->'data'\n        where id=rid and household_id=p_household_id;\n      if not found then raise exception 'Calendar item missing'; end if;\n    else\n      insert into public.calendar_items(id,household_id,created_by,title,date,time,person,person_ids,type,note,done,location,duration_min,data)\n      values(rid,p_household_id,auth.uid(),entry->>'title',(entry->>'date')::date,entry->>'time',entry->>'person',\n        array(select jsonb_array_elements_text(entry->'person_ids'))::uuid[],entry->>'type',entry->>'note',\n        (entry->>'done')::boolean,entry->>'location',(entry->>'duration_min')::integer,entry->'data');\n    end if;\n  end loop;\nend $function$\n",
+        "name": "mutate_calendar"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "authenticated=X/postgres",
+          "service_role=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION public.sync_calendar_mutation(p_mutation_id uuid, p_household_id uuid, p_expected jsonb, p_upserts jsonb, p_delete_ids uuid[])\n RETURNS jsonb\n LANGUAGE sql\n SET search_path TO ''\nAS $function$\n select private.sync_calendar_mutation(p_mutation_id,p_household_id,p_expected,p_upserts,p_delete_ids);\n$function$\n",
+        "name": "sync_calendar_mutation"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "authenticated=X/postgres",
+          "service_role=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION public.register_device(p_installation_id uuid, p_household_id uuid, p_platform text, p_app_version text, p_push_token text DEFAULT NULL::text)\n RETURNS void\n LANGUAGE sql\n SET search_path TO ''\nAS $function$ select private.register_device(p_installation_id,p_household_id,p_platform,p_app_version,p_push_token); $function$\n",
+        "name": "register_device"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "authenticated=X/postgres",
+          "service_role=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION public.account_deletion_plan()\n RETURNS jsonb\n LANGUAGE sql\n STABLE\n SET search_path TO ''\nAS $function$select private.account_deletion_plan();$function$\n",
+        "name": "account_deletion_plan"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "service_role=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION public.begin_account_deletion(p_user_id uuid, p_delete_households uuid[])\n RETURNS jsonb\n LANGUAGE sql\n SET search_path TO ''\nAS $function$select private.begin_account_deletion(p_user_id,p_delete_households);$function$\n",
+        "name": "begin_account_deletion"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "service_role=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION public.account_deletion_objects(p_user_id uuid)\n RETURNS TABLE(name text)\n LANGUAGE sql\n STABLE\n SET search_path TO ''\nAS $function$select * from private.account_deletion_objects(p_user_id);$function$\n",
+        "name": "account_deletion_objects"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "authenticated=X/postgres",
+          "service_role=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION public.export_family_data(p_household_id uuid)\n RETURNS jsonb\n LANGUAGE sql\n STABLE\n SET search_path TO ''\nAS $function$select private.export_family_data(p_household_id);$function$\n",
+        "name": "export_family_data"
+      }
+    ],
+    "grants": [
+      {
+        "grantee": "service_role",
+        "privilege_type": "INSERT",
+        "table_name": "calendar_revisions"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "SELECT",
+        "table_name": "calendar_revisions"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "UPDATE",
+        "table_name": "calendar_revisions"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "DELETE",
+        "table_name": "calendar_revisions"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "TRUNCATE",
+        "table_name": "calendar_revisions"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "REFERENCES",
+        "table_name": "calendar_revisions"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "TRIGGER",
+        "table_name": "calendar_revisions"
+      },
+      {
+        "grantee": "authenticated",
+        "privilege_type": "SELECT",
+        "table_name": "calendar_revisions"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "INSERT",
+        "table_name": "profiles"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "SELECT",
+        "table_name": "profiles"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "UPDATE",
+        "table_name": "profiles"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "DELETE",
+        "table_name": "profiles"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "TRUNCATE",
+        "table_name": "profiles"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "REFERENCES",
+        "table_name": "profiles"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "TRIGGER",
+        "table_name": "profiles"
+      },
+      {
+        "grantee": "authenticated",
+        "privilege_type": "INSERT",
+        "table_name": "profiles"
+      },
+      {
+        "grantee": "authenticated",
+        "privilege_type": "SELECT",
+        "table_name": "profiles"
+      },
+      {
+        "grantee": "authenticated",
+        "privilege_type": "UPDATE",
+        "table_name": "profiles"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "INSERT",
+        "table_name": "households"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "SELECT",
+        "table_name": "households"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "UPDATE",
+        "table_name": "households"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "DELETE",
+        "table_name": "households"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "TRUNCATE",
+        "table_name": "households"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "REFERENCES",
+        "table_name": "households"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "TRIGGER",
+        "table_name": "households"
+      },
+      {
+        "grantee": "authenticated",
+        "privilege_type": "SELECT",
+        "table_name": "households"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "INSERT",
+        "table_name": "household_members"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "SELECT",
+        "table_name": "household_members"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "UPDATE",
+        "table_name": "household_members"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "DELETE",
+        "table_name": "household_members"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "TRUNCATE",
+        "table_name": "household_members"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "REFERENCES",
+        "table_name": "household_members"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "TRIGGER",
+        "table_name": "household_members"
+      },
+      {
+        "grantee": "authenticated",
+        "privilege_type": "SELECT",
+        "table_name": "household_members"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "INSERT",
+        "table_name": "calendar_items"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "SELECT",
+        "table_name": "calendar_items"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "UPDATE",
+        "table_name": "calendar_items"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "DELETE",
+        "table_name": "calendar_items"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "TRUNCATE",
+        "table_name": "calendar_items"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "REFERENCES",
+        "table_name": "calendar_items"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "TRIGGER",
+        "table_name": "calendar_items"
+      },
+      {
+        "grantee": "authenticated",
+        "privilege_type": "INSERT",
+        "table_name": "calendar_items"
+      },
+      {
+        "grantee": "authenticated",
+        "privilege_type": "SELECT",
+        "table_name": "calendar_items"
+      },
+      {
+        "grantee": "authenticated",
+        "privilege_type": "UPDATE",
+        "table_name": "calendar_items"
+      },
+      {
+        "grantee": "authenticated",
+        "privilege_type": "DELETE",
+        "table_name": "calendar_items"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "INSERT",
+        "table_name": "calendar_feeds"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "SELECT",
+        "table_name": "calendar_feeds"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "UPDATE",
+        "table_name": "calendar_feeds"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "DELETE",
+        "table_name": "calendar_feeds"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "TRUNCATE",
+        "table_name": "calendar_feeds"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "REFERENCES",
+        "table_name": "calendar_feeds"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "TRIGGER",
+        "table_name": "calendar_feeds"
+      },
+      {
+        "grantee": "authenticated",
+        "privilege_type": "SELECT",
+        "table_name": "calendar_feeds"
+      },
+      {
+        "grantee": "authenticated",
+        "privilege_type": "DELETE",
+        "table_name": "calendar_feeds"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "INSERT",
+        "table_name": "household_people"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "SELECT",
+        "table_name": "household_people"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "UPDATE",
+        "table_name": "household_people"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "DELETE",
+        "table_name": "household_people"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "TRUNCATE",
+        "table_name": "household_people"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "REFERENCES",
+        "table_name": "household_people"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "TRIGGER",
+        "table_name": "household_people"
+      },
+      {
+        "grantee": "authenticated",
+        "privilege_type": "INSERT",
+        "table_name": "household_people"
+      },
+      {
+        "grantee": "authenticated",
+        "privilege_type": "SELECT",
+        "table_name": "household_people"
+      },
+      {
+        "grantee": "authenticated",
+        "privilege_type": "UPDATE",
+        "table_name": "household_people"
+      },
+      {
+        "grantee": "authenticated",
+        "privilege_type": "DELETE",
+        "table_name": "household_people"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "INSERT",
+        "table_name": "household_invitations"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "SELECT",
+        "table_name": "household_invitations"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "UPDATE",
+        "table_name": "household_invitations"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "DELETE",
+        "table_name": "household_invitations"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "TRUNCATE",
+        "table_name": "household_invitations"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "REFERENCES",
+        "table_name": "household_invitations"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "TRIGGER",
+        "table_name": "household_invitations"
+      },
+      {
+        "grantee": "authenticated",
+        "privilege_type": "SELECT",
+        "table_name": "household_invitations"
+      },
+      {
+        "grantee": "authenticated",
+        "privilege_type": "DELETE",
+        "table_name": "household_invitations"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "INSERT",
+        "table_name": "reward_celebrations"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "SELECT",
+        "table_name": "reward_celebrations"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "UPDATE",
+        "table_name": "reward_celebrations"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "DELETE",
+        "table_name": "reward_celebrations"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "TRUNCATE",
+        "table_name": "reward_celebrations"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "REFERENCES",
+        "table_name": "reward_celebrations"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "TRIGGER",
+        "table_name": "reward_celebrations"
+      },
+      {
+        "grantee": "authenticated",
+        "privilege_type": "SELECT",
+        "table_name": "reward_celebrations"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "INSERT",
+        "table_name": "calendar_mutation_receipts"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "SELECT",
+        "table_name": "calendar_mutation_receipts"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "UPDATE",
+        "table_name": "calendar_mutation_receipts"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "DELETE",
+        "table_name": "calendar_mutation_receipts"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "TRUNCATE",
+        "table_name": "calendar_mutation_receipts"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "REFERENCES",
+        "table_name": "calendar_mutation_receipts"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "TRIGGER",
+        "table_name": "calendar_mutation_receipts"
+      },
+      {
+        "grantee": "authenticated",
+        "privilege_type": "SELECT",
+        "table_name": "calendar_mutation_receipts"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "INSERT",
+        "table_name": "native_devices"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "SELECT",
+        "table_name": "native_devices"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "UPDATE",
+        "table_name": "native_devices"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "DELETE",
+        "table_name": "native_devices"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "TRUNCATE",
+        "table_name": "native_devices"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "REFERENCES",
+        "table_name": "native_devices"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "TRIGGER",
+        "table_name": "native_devices"
+      },
+      {
+        "grantee": "authenticated",
+        "privilege_type": "SELECT",
+        "table_name": "native_devices"
+      },
+      {
+        "grantee": "authenticated",
+        "privilege_type": "DELETE",
+        "table_name": "native_devices"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "INSERT",
+        "table_name": "account_deletion_jobs"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "SELECT",
+        "table_name": "account_deletion_jobs"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "UPDATE",
+        "table_name": "account_deletion_jobs"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "DELETE",
+        "table_name": "account_deletion_jobs"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "TRUNCATE",
+        "table_name": "account_deletion_jobs"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "REFERENCES",
+        "table_name": "account_deletion_jobs"
+      },
+      {
+        "grantee": "service_role",
+        "privilege_type": "TRIGGER",
+        "table_name": "account_deletion_jobs"
+      }
+    ],
+    "indexes": [
+      {
+        "indexdef": "CREATE UNIQUE INDEX calendar_revisions_pkey ON public.calendar_revisions USING btree (household_id)",
+        "indexname": "calendar_revisions_pkey",
+        "schemaname": "public",
+        "tablename": "calendar_revisions",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE UNIQUE INDEX profiles_pkey ON public.profiles USING btree (id)",
+        "indexname": "profiles_pkey",
+        "schemaname": "public",
+        "tablename": "profiles",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE UNIQUE INDEX households_pkey ON public.households USING btree (id)",
+        "indexname": "households_pkey",
+        "schemaname": "public",
+        "tablename": "households",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE INDEX households_created_by ON public.households USING btree (created_by)",
+        "indexname": "households_created_by",
+        "schemaname": "public",
+        "tablename": "households",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE UNIQUE INDEX household_members_pkey ON public.household_members USING btree (household_id, user_id)",
+        "indexname": "household_members_pkey",
+        "schemaname": "public",
+        "tablename": "household_members",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE INDEX household_members_user_household ON public.household_members USING btree (user_id, household_id)",
+        "indexname": "household_members_user_household",
+        "schemaname": "public",
+        "tablename": "household_members",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE UNIQUE INDEX calendar_items_pkey ON public.calendar_items USING btree (id)",
+        "indexname": "calendar_items_pkey",
+        "schemaname": "public",
+        "tablename": "calendar_items",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE INDEX calendar_items_household_idx ON public.calendar_items USING btree (household_id)",
+        "indexname": "calendar_items_household_idx",
+        "schemaname": "public",
+        "tablename": "calendar_items",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE INDEX calendar_items_date_idx ON public.calendar_items USING btree (date)",
+        "indexname": "calendar_items_date_idx",
+        "schemaname": "public",
+        "tablename": "calendar_items",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE INDEX calendar_items_source_idx ON public.calendar_items USING btree (household_id, source)",
+        "indexname": "calendar_items_source_idx",
+        "schemaname": "public",
+        "tablename": "calendar_items",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE UNIQUE INDEX calendar_items_external_unique ON public.calendar_items USING btree (household_id, source, external_id)",
+        "indexname": "calendar_items_external_unique",
+        "schemaname": "public",
+        "tablename": "calendar_items",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE INDEX calendar_items_household_date ON public.calendar_items USING btree (household_id, date)",
+        "indexname": "calendar_items_household_date",
+        "schemaname": "public",
+        "tablename": "calendar_items",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE INDEX calendar_items_household_calendar ON public.calendar_items USING btree (household_id, calendar_id)",
+        "indexname": "calendar_items_household_calendar",
+        "schemaname": "public",
+        "tablename": "calendar_items",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE INDEX calendar_items_person_ids ON public.calendar_items USING gin (person_ids)",
+        "indexname": "calendar_items_person_ids",
+        "schemaname": "public",
+        "tablename": "calendar_items",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE INDEX calendar_items_created_by ON public.calendar_items USING btree (created_by)",
+        "indexname": "calendar_items_created_by",
+        "schemaname": "public",
+        "tablename": "calendar_items",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE UNIQUE INDEX calendar_feeds_pkey ON public.calendar_feeds USING btree (id)",
+        "indexname": "calendar_feeds_pkey",
+        "schemaname": "public",
+        "tablename": "calendar_feeds",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE INDEX calendar_feeds_household_idx ON public.calendar_feeds USING btree (household_id)",
+        "indexname": "calendar_feeds_household_idx",
+        "schemaname": "public",
+        "tablename": "calendar_feeds",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE INDEX calendar_feeds_assigned_person ON public.calendar_feeds USING btree (household_id, assigned_person_id)",
+        "indexname": "calendar_feeds_assigned_person",
+        "schemaname": "public",
+        "tablename": "calendar_feeds",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE UNIQUE INDEX household_people_pkey ON public.household_people USING btree (id)",
+        "indexname": "household_people_pkey",
+        "schemaname": "public",
+        "tablename": "household_people",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE INDEX household_people_household_idx ON public.household_people USING btree (household_id)",
+        "indexname": "household_people_household_idx",
+        "schemaname": "public",
+        "tablename": "household_people",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE UNIQUE INDEX household_people_household_id_id ON public.household_people USING btree (household_id, id)",
+        "indexname": "household_people_household_id_id",
+        "schemaname": "public",
+        "tablename": "household_people",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE UNIQUE INDEX household_invitations_pkey ON public.household_invitations USING btree (id)",
+        "indexname": "household_invitations_pkey",
+        "schemaname": "public",
+        "tablename": "household_invitations",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE UNIQUE INDEX household_invitations_token_hash_key ON public.household_invitations USING btree (token_hash)",
+        "indexname": "household_invitations_token_hash_key",
+        "schemaname": "public",
+        "tablename": "household_invitations",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE INDEX invitations_household ON public.household_invitations USING btree (household_id)",
+        "indexname": "invitations_household",
+        "schemaname": "public",
+        "tablename": "household_invitations",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE INDEX invitations_invited_by ON public.household_invitations USING btree (invited_by)",
+        "indexname": "invitations_invited_by",
+        "schemaname": "public",
+        "tablename": "household_invitations",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE UNIQUE INDEX reward_celebrations_pkey ON public.reward_celebrations USING btree (id)",
+        "indexname": "reward_celebrations_pkey",
+        "schemaname": "public",
+        "tablename": "reward_celebrations",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE UNIQUE INDEX reward_celebrations_household_id_person_id_iso_year_iso_wee_key ON public.reward_celebrations USING btree (household_id, person_id, iso_year, iso_week, threshold)",
+        "indexname": "reward_celebrations_household_id_person_id_iso_year_iso_wee_key",
+        "schemaname": "public",
+        "tablename": "reward_celebrations",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE UNIQUE INDEX calendar_mutation_receipts_pkey ON public.calendar_mutation_receipts USING btree (id)",
+        "indexname": "calendar_mutation_receipts_pkey",
+        "schemaname": "public",
+        "tablename": "calendar_mutation_receipts",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE INDEX calendar_receipts_household ON public.calendar_mutation_receipts USING btree (household_id)",
+        "indexname": "calendar_receipts_household",
+        "schemaname": "public",
+        "tablename": "calendar_mutation_receipts",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE INDEX calendar_receipts_user ON public.calendar_mutation_receipts USING btree (user_id)",
+        "indexname": "calendar_receipts_user",
+        "schemaname": "public",
+        "tablename": "calendar_mutation_receipts",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE UNIQUE INDEX native_devices_pkey ON public.native_devices USING btree (user_id, installation_id)",
+        "indexname": "native_devices_pkey",
+        "schemaname": "public",
+        "tablename": "native_devices",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE INDEX native_devices_household ON public.native_devices USING btree (household_id)",
+        "indexname": "native_devices_household",
+        "schemaname": "public",
+        "tablename": "native_devices",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE INDEX native_devices_token ON public.native_devices USING btree (push_token) WHERE (push_token IS NOT NULL)",
+        "indexname": "native_devices_token",
+        "schemaname": "public",
+        "tablename": "native_devices",
+        "tablespace": null
+      },
+      {
+        "indexdef": "CREATE UNIQUE INDEX account_deletion_jobs_pkey ON public.account_deletion_jobs USING btree (user_id)",
+        "indexname": "account_deletion_jobs_pkey",
+        "schemaname": "public",
+        "tablename": "account_deletion_jobs",
+        "tablespace": null
+      }
+    ],
+    "policies": [
+      {
+        "cmd": "DELETE",
+        "permissive": "PERMISSIVE",
+        "policyname": "people_delete",
+        "qual": "private.is_household_member(household_id)",
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "household_people",
+        "with_check": null
+      },
+      {
+        "cmd": "SELECT",
+        "permissive": "PERMISSIVE",
+        "policyname": "items_select",
+        "qual": "private.is_household_member(household_id)",
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "calendar_items",
+        "with_check": null
+      },
+      {
+        "cmd": "SELECT",
+        "permissive": "PERMISSIVE",
+        "policyname": "profiles_select",
+        "qual": "(id = ( SELECT auth.uid() AS uid))",
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "profiles",
+        "with_check": null
+      },
+      {
+        "cmd": "INSERT",
+        "permissive": "PERMISSIVE",
+        "policyname": "profiles_insert",
+        "qual": null,
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "profiles",
+        "with_check": "(id = ( SELECT auth.uid() AS uid))"
+      },
+      {
+        "cmd": "UPDATE",
+        "permissive": "PERMISSIVE",
+        "policyname": "profiles_update",
+        "qual": "(id = ( SELECT auth.uid() AS uid))",
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "profiles",
+        "with_check": "(id = ( SELECT auth.uid() AS uid))"
+      },
+      {
+        "cmd": "SELECT",
+        "permissive": "PERMISSIVE",
+        "policyname": "households_select",
+        "qual": "private.is_household_member(id)",
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "households",
+        "with_check": null
+      },
+      {
+        "cmd": "UPDATE",
+        "permissive": "PERMISSIVE",
+        "policyname": "households_update",
+        "qual": "private.is_household_admin(id)",
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "households",
+        "with_check": "private.is_household_admin(id)"
+      },
+      {
+        "cmd": "SELECT",
+        "permissive": "PERMISSIVE",
+        "policyname": "members_select",
+        "qual": "private.is_household_member(household_id)",
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "household_members",
+        "with_check": null
+      },
+      {
+        "cmd": "SELECT",
+        "permissive": "PERMISSIVE",
+        "policyname": "people_select",
+        "qual": "private.is_household_member(household_id)",
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "household_people",
+        "with_check": null
+      },
+      {
+        "cmd": "INSERT",
+        "permissive": "PERMISSIVE",
+        "policyname": "people_insert",
+        "qual": null,
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "household_people",
+        "with_check": "private.is_household_member(household_id)"
+      },
+      {
+        "cmd": "UPDATE",
+        "permissive": "PERMISSIVE",
+        "policyname": "people_update",
+        "qual": "private.is_household_member(household_id)",
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "household_people",
+        "with_check": "private.is_household_member(household_id)"
+      },
+      {
+        "cmd": "INSERT",
+        "permissive": "PERMISSIVE",
+        "policyname": "items_insert",
+        "qual": null,
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "calendar_items",
+        "with_check": "(private.is_household_member(household_id) AND (created_by = ( SELECT auth.uid() AS uid)))"
+      },
+      {
+        "cmd": "UPDATE",
+        "permissive": "PERMISSIVE",
+        "policyname": "items_update",
+        "qual": "private.is_household_member(household_id)",
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "calendar_items",
+        "with_check": "private.is_household_member(household_id)"
+      },
+      {
+        "cmd": "DELETE",
+        "permissive": "PERMISSIVE",
+        "policyname": "items_delete",
+        "qual": "private.is_household_member(household_id)",
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "calendar_items",
+        "with_check": null
+      },
+      {
+        "cmd": "SELECT",
+        "permissive": "PERMISSIVE",
+        "policyname": "feeds_select",
+        "qual": "private.is_household_admin(household_id)",
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "calendar_feeds",
+        "with_check": null
+      },
+      {
+        "cmd": "INSERT",
+        "permissive": "PERMISSIVE",
+        "policyname": "feeds_insert",
+        "qual": null,
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "calendar_feeds",
+        "with_check": "private.is_household_admin(household_id)"
+      },
+      {
+        "cmd": "UPDATE",
+        "permissive": "PERMISSIVE",
+        "policyname": "feeds_update",
+        "qual": "private.is_household_admin(household_id)",
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "calendar_feeds",
+        "with_check": "private.is_household_admin(household_id)"
+      },
+      {
+        "cmd": "DELETE",
+        "permissive": "PERMISSIVE",
+        "policyname": "feeds_delete",
+        "qual": "private.is_household_admin(household_id)",
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "calendar_feeds",
+        "with_check": null
+      },
+      {
+        "cmd": "ALL",
+        "permissive": "PERMISSIVE",
+        "policyname": "invitations_admin",
+        "qual": "private.is_household_admin(household_id)",
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "household_invitations",
+        "with_check": "private.is_household_admin(household_id)"
+      },
+      {
+        "cmd": "SELECT",
+        "permissive": "PERMISSIVE",
+        "policyname": "household_avatars_select",
+        "qual": "((bucket_id = 'household-avatars'::text) AND private.can_access_avatar(name))",
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "storage",
+        "tablename": "objects",
+        "with_check": null
+      },
+      {
+        "cmd": "INSERT",
+        "permissive": "PERMISSIVE",
+        "policyname": "household_avatars_insert",
+        "qual": null,
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "storage",
+        "tablename": "objects",
+        "with_check": "((bucket_id = 'household-avatars'::text) AND private.can_access_avatar(name))"
+      },
+      {
+        "cmd": "UPDATE",
+        "permissive": "PERMISSIVE",
+        "policyname": "household_avatars_update",
+        "qual": "((bucket_id = 'household-avatars'::text) AND private.can_access_avatar(name))",
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "storage",
+        "tablename": "objects",
+        "with_check": "((bucket_id = 'household-avatars'::text) AND private.can_access_avatar(name))"
+      },
+      {
+        "cmd": "DELETE",
+        "permissive": "PERMISSIVE",
+        "policyname": "household_avatars_delete",
+        "qual": "((bucket_id = 'household-avatars'::text) AND private.can_access_avatar(name))",
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "storage",
+        "tablename": "objects",
+        "with_check": null
+      },
+      {
+        "cmd": "SELECT",
+        "permissive": "PERMISSIVE",
+        "policyname": "calendar_revisions_select",
+        "qual": "private.is_household_member(household_id)",
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "calendar_revisions",
+        "with_check": null
+      },
+      {
+        "cmd": "SELECT",
+        "permissive": "PERMISSIVE",
+        "policyname": "celebrations_select",
+        "qual": "private.is_household_member(household_id)",
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "reward_celebrations",
+        "with_check": null
+      },
+      {
+        "cmd": "SELECT",
+        "permissive": "PERMISSIVE",
+        "policyname": "receipts_select",
+        "qual": "((user_id = ( SELECT auth.uid() AS uid)) AND private.is_household_member(household_id))",
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "calendar_mutation_receipts",
+        "with_check": null
+      },
+      {
+        "cmd": "ALL",
+        "permissive": "PERMISSIVE",
+        "policyname": "native_devices_own",
+        "qual": "(user_id = ( SELECT auth.uid() AS uid))",
+        "roles": [
+          "authenticated"
+        ],
+        "schemaname": "public",
+        "tablename": "native_devices",
+        "with_check": "((user_id = ( SELECT auth.uid() AS uid)) AND private.is_household_member(household_id))"
+      }
+    ],
+    "private_functions": [
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "authenticated=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION private.create_household(p_name text)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare hid uuid; uid uuid := auth.uid();\nbegin\n  if uid is null then raise exception 'Authentication required' using errcode='42501'; end if;\n  if p_name is null or length(btrim(p_name)) not between 1 and 100 then raise exception 'Invalid household name'; end if;\n  insert into public.profiles(id) values(uid) on conflict(id) do nothing;\n  insert into public.households(name,created_by) values(btrim(p_name),uid) returning id into hid;\n  insert into public.household_members(household_id,user_id,role) values(hid,uid,'owner');\n  return hid;\nend $function$\n",
+        "name": "create_household"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION private.protect_person_references()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\nbegin\n  -- A deliberate household deletion may cascade all of its people and items.\n  if exists(select 1 from public.households where id=old.household_id)\n    and exists(select 1 from public.calendar_items where household_id=old.household_id and person_ids @> array[old.id]) then\n    raise exception 'Person is used by calendar items; deactivate instead' using errcode='23503';\n  end if;\n  return old;\nend $function$\n",
+        "name": "protect_person_references"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "authenticated=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION private.list_household_members(p_household_id uuid)\n RETURNS TABLE(user_id uuid, email text, role text, joined_at timestamp with time zone)\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\nbegin\n if auth.uid() is null or not private.is_household_member(p_household_id) then raise exception 'Household access denied' using errcode='42501'; end if;\n return query select m.user_id,u.email::text,m.role,m.created_at from public.household_members m join auth.users u on u.id=m.user_id\n where m.household_id=p_household_id order by m.created_at,m.user_id;\nend $function$\n",
+        "name": "list_household_members"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "authenticated=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION private.revoke_household_invitation(p_invitation_id uuid)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare inv public.household_invitations;\nbegin\n if auth.uid() is null then raise exception 'Authentication required' using errcode='42501'; end if;\n select * into inv from public.household_invitations where id=p_invitation_id for update;\n if not found or not private.is_household_admin(inv.household_id) then raise exception 'Forbidden' using errcode='42501'; end if;\n if inv.accepted_at is not null then raise exception 'Invitation already accepted'; end if;\n update public.household_invitations set revoked_at=coalesce(revoked_at,now()) where id=inv.id;\nend $function$\n",
+        "name": "revoke_household_invitation"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "authenticated=X/postgres",
+          "service_role=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION private.is_household_member(hid uuid)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\n  select auth.uid() is not null and exists(\n    select 1 from public.household_members m where m.household_id=hid and m.user_id=(select auth.uid())\n  );\n$function$\n",
+        "name": "is_household_member"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "authenticated=X/postgres",
+          "service_role=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION private.is_household_admin(hid uuid)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\n  select auth.uid() is not null and exists(\n    select 1 from public.household_members m\n    where m.household_id=hid and m.user_id=(select auth.uid()) and m.role in ('owner','admin')\n  );\n$function$\n",
+        "name": "is_household_admin"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "authenticated=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION private.invite_household_member(p_household_id uuid, p_email text, p_role text DEFAULT 'adult'::text)\n RETURNS text\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare token text := gen_random_uuid()::text || gen_random_uuid()::text;\nbegin\n  if not private.is_household_admin(p_household_id) then raise exception 'Forbidden' using errcode='42501'; end if;\n  if p_role not in ('admin','adult','child') or p_email !~ '^[^[:space:]@]+@[^[:space:]@]+\\.[^[:space:]@]+$' then raise exception 'Invalid invitation'; end if;\n  if p_role='admin' and not exists(select 1 from public.household_members where household_id=p_household_id and user_id=auth.uid() and role='owner') then raise exception 'Only owners may invite admins'; end if;\n  insert into public.household_invitations(household_id,email,role,token_hash,invited_by)\n    values(p_household_id,lower(btrim(p_email)),p_role,encode(sha256(convert_to(token,'UTF8')),'hex'),auth.uid());\n  return token;\nend $function$\n",
+        "name": "invite_household_member"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "authenticated=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION private.accept_household_invitation(p_token text)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare inv public.household_invitations; verified_email text;\nbegin\n  if auth.uid() is null then raise exception 'Authentication required' using errcode='42501'; end if;\n  select lower(email) into verified_email from auth.users where id=auth.uid() and email_confirmed_at is not null;\n  select * into inv from public.household_invitations\n    where token_hash=encode(sha256(convert_to(p_token,'UTF8')),'hex') for update;\n  if inv.id is null or inv.accepted_at is not null or inv.revoked_at is not null or inv.expires_at<=now()\n    or verified_email is null or verified_email<>inv.email then raise exception 'Invalid or expired invitation'; end if;\n  insert into public.profiles(id) values(auth.uid()) on conflict do nothing;\n  insert into public.household_members(household_id,user_id,role) values(inv.household_id,auth.uid(),inv.role) on conflict do nothing;\n  update public.household_invitations set accepted_at=now() where id=inv.id;\n  return inv.household_id;\nend $function$\n",
+        "name": "accept_household_invitation"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "authenticated=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION private.can_access_avatar(object_name text)\n RETURNS boolean\n LANGUAGE plpgsql\n STABLE\n SET search_path TO ''\nAS $function$\nbegin\n  if array_length(string_to_array(object_name,'/'),1)<>3 then return false; end if;\n  perform split_part(object_name,'/',2)::uuid;\n  return private.is_household_member(split_part(object_name,'/',1)::uuid);\nexception when invalid_text_representation then return false;\nend $function$\n",
+        "name": "can_access_avatar"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION private.touch_updated_at()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$ begin new.updated_at=now(); return new; end $function$\n",
+        "name": "touch_updated_at"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION private.keep_person_identity()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\nbegin\n  if length(btrim(new.name)) not between 1 and 100 then raise exception 'Invalid person name'; end if;\n  if tg_op='UPDATE' and new.name is distinct from old.name then\n    new.name_aliases=array(select distinct unnest(old.name_aliases || new.name_aliases || array[old.name]));\n  end if;\n  if new.avatar_path is not null and (\n    split_part(new.avatar_path,'/',1)<>new.household_id::text or\n    split_part(new.avatar_path,'/',2)<>new.id::text or\n    array_length(string_to_array(new.avatar_path,'/'),1)<>3\n  ) then raise exception 'Avatar path belongs to another person'; end if;\n  return new;\nend $function$\n",
+        "name": "keep_person_identity"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION private.validate_item_people()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\nbegin\n  -- Lock referenced people until commit, so a concurrent delete cannot orphan an ID.\n  perform 1 from public.household_people p where p.household_id=new.household_id and p.id=any(new.person_ids) for key share;\n  if exists(select 1 from unnest(new.person_ids) pid where not exists(\n    select 1 from public.household_people p where p.id=pid and p.household_id=new.household_id\n  )) then raise exception 'Person belongs to another household'; end if;\n  -- JSON is a compatibility mirror. Explicit columns are authoritative.\n  new.data=jsonb_set(new.data,'{personIds}',to_jsonb(new.person_ids),true);\n  return new;\nend $function$\n",
+        "name": "validate_item_people"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION private.validate_feed()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\nbegin\n  if new.feed_url !~* '^(https|webcal)://[^/[:space:]@]+(/|$)' or length(new.feed_url)>4096 then raise exception 'Invalid feed URL'; end if;\n  if tg_op='UPDATE' and (new.source,new.feed_url,new.assigned_person_id,new.assigned_person_name,new.is_active)\n    is distinct from (old.source,old.feed_url,old.assigned_person_id,old.assigned_person_name,old.is_active) then\n    new.import_token=null; new.import_started_at=null;\n    new.last_sync_status='pending'; new.last_sync_message=null;\n  end if;\n  return new;\nend $function$\n",
+        "name": "validate_feed"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION private.bump_calendar_revision()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare hid uuid := coalesce(new.household_id,old.household_id);\nbegin\n  -- Called only by these owned-table triggers, including the service-role importer.\n  -- Skip household cascades; do not recreate a revision row during household deletion.\n  if not exists(select 1 from public.households where id=hid) then return null; end if;\n  insert into public.calendar_revisions(household_id,items_version,people_version,feeds_version)\n  values(hid,(tg_table_name='calendar_items')::int,(tg_table_name='household_people')::int,(tg_table_name='calendar_feeds')::int)\n  on conflict(household_id) do update set\n    items_version=calendar_revisions.items_version+excluded.items_version,\n    people_version=calendar_revisions.people_version+excluded.people_version,\n    feeds_version=calendar_revisions.feeds_version+excluded.feeds_version;\n  return null;\nend $function$\n",
+        "name": "bump_calendar_revision"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION private.default_person_rewards()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\nbegin if new.reward_enabled is null then new.reward_enabled=(new.role='child'); end if; return new; end $function$\n",
+        "name": "default_person_rewards"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "authenticated=X/postgres",
+          "service_role=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION private.completed_task_rows(hid uuid, week_start date, through_date date)\n RETURNS TABLE(id uuid, occurrence_key text, title text, date date, person_ids uuid[], people jsonb)\n LANGUAGE sql\n STABLE\n SET search_path TO ''\nAS $function$\n with candidates as (\n select i.*, coalesce(nullif(i.data->>'overrideBaseId',''),nullif(i.data->>'overrideOf',''),i.id::text)||'|'||\n   coalesce(nullif(i.data->>'originalDate',''),i.date::text) as occurrence_key\n from public.calendar_items i\n where i.household_id=hid and i.type='Opgave' and i.done and i.date between week_start and through_date\n and (\n   nullif(i.data->>'overrideOf','') is not null\n   or (\n    not coalesce(i.data->'exceptions' ? i.date::text,false)\n    and not coalesce((jsonb_typeof(i.data->'exceptions')='string' and i.date::text=any(string_to_array(replace(i.data->>'exceptions',';',','),','))),false)\n    and (coalesce(i.data->>'repeatWeekly','false')<>'true' or coalesce(nullif(i.data->>'repeatUntil',''),'9999-12-31')>=i.date::text)\n    and not exists(select 1 from public.calendar_items o where o.household_id=hid and\n      (o.data->>'overrideBaseId'=i.id::text or o.data->>'overrideOf'=coalesce(nullif(i.data->>'seriesId',''),i.id::text))\n      and coalesce(nullif(o.data->>'originalDate',''),o.date::text)=i.date::text)\n   )\n )\n )\n select distinct on (c.occurrence_key) c.id,c.occurrence_key,c.title,c.date,c.person_ids,\n   case when jsonb_typeof(c.data->'people')='array' and jsonb_array_length(c.data->'people')>0 then c.data->'people'\n     else jsonb_build_array(coalesce(nullif(c.person,''),'Alle')) end\n from candidates c order by c.occurrence_key,c.updated_at desc,c.id;\n$function$\n",
+        "name": "completed_task_rows"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "authenticated=X/postgres",
+          "service_role=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION private.task_assigned_to(pids uuid[], names jsonb, pid uuid, pname text, aliases text[])\n RETURNS boolean\n LANGUAGE sql\n STABLE\n SET search_path TO ''\nAS $function$\n select case when cardinality(pids)>0 then pid=any(pids)\n else exists(select 1 from jsonb_array_elements_text(names) n where lower(btrim(n))='alle'\n   or ((lower(btrim(n))=lower(btrim(pname)) or exists(select 1 from unnest(aliases) a where lower(btrim(a))=lower(btrim(n))))\n     and 1=(select count(*) from public.household_people candidate where candidate.household_id=(select household_id from public.household_people where id=pid)\n       and (lower(btrim(candidate.name))=lower(btrim(n)) or exists(select 1 from unnest(candidate.name_aliases) a where lower(btrim(a))=lower(btrim(n))))))) end;\n$function$\n",
+        "name": "task_assigned_to"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "authenticated=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION private.sync_calendar_mutation(p_mutation_id uuid, p_household_id uuid, p_expected jsonb, p_upserts jsonb, p_delete_ids uuid[])\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare uid uuid:=auth.uid(); receipt public.calendar_mutation_receipts; original_done jsonb; before_counts jsonb:='[]';\n week_start date; local_today date:=(now() at time zone 'Europe/Copenhagen')::date;\n person record; prior record; after_count integer; boundary integer; celebration public.reward_celebrations;\n celebrations jsonb:='[]'; versions jsonb; new_completion boolean; task_list jsonb; mutation_key text;\nbegin\n if uid is null or not private.is_household_member(p_household_id) then raise exception 'Household access denied' using errcode='42501'; end if;\n if p_mutation_id is null then raise exception 'Mutation ID required'; end if;\n perform pg_advisory_xact_lock(hashtextextended(p_household_id::text,0));\n select * into receipt from public.calendar_mutation_receipts where id=p_mutation_id;\n if found then\n   if receipt.household_id<>p_household_id or receipt.user_id<>uid then raise exception 'Mutation access denied' using errcode='42501'; end if;\n   return jsonb_build_object('already_applied',true,'row_versions',receipt.row_versions,'celebrations','[]'::jsonb);\n end if;\n -- Compute before/after only for weeks with possible new completions. No load-time claims.\n for week_start in select distinct date_trunc('week',(e->>'date')::date)::date\n   from jsonb_array_elements(p_upserts) e\n   where e->>'type'='Opgave' and e->>'done'='true' and (e->>'date')::date<=local_today\n loop\n   select coalesce(jsonb_agg(to_jsonb(t)),'[]') into original_done from private.completed_task_rows(p_household_id,week_start,least(week_start+6,local_today)) t;\n   new_completion=false;\n   for person in select e from jsonb_array_elements(p_upserts) e\n     where e->>'type'='Opgave' and e->>'done'='true' and (e->>'date')::date between week_start and least(week_start+6,local_today)\n   loop\n     mutation_key=coalesce(nullif(person.e->'data'->>'overrideBaseId',''),nullif(person.e->'data'->>'overrideOf',''),person.e->>'id')||'|'||\n       coalesce(nullif(person.e->'data'->>'originalDate',''),person.e->>'date');\n     if not exists(select 1 from jsonb_array_elements(original_done) x where x->>'occurrence_key'=mutation_key)\n       and not exists(select 1 from public.calendar_items old where old.id=(person.e->>'id')::uuid and old.household_id=p_household_id and old.type='Opgave' and old.done)\n     then new_completion=true; end if;\n   end loop;\n   if not new_completion then continue; end if;\n   for person in select * from public.household_people where household_id=p_household_id and reward_enabled loop\n     select count(*) into after_count from private.completed_task_rows(p_household_id,week_start,least(week_start+6,local_today)) t\n       where private.task_assigned_to(t.person_ids,t.people,person.id,person.name,person.name_aliases);\n     before_counts=before_counts||jsonb_build_array(jsonb_build_object('person',person.id,'week',week_start,'count',after_count));\n   end loop;\n end loop;\n -- Existing tenant and row validation is preserved. The definer entry point explicitly\n -- checks auth/membership above; mutate_calendar additionally validates every row tenant.\n perform public.mutate_calendar(p_household_id,p_expected,p_upserts,p_delete_ids);\n for prior in select * from jsonb_to_recordset(before_counts) as x(person uuid,week date,count integer) loop\n   select * into person from public.household_people where id=prior.person and household_id=p_household_id and reward_enabled;\n   if not found then continue; end if;\n   select count(*) into after_count from private.completed_task_rows(p_household_id,prior.week,least(prior.week+6,local_today)) t\n     where private.task_assigned_to(t.person_ids,t.people,person.id,person.name,person.name_aliases);\n   select coalesce(jsonb_agg(x.title),'[]') into task_list from (\n     select t.title from private.completed_task_rows(p_household_id,prior.week,least(prior.week+6,local_today)) t\n     where private.task_assigned_to(t.person_ids,t.people,person.id,person.name,person.name_aliases) order by t.date desc,t.id limit 6\n   ) x;\n   foreach boundary in array array[7,9,12] loop\n     if prior.count<boundary and after_count>=boundary then\n       insert into public.reward_celebrations(household_id,person_id,iso_year,iso_week,threshold,completed_count,tasks)\n       values(p_household_id,person.id,extract(isoyear from prior.week)::int,extract(week from prior.week)::int,boundary,after_count,task_list)\n       on conflict(household_id,person_id,iso_year,iso_week,threshold) do nothing returning * into celebration;\n       if found then celebrations=celebrations||jsonb_build_array(to_jsonb(celebration)); end if;\n     end if;\n   end loop;\n end loop;\n select coalesce(jsonb_object_agg(i.id,i.updated_at),'{}') into versions from public.calendar_items i\n where i.household_id=p_household_id and i.id in(select (e->>'id')::uuid from jsonb_array_elements(p_upserts) e);\n insert into public.calendar_mutation_receipts(id,household_id,user_id,row_versions) values(p_mutation_id,p_household_id,uid,versions);\n return jsonb_build_object('already_applied',false,'row_versions',versions,'celebrations',celebrations);\nend $function$\n",
+        "name": "sync_calendar_mutation"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "authenticated=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION private.register_device(p_installation_id uuid, p_household_id uuid, p_platform text, p_app_version text, p_push_token text DEFAULT NULL::text)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\nbegin\n if auth.uid() is null or not private.is_household_member(p_household_id) then raise exception 'Forbidden' using errcode='42501'; end if;\n -- A refreshed OS token belongs to one active account. It is never exposed to other members.\n if p_push_token is not null then delete from public.native_devices where push_token=p_push_token and (user_id,installation_id)<>(auth.uid(),p_installation_id); end if;\n insert into public.native_devices(user_id,installation_id,household_id,platform,app_version,push_token)\n values(auth.uid(),p_installation_id,p_household_id,p_platform,p_app_version,p_push_token)\n on conflict(user_id,installation_id) do update set household_id=excluded.household_id,platform=excluded.platform,app_version=excluded.app_version,push_token=excluded.push_token,last_seen=now(),expires_at=now()+interval '1 day';\nend $function$\n",
+        "name": "register_device"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "authenticated=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION private.account_deletion_plan()\n RETURNS jsonb\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\nbegin\n if auth.uid() is null then raise exception 'Authentication required' using errcode='42501'; end if;\n return jsonb_build_object('pending',exists(select 1 from public.account_deletion_jobs where user_id=auth.uid()),\n 'households',coalesce((select jsonb_agg(jsonb_build_object('id',h.id,'name',h.name,'role',m.role,\n 'members',(select count(*) from public.household_members n where n.household_id=h.id),\n 'requires_deletion',m.role='owner' and not exists(select 1 from public.household_members n where n.household_id=h.id and n.role='owner' and n.user_id<>auth.uid())))\n from public.households h join public.household_members m on m.household_id=h.id where m.user_id=auth.uid()),'[]'::jsonb));\nend $function$\n",
+        "name": "account_deletion_plan"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "service_role=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION private.begin_account_deletion(p_user_id uuid, p_delete_households uuid[])\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare required uuid[]; job public.account_deletion_jobs; uid_email text;\nbegin\n if coalesce(auth.role(),'')<>'service_role' then raise exception 'Server only' using errcode='42501'; end if;\n perform pg_advisory_xact_lock(hashtextextended(p_user_id::text,5));\n perform 1 from auth.users where id=p_user_id for update;\n if not found then raise exception 'Account not found'; end if;\n select * into job from public.account_deletion_jobs where user_id=p_user_id;\n if found then return jsonb_build_object('household_ids',job.household_ids,'pending',true); end if;\n -- Lock the family parents before counting members; concurrent invitations/deletions serialize.\n perform 1 from public.households h where exists(select 1 from public.household_members m where m.household_id=h.id and m.user_id=p_user_id) order by h.id for update;\n select coalesce(array_agg(m.household_id order by m.household_id),'{}') into required\n from public.household_members m where m.user_id=p_user_id and m.role='owner'\n and not exists(select 1 from public.household_members n where n.household_id=m.household_id and n.role='owner' and n.user_id<>p_user_id);\n if required<>array(select distinct x from unnest(coalesce(p_delete_households,'{}')) x order by x) then\n  raise exception 'Confirm each family where you are the only owner, or transfer ownership first' using errcode='23514';\n end if;\n if exists(select 1 from storage.objects where (owner_id=p_user_id::text or owner=p_user_id) and bucket_id<>'household-avatars') then\n  raise exception 'Account owns unsupported storage objects' using errcode='23514';\n end if;\n insert into public.account_deletion_jobs(user_id,household_ids) values(p_user_id,required);\n -- Keep family-owned images for remaining members. Ownership metadata is not the access rule:\n -- the private bucket uses household membership. No files are deleted via SQL.\n update storage.objects set owner=null,owner_id=null where bucket_id='household-avatars' and (owner_id=p_user_id::text or owner=p_user_id);\n select lower(email) into uid_email from auth.users where id=p_user_id;\n delete from public.household_invitations where invited_by=p_user_id or lower(email)=uid_email;\n delete from public.calendar_feeds where household_id=any(required);\n delete from public.households where id=any(required);\n update public.households set created_by=null where created_by=p_user_id;\n update public.calendar_items set created_by=null where created_by=p_user_id;\n delete from public.native_devices where user_id=p_user_id;\n delete from public.calendar_mutation_receipts where user_id=p_user_id;\n delete from public.household_members where user_id=p_user_id;\n delete from public.profiles where id=p_user_id;\n return jsonb_build_object('household_ids',required,'pending',true);\nend $function$\n",
+        "name": "begin_account_deletion"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "service_role=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION private.account_deletion_objects(p_user_id uuid)\n RETURNS TABLE(name text)\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\nbegin\n if coalesce(auth.role(),'')<>'service_role' then raise exception 'Server only' using errcode='42501'; end if;\n return query select o.name from storage.objects o join public.account_deletion_jobs j on j.user_id=p_user_id\n where o.bucket_id='household-avatars' and split_part(o.name,'/',1)=any(array(select unnest(j.household_ids)::text)) order by o.name limit 100;\nend $function$\n",
+        "name": "account_deletion_objects"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres",
+          "authenticated=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION private.export_family_data(p_household_id uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\nbegin\n if auth.uid() is null or not private.is_household_member(p_household_id) then raise exception 'Forbidden' using errcode='42501'; end if;\n return jsonb_build_object('format_version',1,'exported_at',now(),\n 'household',(select jsonb_build_object('id',id,'name',name,'created_at',created_at) from public.households where id=p_household_id),\n 'people',coalesce((select jsonb_agg(to_jsonb(p)-'avatar_url') from public.household_people p where household_id=p_household_id),'[]'),\n 'calendar_and_tasks',coalesce((select jsonb_agg(to_jsonb(i)-'data'||jsonb_build_object('data',\n  (select coalesce(jsonb_object_agg(key,value),'{}') from jsonb_each(i.data) where key=any(array['title','date','time','person','people','personIds','type','note','done','location','durationMin','repeatWeekly','repeatYearly','repeatUntil','birthYear','seriesId','overrideOf','overrideBaseId','exceptions','weekdays','originalDate','previousSeriesId','emoji','taskEmoji']))))\n  from public.calendar_items i where household_id=p_household_id),'[]'),\n 'reward_state',coalesce((select jsonb_agg(to_jsonb(r)) from public.reward_celebrations r where household_id=p_household_id),'[]'),\n 'feed_metadata',coalesce((select jsonb_agg(jsonb_build_object('id',id,'source',source,'name',name,'assigned_person_id',assigned_person_id,'assigned_person_name',assigned_person_name,'is_active',is_active,'last_sync_at',last_sync_at,'last_sync_status',last_sync_status)) from public.calendar_feeds where household_id=p_household_id),'[]'),\n 'memberships',coalesce((select jsonb_agg(to_jsonb(m)) from public.list_household_members(p_household_id) m),'[]'));\nend $function$\n",
+        "name": "export_family_data"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION private.block_deleting_account()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare uid uuid;\nbegin\n if tg_table_name='households' then uid=new.created_by; elsif tg_table_name='household_members' then uid=new.user_id; else uid=new.id; end if;\n if uid is not null then\n  perform 1 from auth.users where id=uid for update;\n  if exists(select 1 from public.account_deletion_jobs where user_id=uid) then raise exception 'Account deletion in progress' using errcode='42501'; end if;\n end if;\n return new;\nend $function$\n",
+        "name": "block_deleting_account"
+      },
+      {
+        "acl": [
+          "postgres=X/postgres"
+        ],
+        "definition": "CREATE OR REPLACE FUNCTION private.guard_tenant_row()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\nbegin\n if new.household_id is distinct from old.household_id then raise exception 'Household cannot be changed'; end if;\n if new.id is distinct from old.id then raise exception 'Row identity cannot be changed'; end if;\n if tg_table_name='calendar_items' then\n if new.created_by is distinct from old.created_by then\n  if not (current_user in ('postgres','service_role') and new.created_by is null) then raise exception 'Creator cannot be changed'; end if;\n end if;\n end if;\n return new;\nend $function$\n",
+        "name": "guard_tenant_row"
+      }
+    ],
+    "rls": [
+      {
+        "enabled": true,
+        "forced": false,
+        "table": "calendar_revisions"
+      },
+      {
+        "enabled": true,
+        "forced": false,
+        "table": "profiles"
+      },
+      {
+        "enabled": true,
+        "forced": false,
+        "table": "households"
+      },
+      {
+        "enabled": true,
+        "forced": false,
+        "table": "household_members"
+      },
+      {
+        "enabled": true,
+        "forced": false,
+        "table": "calendar_items"
+      },
+      {
+        "enabled": true,
+        "forced": false,
+        "table": "calendar_feeds"
+      },
+      {
+        "enabled": true,
+        "forced": false,
+        "table": "household_people"
+      },
+      {
+        "enabled": true,
+        "forced": false,
+        "table": "household_invitations"
+      },
+      {
+        "enabled": true,
+        "forced": false,
+        "table": "reward_celebrations"
+      },
+      {
+        "enabled": true,
+        "forced": false,
+        "table": "calendar_mutation_receipts"
+      },
+      {
+        "enabled": true,
+        "forced": false,
+        "table": "native_devices"
+      },
+      {
+        "enabled": true,
+        "forced": false,
+        "table": "account_deletion_jobs"
+      }
+    ],
+    "triggers": [
+      {
+        "definition": "CREATE TRIGGER guard_tenant BEFORE UPDATE ON public.household_people FOR EACH ROW EXECUTE FUNCTION private.guard_tenant_row()",
+        "table": "household_people"
+      },
+      {
+        "definition": "CREATE TRIGGER guard_tenant BEFORE UPDATE ON public.calendar_items FOR EACH ROW EXECUTE FUNCTION private.guard_tenant_row()",
+        "table": "calendar_items"
+      },
+      {
+        "definition": "CREATE TRIGGER guard_tenant BEFORE UPDATE ON public.calendar_feeds FOR EACH ROW EXECUTE FUNCTION private.guard_tenant_row()",
+        "table": "calendar_feeds"
+      },
+      {
+        "definition": "CREATE TRIGGER touch_updated_at BEFORE UPDATE ON public.profiles FOR EACH ROW EXECUTE FUNCTION private.touch_updated_at()",
+        "table": "profiles"
+      },
+      {
+        "definition": "CREATE TRIGGER touch_updated_at BEFORE UPDATE ON public.household_people FOR EACH ROW EXECUTE FUNCTION private.touch_updated_at()",
+        "table": "household_people"
+      },
+      {
+        "definition": "CREATE TRIGGER touch_updated_at BEFORE UPDATE ON public.calendar_items FOR EACH ROW EXECUTE FUNCTION private.touch_updated_at()",
+        "table": "calendar_items"
+      },
+      {
+        "definition": "CREATE TRIGGER touch_updated_at BEFORE UPDATE ON public.calendar_feeds FOR EACH ROW EXECUTE FUNCTION private.touch_updated_at()",
+        "table": "calendar_feeds"
+      },
+      {
+        "definition": "CREATE TRIGGER keep_person_identity BEFORE INSERT OR UPDATE ON public.household_people FOR EACH ROW EXECUTE FUNCTION private.keep_person_identity()",
+        "table": "household_people"
+      },
+      {
+        "definition": "CREATE TRIGGER validate_item_people BEFORE INSERT OR UPDATE ON public.calendar_items FOR EACH ROW EXECUTE FUNCTION private.validate_item_people()",
+        "table": "calendar_items"
+      },
+      {
+        "definition": "CREATE TRIGGER protect_person_references BEFORE DELETE ON public.household_people FOR EACH ROW EXECUTE FUNCTION private.protect_person_references()",
+        "table": "household_people"
+      },
+      {
+        "definition": "CREATE TRIGGER validate_feed BEFORE INSERT OR UPDATE ON public.calendar_feeds FOR EACH ROW EXECUTE FUNCTION private.validate_feed()",
+        "table": "calendar_feeds"
+      },
+      {
+        "definition": "CREATE TRIGGER calendar_revision AFTER INSERT OR DELETE OR UPDATE ON public.calendar_items FOR EACH ROW EXECUTE FUNCTION private.bump_calendar_revision()",
+        "table": "calendar_items"
+      },
+      {
+        "definition": "CREATE TRIGGER calendar_revision AFTER INSERT OR DELETE OR UPDATE ON public.household_people FOR EACH ROW EXECUTE FUNCTION private.bump_calendar_revision()",
+        "table": "household_people"
+      },
+      {
+        "definition": "CREATE TRIGGER calendar_revision AFTER INSERT OR DELETE OR UPDATE ON public.calendar_feeds FOR EACH ROW EXECUTE FUNCTION private.bump_calendar_revision()",
+        "table": "calendar_feeds"
+      },
+      {
+        "definition": "CREATE TRIGGER default_person_rewards BEFORE INSERT ON public.household_people FOR EACH ROW EXECUTE FUNCTION private.default_person_rewards()",
+        "table": "household_people"
+      },
+      {
+        "definition": "CREATE TRIGGER block_deleting_account BEFORE INSERT ON public.households FOR EACH ROW EXECUTE FUNCTION private.block_deleting_account()",
+        "table": "households"
+      },
+      {
+        "definition": "CREATE TRIGGER block_deleting_account BEFORE INSERT OR UPDATE ON public.household_members FOR EACH ROW EXECUTE FUNCTION private.block_deleting_account()",
+        "table": "household_members"
+      },
+      {
+        "definition": "CREATE TRIGGER block_deleting_account BEFORE INSERT OR UPDATE ON public.profiles FOR EACH ROW EXECUTE FUNCTION private.block_deleting_account()",
+        "table": "profiles"
+      }
+    ]
+  }
+}

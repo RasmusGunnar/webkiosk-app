@@ -1,0 +1,22 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": [
+          "VERIFIED_TEAM_ID.dk.rasmusgunnar.familiekalender"
+        ],
+        "components": [
+          {
+            "/": "/auth/callback"
+          },
+          {
+            "/": "/invite"
+          },
+          {
+            "/": "/calendar"
+          }
+        ]
+      }
+    ]
+  }
+}

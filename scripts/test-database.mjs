@@ -40,3 +40,7 @@ console.log('PASS: ' + (rewardsAcceptance.match(/select pg_temp\.(assert_true|ex
 const productAcceptance=readFileSync('supabase/tests/database/product.sql','utf8')
 sql(productAcceptance)
 console.log('PASS: '+(productAcceptance.match(/select pg_temp\.(assert_true|expect_error)\(/g)||[]).length+' product member/privacy/invitation SQL checks')
+
+const releaseAcceptance=readFileSync('supabase/tests/database/release.sql','utf8')
+sql(releaseAcceptance)
+console.log('PASS: '+(releaseAcceptance.match(/select pg_temp\.(assert_true|expect_error)\(/g)||[]).length+' release deletion, export and device RLS checks')

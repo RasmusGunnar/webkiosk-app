@@ -37,7 +37,8 @@ async function unlock(page,tab='device') {
 async function checkLayout(page,label) {
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),label+' page overflow').toBe(true)
  await expect(page.locator('.product-nav')).toBeVisible();await expect(page.locator('#new-calendar-button')).toBeInViewport()
- const nav=await page.locator('.product-nav').boundingBox();expect(nav.x>=0&&nav.x+nav.width<=page.viewportSize().width+1).toBe(true)
+ // Read layout atomically and retry if realtime replaces the navigation between checks.
+ await expect.poll(()=>page.evaluate(()=>{const nav=document.querySelector('.product-nav')?.getBoundingClientRect();return Boolean(nav&&nav.width>0&&nav.x>=0&&nav.right<=innerWidth+1)}),{message:label+' navigation fits viewport'}).toBe(true)
  await page.screenshot({path:'supabase/.temp/mega4/'+label+'.png',fullPage:true})
 }
 let phone,wall,hid,uid,person

@@ -1,0 +1,12 @@
+*
+!app
+!app/**
+!vercel.json
+app/.env*
+app/node_modules
+app/dist
+app/android
+app/ios
+app/tests
+app/.vercel
+app/resources

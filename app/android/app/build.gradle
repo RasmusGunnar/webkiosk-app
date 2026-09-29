@@ -1,0 +1,75 @@
+apply plugin: 'com.android.application'
+
+def signingValues = ['FK_KEYSTORE_PATH','FK_KEYSTORE_PASSWORD','FK_KEY_ALIAS','FK_KEY_PASSWORD'].collectEntries { [(it): System.getenv(it)] }
+def hasReleaseSigning = signingValues.values().every { it }
+android {
+    signingConfigs {
+        if (hasReleaseSigning) {
+            release {
+                storeFile file(signingValues.FK_KEYSTORE_PATH)
+                storePassword signingValues.FK_KEYSTORE_PASSWORD
+                keyAlias signingValues.FK_KEY_ALIAS
+                keyPassword signingValues.FK_KEY_PASSWORD
+            }
+        }
+    }
+    namespace = "dk.rasmusgunnar.familiekalender"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "dk.rasmusgunnar.familiekalender"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 1
+        versionName "1.0.0"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    buildTypes {
+        release {
+            if (hasReleaseSigning) signingConfig signingConfigs.release
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}
+
+
+// Fail closed: a release must never silently use debug or missing signing.
+gradle.taskGraph.whenReady { graph ->
+ if (graph.allTasks.any { it.name == 'bundleRelease' || it.name == 'assembleRelease' } && !hasReleaseSigning) {
+  throw new GradleException('Set FK_KEYSTORE_PATH, FK_KEYSTORE_PASSWORD, FK_KEY_ALIAS and FK_KEY_PASSWORD for release signing.')
+ }
+}

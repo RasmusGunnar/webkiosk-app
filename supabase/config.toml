@@ -25,7 +25,7 @@ port = 59324
 [auth]
 enabled = true
 site_url = "http://127.0.0.1:5178"
-additional_redirect_urls = ["http://localhost:5173", "http://127.0.0.1:5178"]
+additional_redirect_urls = ["http://localhost:5173/**", "http://127.0.0.1:5178/**", "http://127.0.0.1:5179/**", "familiekalender://auth/callback"]
 enable_signup = true
 minimum_password_length = 8
 [auth.email]
@@ -36,4 +36,8 @@ enabled = true
 file_size_limit = "2MiB"
 [functions.import-calendar-feed]
 # JWT validation is performed explicitly with auth.getUser() before any feed access.
+verify_jwt = false
+
+[functions.delete-account]
+# Explicit getUser JWT validation and password reauthentication inside the function.
 verify_jwt = false

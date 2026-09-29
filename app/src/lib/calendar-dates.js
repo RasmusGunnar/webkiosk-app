@@ -38,3 +38,10 @@ export function preferredView(storage, width) {
   try { const saved=storage.getItem(VIEW_KEY); if (['day','week'].includes(saved)) return saved } catch {}
   return width<700?'day':'week'
 }
+
+export function monthDates(value) {
+  const date=parseDate(value)
+  if(!date)throw new Error("Ugyldig dato")
+  const year=date.getFullYear(),month=date.getMonth(),count=new Date(year,month+1,0,12).getDate()
+  return Array.from({length:count},(_,i)=>dateIso(new Date(year,month,i+1,12)))
+}

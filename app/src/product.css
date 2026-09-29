@@ -1,0 +1,175 @@
+/* Product UX 2: one data model, two deliberate ways to use the family calendar. */
+:root{--ux-green:#285b49;--ux-sage:#e8eee1;--ux-peach:#f8e5d1;--ux-line:#dde3d9;--radius:14px;--shadow-soft:0 5px 18px #20352509;--shadow:0 12px 44px #24352a0b}
+[hidden]{display:none!important}
+button,a,input,select,textarea{-webkit-tap-highlight-color:transparent}
+button{min-height:44px;box-shadow:none;transition:background .15s,border-color .15s,transform .15s}
+button:hover{box-shadow:none;background:#edf1e9}
+button:focus-visible,a:focus-visible,summary:focus-visible{outline:3px solid #3b8165;outline-offset:3px}
+input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid #3b8165;outline-offset:2px}
+.ux-icon{width:22px;height:22px;flex:none;vertical-align:middle}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+body[data-mode] .app-shell{max-width:1800px;margin:auto}
+body[data-mode=desktop] .app-shell{width:100%;padding:32px 40px 120px 276px}
+.dashboard-header{border:0;margin-bottom:24px;padding:0;gap:20px}
+.ux-brand{display:flex;align-items:center;gap:12px;min-width:0}
+.ux-brand-icon{display:grid;place-items:center;background:var(--ux-green);color:white;width:44px;height:48px;border-radius:14px 14px 18px 14px;flex:none}
+.ux-brand h1{font-size:22px;letter-spacing:-.04em;margin:0;line-height:1.25;overflow-wrap:anywhere}
+.ux-brand .eyebrow{font-size:10px;letter-spacing:.12em;margin:0 0 4px;color:#677565}
+.logout-button{font-weight:500;color:#64705e;border:0;background:transparent;box-shadow:none;font-size:13px}
+body[data-mode=desktop] .product-nav{position:fixed;inset:120px auto 28px 24px;width:210px;margin:0;padding:12px;display:flex;flex-direction:column;align-items:stretch;gap:7px;border:1px solid var(--ux-line);border-radius:22px;background:#ffffffb8;z-index:20}
+body[data-mode=desktop] .product-nav:before{content:'VORES HVERDAG';font-size:10px;letter-spacing:.16em;padding:18px 14px;color:#7a8475;font-weight:700}
+.product-nav button{display:flex;align-items:center;gap:12px;border:0;background:transparent;font-weight:550;color:#65715f;min-height:52px;text-align:left}
+.product-nav button[aria-current=page]{background:var(--accent);color:white;box-shadow:0 4px 10px #263b3210}
+.product-nav button .ux-icon{opacity:.85}
+.household-switch{max-width:260px;margin-bottom:18px;font-size:11px}
+.sync-status:empty{display:none}.sync-status{font-size:12px;line-height:1.6;margin-bottom:8px}
+.person-chipbar{gap:8px;margin-bottom:24px;flex-wrap:wrap}
+.person-chip{border:1px solid var(--ux-line)!important;padding:5px 12px 5px 6px;min-height:44px;box-shadow:none;border-radius:30px;background:#fff;color:#344232;gap:8px;font-size:13px;font-weight:600}
+.person-chip.active{background:var(--accent);color:#fff;border-color:var(--accent)!important}
+.person-chip-avatar{width:28px;height:28px;font-size:12px}
+.reward-progress{font-size:12px}
+.calendar-heading{align-items:center;margin-bottom:22px;gap:16px}
+.calendar-heading h2{font-size:26px;letter-spacing:-.045em;margin:0 0 4px;font-weight:720}
+.calendar-heading p{font-size:13px;color:#76806e}
+body[data-route=today] .calendar-heading{margin-bottom:16px}
+body[data-route=today] .calendar-heading h2{font-size:18px}
+body[data-route=today] #calendar-heading-label{display:none}
+.calendar-toolbar button{font-weight:550;font-size:12px;background:#fff}
+#calendar-today-button{background:var(--ux-sage);border-color:transparent;color:var(--ux-green)}
+.panel,.day-card{border:1px solid var(--ux-line);border-radius:18px;box-shadow:none}
+.ux-welcome{position:relative;display:flex;align-items:center;justify-content:space-between;gap:20px;border-radius:22px;background:var(--ux-sage);padding:28px 30px;margin-bottom:16px;overflow:hidden;color:#244c3b}
+.ux-welcome h3{font-family:Georgia,'Times New Roman',serif;font-weight:400;line-height:1.18;font-size:clamp(25px,3vw,38px);letter-spacing:-.035em;margin:10px 0 12px}
+.ux-welcome h3 span{display:block}.ux-welcome p:last-child{font-size:13px;line-height:1.6;color:#576e50;margin:0}
+.ux-welcome .eyebrow{font-size:10px;letter-spacing:.13em;text-transform:uppercase}
+.ux-welcome-sun{display:grid;place-items:center;flex:none;width:110px;height:110px;border-radius:50%;border:1px solid #8da78066;background:#f5f6e260;transform:rotate(-12deg)}
+.ux-welcome-sun svg{width:60px;height:60px;stroke-width:.8}
+.ux-day-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:22px}
+.ux-day-stats button{display:flex;align-items:center;gap:12px;min-height:76px;padding:16px;background:#fff;border:1px solid var(--ux-line);font-size:12px;color:#76806e;text-align:left;font-weight:450}
+.ux-day-stats button>svg:first-child{color:var(--ux-green)}.ux-day-stats button>svg:last-child{margin-left:auto;width:16px;color:#8b9684}
+.ux-day-stats strong{display:block;font-size:23px;font-weight:650;color:#283c2e;line-height:1.2;margin-bottom:3px;font-variant-numeric:tabular-nums}
+.ux-capture{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 24px}.ux-capture>span{font-size:11px;color:#76806e;margin-right:auto}
+.ux-capture button{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:550;border-color:var(--ux-line);background:transparent;padding:8px 12px}.ux-capture svg{width:16px}
+.home-layout{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(260px,1fr);gap:20px;align-items:start}
+.home-aside{display:grid;gap:16px;min-width:0}.home-aside .panel{padding:22px;background:#fff}.home-aside .eyebrow{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#6e7c67}
+.day-card{background:#fff;padding:20px}.day-card.is-today{box-shadow:none;border-color:#77926a}
+.day-card-header{border-bottom:1px solid #edf0e9;padding-bottom:15px;margin-bottom:20px}.day-card-header strong{font-size:16px;text-transform:capitalize}.day-card-header span{font-size:12px;color:#7a8472}
+.day-add-button{width:32px;height:32px;min-height:32px;border-radius:50%;border-color:var(--ux-line)}
+.calendar-day-section h3{font-size:10px;letter-spacing:.09em;text-transform:uppercase;font-weight:650;color:#8a9282;margin:0 0 10px}
+.calendar-item{border:1px solid #e7eae2;border-left:3px solid var(--person-color,#bdc9b7);background:#fff;box-shadow:none;border-radius:10px;margin-top:8px;min-height:52px}
+.calendar-item.is-done{background:#f4f7ef}.calendar-item-title-row strong{font-size:14px;line-height:1.45;font-weight:600}.calendar-item-meta{font-size:11px;line-height:1.6;color:#778270}.calendar-time-badge{background:#f0f3ec;color:#53664b;font-weight:650;font-size:11px}.empty-section{font-size:12px;color:#9aa18f}
+.ux-dinner{background:var(--ux-peach);border:1px solid #ead6bf;border-radius:18px;padding:24px;color:#775631;overflow-wrap:anywhere}
+.ux-dinner-top{display:flex;align-items:center;gap:10px;margin-bottom:18px}.ux-dinner-top>span{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:#fff7ec}.ux-dinner-top .eyebrow{margin:0;font-size:10px;color:#947048;letter-spacing:.12em;text-transform:uppercase}
+.ux-dinner h3,.ux-dinner-name strong{font-family:Georgia,'Times New Roman',serif;font-size:25px;font-weight:400;line-height:1.25;letter-spacing:-.025em}
+.ux-dinner p{font-size:12px;line-height:1.6}.ux-dinner-name{display:block;text-align:left;padding:0;border:0;background:none;color:inherit;min-height:44px;width:100%}.ux-dinner-name small{display:block;color:#92704c;margin-top:8px;font-size:12px}.ux-dinner-name:hover{background:transparent}
+.ux-link{display:flex;align-items:center;gap:10px;justify-content:space-between;background:transparent;border:0;border-top:1px solid #d9c1a6;width:100%;border-radius:0;padding:14px 0 0;margin-top:18px;color:#775631;font-size:12px;font-weight:600}.ux-link:hover{background:transparent}
+.upcoming-event{border:0;border-left:3px solid;box-shadow:none;background:#f7f8f4;border-radius:4px 12px 12px 4px;padding:14px;width:100%;font-weight:400;line-height:1.5}.upcoming-event strong{font-size:14px;font-weight:650}.upcoming-event>span:last-child{font-size:11px;color:#76836d}
+.ux-quiet-empty{display:flex;align-items:center;gap:12px;color:#7b8772;padding-top:12px;font-size:13px}.ux-quiet-empty svg{width:30px;height:30px}
+.floating-new-button{display:flex;align-items:center;justify-content:center;gap:8px;min-height:50px;border-radius:28px;padding:12px 20px;background:var(--accent);border:0;color:#fff;font-size:13px;box-shadow:0 6px 24px #1f392a25;bottom:24px;right:92px}
+.floating-new-button:hover{background:#385d47;color:#fff}.floating-settings-button{display:grid;place-items:center;right:28px;bottom:24px;width:50px;height:50px;background:#fff;box-shadow:0 4px 18px #22332912;border-color:var(--ux-line);border-radius:50%}
+.quick-create button{font-size:12px;font-weight:500}.segmented-control{gap:6px;margin-bottom:24px}.segmented-control button{border-radius:12px;font-size:12px;min-height:44px}.task-date-group>h3{font-size:12px;color:#69765e;text-transform:capitalize;margin:20px 0 10px}.task-view{max-width:960px}.task-view .calendar-item{padding:18px}.task-view .calendar-item-title-row strong{font-size:16px}.completed-tasks{margin-top:18px}.completed-tasks summary,.shopping-completed summary{min-height:44px;cursor:pointer;padding:12px 0;color:#718065;font-size:13px}
+.ux-view-intro{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:22px 0 28px}.ux-view-intro h3{font-size:29px;font-family:Georgia,'Times New Roman',serif;font-weight:400;letter-spacing:-.03em;margin:6px 0 8px;color:#304b34}.ux-view-intro p{font-size:13px;color:#76826a;line-height:1.6}.ux-view-intro .eyebrow{font-size:10px;letter-spacing:.12em;text-transform:uppercase}.ux-round-icon{display:grid;place-items:center;width:68px;height:68px;background:var(--ux-sage);border-radius:50%;color:var(--ux-green)}.ux-round-icon svg{width:32px;height:32px}
+.meal-week-nav{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:20px}.meal-week-nav>button{background:#fff;width:44px;height:44px}.meal-week-nav>div{text-align:center}.meal-week-nav strong{display:block;font-weight:550;font-size:13px}.meal-week-nav .text-button{font-size:11px;min-height:28px;margin-top:0}
+.meal-week{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.meal-day{border:1px solid var(--ux-line);border-radius:16px;background:#fff;overflow:hidden;min-width:0}.meal-day.is-today{border-color:#547a46}.meal-day>header{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:16px;border-bottom:1px solid #ebeee5;background:#f8f9f5;font-size:12px;text-transform:capitalize}.meal-day>header span{font-weight:650}.meal-day>header strong{font-weight:400;color:#829173;margin-left:auto}.meal-day>header small{font-size:9px;background:var(--ux-green);color:white;border-radius:5px;padding:3px 5px}.meal-day-content{padding:16px}.meal-card>button:first-child{display:flex;flex-direction:column;align-items:flex-start;gap:10px;width:100%;text-align:left;background:none;border:0;padding:0;overflow-wrap:anywhere}.meal-card strong{font-size:17px;font-weight:600;line-height:1.4}.meal-card small{font-size:11px;font-weight:450;color:#87907e}.meal-symbol{color:#8a6844;background:#fbeddc;border-radius:10px;padding:10px}.meal-card .ingredient-button{display:flex;align-items:center;gap:6px;font-size:10px;border:0;background:#f3f5ee;width:100%;margin:14px 0;min-height:38px;padding:7px}.ingredient-button .ux-icon{width:15px;height:15px}.meal-add{margin-top:16px;display:flex;align-items:center;justify-content:center;gap:6px;font-weight:500;color:#849175;border:1px dashed #cfd7c5;background:none;width:100%;font-size:11px}.meal-add svg{width:15px}.meal-empty{font-size:12px;color:#9aa28f;margin:18px 0 30px}
+.shopping-view{max-width:930px}.shopping-add{display:grid;grid-template-columns:minmax(0,1fr) 120px auto;gap:8px;padding:12px;background:var(--ux-sage);border-radius:18px}.shopping-add input{min-width:0;border:0;min-height:48px;font-size:14px}.shopping-add button{display:flex;align-items:center;justify-content:center;gap:6px;background:var(--ux-green);border:0;font-size:12px}.shopping-tip{font-size:11px;color:#849175;line-height:1.6;margin:10px 4px 24px}.shopping-groups{display:grid;gap:20px}.shopping-group{background:#fff;border-radius:16px;border:1px solid var(--ux-line);padding:20px}.shopping-group h4{font-size:12px;letter-spacing:.04em;margin:0 0 10px;color:#748264}.shopping-group h4 span{float:right;font-size:11px;color:#9ca890}.shopping-group ul,.shopping-completed ul{list-style:none;margin:0;padding:0}.shopping-row{display:flex;align-items:center;gap:10px;border-top:1px solid #edf0e7;min-height:66px}.shopping-row:first-child{border:0}.shopping-check{position:relative;flex:none;width:44px;height:44px;margin:0;display:grid;place-items:center}.shopping-check input{width:24px;height:24px;accent-color:var(--ux-green);margin:0;cursor:pointer}.shopping-check span{display:none}.shopping-name{flex:1;text-align:left;border:0;background:none;padding:8px 0;min-width:0;line-height:1.5}.shopping-name strong{display:block;font-size:15px;font-weight:550;overflow-wrap:anywhere}.shopping-name small{display:block;font-size:12px;color:#939e87;font-weight:400}.is-bought .shopping-name strong{text-decoration:line-through;color:#87947b}.shopping-completed{margin-top:24px;padding:0 20px;background:#f0f3eb;border-radius:14px}.shopping-completed .text-button{font-size:12px;color:#975d49;margin-bottom:14px}.ux-empty{padding:50px 24px;text-align:center;border:1px dashed #c9d4c0;border-radius:18px;color:#7d8d70;line-height:1.7}.ux-empty>svg{width:42px;height:42px;margin-bottom:16px}.ux-empty h4{font-size:20px;color:#4b6340;margin:0}.ux-empty p{font-size:13px;margin:10px 0 20px}.ux-empty button{font-size:12px;font-weight:550;background:transparent}.ux-empty button svg{width:16px;margin-left:10px}
+.ux-family-intro{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:28px;background:var(--ux-sage);border-radius:20px;margin-bottom:24px;color:var(--ux-green)}.ux-family-intro h3{font-family:Georgia,serif;font-size:30px;letter-spacing:-.025em;line-height:1.25;font-weight:400;margin:6px 0 12px}.ux-family-intro p{font-size:12px}.ux-family-intro .eyebrow{font-size:10px;letter-spacing:.1em;text-transform:uppercase}.ux-family-intro>svg{width:60px;height:60px;stroke-width:1}.ux-family-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-bottom:28px}.ux-family-person{background:#fff;border:1px solid var(--ux-line);border-radius:18px;padding:24px;text-align:center}.ux-family-avatar{width:64px;height:64px;border-radius:50%;object-fit:cover;display:inline-grid;place-items:center;font-size:24px;background:color-mix(in srgb,var(--person-color) 15%,white);color:var(--person-color);margin-bottom:14px}.ux-family-person h4{font-size:17px;margin:0 0 6px;overflow-wrap:anywhere}.ux-family-person p{font-size:12px;color:#8b9780}.ux-family-person button{font-size:11px;border:0;background:none;color:#748565;margin-top:16px}.ux-family-person button svg{width:14px;margin-left:6px}.ux-add-person{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;border:1px dashed #c0cdb5;background:transparent;min-height:208px;color:#869875;padding:24px}.ux-add-person svg{width:32px;height:32px}.ux-add-person strong{font-size:14px;font-weight:550}.ux-add-person span{font-size:11px;font-weight:400}.ux-family-tools{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.ux-family-tools button{display:flex;align-items:center;gap:16px;text-align:left;padding:22px;background:#fff;border-color:var(--ux-line);min-width:0}.ux-family-tools button>svg:first-child{color:#6f8b5c}.ux-family-tools strong{display:block;font-size:13px;font-weight:600}.ux-family-tools small{display:block;font-size:11px;font-weight:400;color:#859478;margin-top:6px;line-height:1.5}.ux-family-tools button>svg:last-child{margin-left:auto;width:16px;color:#9ea894}
+.plan-modal{max-width:600px;width:100%;padding:28px}.plan-modal h2{font-size:24px;letter-spacing:-.03em}.plan-modal .eyebrow{font-size:10px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px;color:#75826a}.plan-modal .modal-header button{width:44px;height:44px;border:0;background:#f1f4ec;font-size:24px;flex:none}.plan-modal input,.plan-modal textarea,.plan-modal select{font-size:16px;border-color:var(--ux-line);min-height:48px}.plan-modal label{font-size:12px;font-weight:600;color:#516446}.plan-modal .hint{font-size:12px;line-height:1.6;color:#839574}.plan-modal button[type=submit]{background:var(--ux-green);border-color:var(--ux-green)}.plan-note{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.8}.ux-readonly p{font-size:18px;line-height:1.6}.ux-readonly .hint{font-size:12px}
+/* Kiosk uses available space for people, plans and the evening meal. Administration stays behind settings. */
+body[data-mode=kiosk]{background:#f5f6f0}
+body[data-mode=kiosk] .app-shell{padding:24px 36px 90px;max-width:2400px}
+body[data-mode=kiosk] .dashboard-header{padding-bottom:18px;margin-bottom:14px;border-bottom:1px solid var(--ux-line)}
+body[data-mode=kiosk] #device-clock{font-family:Georgia,serif;font-weight:400;font-size:clamp(48px,5.5vw,82px);letter-spacing:-.055em;color:#274b36}
+body[data-mode=kiosk] #device-date{font-size:18px;color:#869176}
+.kiosk-heading>div>.eyebrow{font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:#7b8c6d;margin-bottom:8px}.kiosk-label{display:flex;align-items:center;gap:9px;font-size:13px;color:#8c977e}.ux-live-dot{width:7px;height:7px;border-radius:50%;background:#9bae88}
+body[data-mode=kiosk] .person-chipbar{margin-bottom:18px}body[data-mode=kiosk] .person-chip{font-size:16px;min-height:48px;padding-right:16px}
+body[data-mode=kiosk] .calendar-heading h2{font-size:20px}
+body[data-mode=kiosk] .home-layout{grid-template-columns:minmax(0,1fr) minmax(280px,30%);gap:24px}
+body[data-mode=kiosk] .home-layout>.day-view>.day-card{height:calc(100dvh - 320px);min-height:245px;overflow:auto;padding:24px}
+body[data-mode=kiosk] .home-layout .day-sections{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}
+body[data-mode=kiosk] .home-layout .calendar-day-section:last-child{grid-column:1/-1}
+body[data-mode=kiosk] .home-layout .calendar-item{padding:18px;min-height:70px}
+body[data-mode=kiosk] .home-layout .calendar-item-title-row strong{font-size:clamp(17px,1.35vw,25px);line-height:1.35}
+body[data-mode=kiosk] .home-layout .calendar-time-badge{font-size:16px}body[data-mode=kiosk] .home-layout .calendar-item-meta{font-size:14px}
+body[data-mode=kiosk] .home-layout .calendar-day-section h3{font-size:12px;color:#77866a}
+body[data-mode=kiosk] .home-aside{max-height:calc(100dvh - 320px);min-height:245px;overflow:auto;scrollbar-width:thin}
+body[data-mode=kiosk] .ux-dinner-name strong{font-size:clamp(25px,2vw,36px)}body[data-mode=kiosk] .ux-dinner-name small{font-size:16px}
+body[data-mode=kiosk] .upcoming-event strong{font-size:18px}body[data-mode=kiosk] .upcoming-event span{font-size:13px}
+body[data-mode=kiosk] .day-add-button,body[data-mode=kiosk] .quick-create,body[data-mode=kiosk] [data-quick-type],body[data-mode=kiosk] .floating-new-button{display:none!important}
+body[data-mode=kiosk] .product-nav{position:fixed;bottom:16px;left:50%;right:auto;transform:translateX(-50%);display:flex;gap:4px;padding:5px;margin:0;border:1px solid var(--ux-line);background:#fff;border-radius:18px;box-shadow:0 4px 20px #2c3e2210}
+body[data-mode=kiosk] .product-nav button{min-width:108px;min-height:44px;justify-content:center;font-size:12px;padding:8px 14px;border-radius:12px;gap:8px}
+body[data-mode=kiosk] .product-nav .ux-icon{width:17px;height:17px}
+body[data-mode=kiosk] .floating-settings-button{bottom:20px;right:28px;background:transparent;border:1px solid var(--ux-line);box-shadow:none;width:44px;height:44px}
+body[data-mode=kiosk] .kiosk-shortcuts a{font-size:13px;border-radius:12px;padding:12px 16px;background:#fff;border-color:var(--ux-line)}
+body[data-mode=kiosk][data-route=calendar] .calendar-item-title-row strong{font-size:15px}body[data-mode=kiosk][data-route=calendar] .week-grid{height:calc(100dvh - 322px);min-height:240px}
+body[data-mode=kiosk][data-density=compact] .home-layout{grid-template-columns:minmax(0,1fr) 270px;gap:16px}
+body[data-mode=kiosk][data-density=compact] .home-layout .day-sections{grid-template-columns:1fr;gap:18px}
+body[data-mode=kiosk][data-density=compact] .home-layout .calendar-item{padding:12px;min-height:55px}
+body[data-mode=kiosk][data-density=compact] .home-layout>.day-view>.day-card,body[data-mode=kiosk][data-density=compact] .home-aside{height:calc(100dvh - 300px);max-height:calc(100dvh - 300px);min-height:220px}
+body[data-mode=kiosk][data-density=compact] .ux-dinner{padding:18px}
+@media(min-width:700px) and (max-width:1100px){body[data-mode=desktop] .app-shell{padding:24px 24px 120px 110px}body[data-mode=desktop] .product-nav{left:12px;width:76px;padding:8px;inset-block:105px 24px}body[data-mode=desktop] .product-nav:before{display:none}body[data-mode=desktop] .product-nav button{flex-direction:column;justify-content:center;gap:5px;font-size:10px;padding:8px 0;min-height:70px}.home-layout{grid-template-columns:1fr}body[data-mode=desktop] .home-aside{grid-template-columns:1fr 1fr}.meal-week{grid-template-columns:repeat(2,minmax(0,1fr))}.ux-family-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.ux-family-tools{grid-template-columns:1fr}}
+@media(max-width:699px){
+ body[data-mode=mobile] .app-shell{width:100%;padding:calc(20px + env(safe-area-inset-top)) 18px calc(160px + env(safe-area-inset-bottom))}
+ body[data-mode=mobile] .dashboard-header{padding:0;margin-bottom:24px;align-items:center}.ux-brand-icon{width:36px;height:40px;border-radius:12px}.ux-brand{gap:10px}.ux-brand h1{font-size:19px}.ux-brand .eyebrow{font-size:9px}.logout-button{font-size:11px}
+ body[data-mode=mobile] .product-nav{position:fixed;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:2px;bottom:0;left:0;right:0;padding:10px 8px calc(9px + env(safe-area-inset-bottom));border:0;border-top:1px solid #e0e6d8;background:#fffffff7;margin:0;z-index:20}
+ body[data-mode=mobile] .product-nav button{display:flex;flex-direction:column;justify-content:center;gap:5px;min-width:0;min-height:52px;padding:5px 0;border-radius:12px;font-size:9px;font-weight:550;white-space:nowrap}
+ body[data-mode=mobile] .product-nav .ux-icon{width:20px;height:20px}
+ body[data-mode=mobile] .product-nav button[aria-current=page]{background:var(--ux-sage);color:var(--ux-green)}
+ body[data-mode=mobile] .floating-new-button{bottom:calc(88px + env(safe-area-inset-bottom));right:18px;min-height:46px;font-size:12px;padding:10px 16px}
+ body[data-mode=mobile] .floating-settings-button{bottom:calc(88px + env(safe-area-inset-bottom));right:auto;left:18px;width:46px;height:46px}
+ .person-chipbar{margin-bottom:20px;gap:6px}.person-chip{font-size:11px;padding-right:10px;min-height:40px}.person-chip-avatar{width:25px;height:25px}
+ .calendar-heading{align-items:flex-start;margin-bottom:20px}.calendar-heading h2{font-size:25px}.calendar-heading p{font-size:12px}.calendar-toolbar{width:100%}.calendar-nav button{min-height:40px;font-size:11px}
+ .ux-welcome{padding:23px 22px;border-radius:18px;gap:8px}.ux-welcome h3{font-size:27px}.ux-welcome .eyebrow{font-size:9px}.ux-welcome p:last-child{font-size:11px}.ux-welcome-sun{width:58px;height:58px}.ux-welcome-sun svg{width:38px;height:38px}
+ .ux-day-stats{gap:7px;margin-bottom:20px}.ux-day-stats button{padding:12px 9px;gap:7px;flex-wrap:wrap;font-size:9px;border-radius:12px;min-height:88px}.ux-day-stats button>svg:first-child{width:17px;height:17px}.ux-day-stats button>svg:last-child{display:none}.ux-day-stats button>span{display:block;width:100%}.ux-day-stats strong{display:inline;font-size:18px}.ux-capture{gap:6px}.ux-capture>span{width:100%;margin-bottom:4px;font-size:10px}.ux-capture button{flex:1;justify-content:center;font-size:11px;padding:6px;min-height:40px}
+ .home-layout{display:flex;flex-direction:column;gap:18px}.home-layout>.day-view{width:100%}.home-aside{order:0;width:100%;display:grid;grid-template-columns:1fr;gap:16px}.day-card{padding:18px}.day-card-header{margin-bottom:16px}.calendar-item-title-row strong{font-size:14px}.ux-dinner{padding:22px}.home-aside .panel{padding:20px}
+ .ux-view-intro{padding:12px 0 22px;gap:10px}.ux-view-intro h3{font-size:28px}.ux-view-intro p{font-size:12px}.ux-round-icon{width:52px;height:52px}.ux-round-icon svg{width:26px;height:26px}
+ .meal-week{grid-template-columns:1fr;gap:12px}.meal-day{display:grid;grid-template-columns:80px minmax(0,1fr)}.meal-day>header{flex-direction:column;justify-content:flex-start;align-items:center;border-bottom:0;border-right:1px solid #edf0e7;padding:18px 8px;gap:5px;font-size:11px}.meal-day>header strong{margin:0;font-size:10px}.meal-day-content{padding:16px}.meal-symbol{display:none}.meal-card strong{font-size:16px}.meal-card>button:first-child{gap:5px}.meal-card .ingredient-button{font-size:11px;min-height:40px}.meal-empty{margin:4px 0 12px;font-size:11px}.meal-add{margin-top:12px}.meal-week-nav strong{font-size:11px}
+ .shopping-add{grid-template-columns:minmax(0,1fr) 76px 44px;padding:8px;gap:5px;border-radius:14px}.shopping-add input{font-size:14px;padding:10px;min-height:48px}.shopping-add button{padding:0}.shopping-add button span{display:none}.shopping-tip{font-size:10px}.shopping-group{padding:16px}.shopping-name strong{font-size:15px}.shopping-row{gap:6px}.shopping-group h4{font-size:11px}
+ .ux-family-intro{padding:22px;gap:10px}.ux-family-intro h3{font-size:27px}.ux-family-intro>svg{width:44px;height:44px}.ux-family-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.ux-family-person{padding:20px 12px}.ux-family-avatar{width:54px;height:54px;font-size:21px}.ux-family-person h4{font-size:15px}.ux-family-person button{font-size:10px;padding:8px 2px}.ux-family-tools{grid-template-columns:1fr}.ux-family-tools button{padding:20px 16px;gap:14px}.ux-add-person{min-height:200px;padding:18px 10px}.ux-add-person strong{font-size:12px}.ux-add-person span{font-size:10px;line-height:1.5}
+ .plan-modal{padding:16px 18px calc(18px + env(safe-area-inset-bottom));border-radius:0}.plan-modal .modal-header{flex:none}.plan-modal h2{font-size:22px}.plan-modal:not(.stack-form){display:flex;flex-direction:column;overflow:hidden}#plan-form{overflow:auto;flex:1;min-height:0;padding:3px}#plan-form .modal-actions{position:sticky;bottom:-1px;background:#fff;padding-block:14px;display:flex;gap:8px;flex-wrap:wrap}#plan-form .modal-actions button{min-height:46px;font-size:13px;flex:1}.ux-readonly{overflow:auto!important}.ux-readonly p{font-size:17px}.ux-readonly .hint{font-size:12px}
+}
+@media(prefers-reduced-motion:reduce){button{transition:none}}
+
+/* Measured layouts: keep the wall content inside the physical viewport. */
+body[data-mode=kiosk] .app-shell{height:100dvh;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+body[data-mode=kiosk] .dashboard-header,body[data-mode=kiosk] .person-chipbar,body[data-mode=kiosk] .calendar-heading{flex-shrink:0}
+body[data-mode=kiosk] .calendar-section{display:flex;flex-direction:column;flex:1;min-height:0}
+body[data-mode=kiosk] #calendar-view{flex:1;min-height:0}
+body[data-mode=kiosk] .home-layout,body[data-mode=kiosk] .home-layout>.day-view,body[data-mode=kiosk] .week-scroll{height:100%;min-height:0}
+body[data-mode=kiosk] .home-layout>.day-view>.day-card,body[data-mode=kiosk][data-density=compact] .home-layout>.day-view>.day-card{height:100%;max-height:100%;min-height:0}
+body[data-mode=kiosk] .home-aside,body[data-mode=kiosk][data-density=compact] .home-aside{height:100%;max-height:100%;min-height:0;grid-template-columns:1fr;align-content:start}
+body[data-mode=kiosk] .home-layout .day-sections{align-content:start}
+body[data-mode=kiosk][data-route=calendar] .week-grid{height:100%;min-height:0}
+body[data-mode=kiosk] .task-view{height:100%;overflow:auto;max-width:none;padding-right:8px}
+body[data-mode=kiosk] .upcoming-panel h3{font-size:17px;margin-bottom:14px}
+#message:empty{display:none}
+.ux-next-inline{display:none}
+.ux-task-progress{display:flex;align-items:center;justify-content:space-between;gap:20px;background:var(--ux-sage);border-radius:20px;padding:26px;margin-bottom:20px;color:var(--ux-green)}
+.ux-task-progress .eyebrow{font-size:10px;letter-spacing:.1em;text-transform:uppercase}.ux-task-progress h3{font-family:Georgia,serif;font-size:28px;letter-spacing:-.02em;font-weight:400;line-height:1.25;margin:8px 0}.ux-task-progress p:last-child{font-size:12px;color:#5f7154}
+.ux-progress-ring{width:80px;height:80px;flex:none;border-radius:50%;background:conic-gradient(#4f7b58 var(--progress),#cfdbc3 0);display:grid;place-items:center}.ux-progress-ring>span{width:64px;height:64px;display:grid;grid-template-columns:auto auto;place-content:center;align-items:baseline;gap:2px;border-radius:50%;background:var(--ux-sage);font-size:23px;font-weight:600}.ux-progress-ring small{font-size:11px}
+.task-quick-add{display:grid;grid-template-columns:minmax(0,1fr) 130px 48px;gap:8px;margin-bottom:20px}.task-quick-add input,.task-quick-add select{font-size:14px;min-height:48px;border-color:var(--ux-line)}.task-quick-add button{background:var(--ux-green);color:#fff;border:0;display:grid;place-items:center;padding:8px}
+.calendar-item-meta,.empty-section,.shopping-tip,.meal-card small,.meal-empty,.shopping-name small,.ux-family-person p,.ux-family-tools small{color:#647359}
+@media(max-width:699px){
+ body[data-mode=mobile] .product-nav button{font-size:10px}
+ body[data-mode=mobile][data-route=today] .calendar-heading{display:none}
+ .ux-welcome{padding:20px}.ux-welcome h3{font-size:25px}.ux-welcome h3 span{display:inline}.ux-welcome p:last-child{font-size:12px}
+ .ux-day-stats button{font-size:11px;min-height:92px;gap:4px}.ux-day-stats strong{display:block;font-size:20px}
+ .ux-next-inline{display:block;position:relative;width:100%;text-align:left;border:1px solid var(--ux-line);background:#fff;padding:16px 40px 16px 16px;margin:0 0 18px;border-radius:14px}
+ .ux-next-inline>span{display:flex;align-items:center;gap:8px;color:#607253;font-size:11px;margin-bottom:8px;font-weight:450}.ux-next-inline span svg{width:16px;height:16px}.ux-next-inline strong{font-size:15px;font-weight:600}.ux-next-inline>svg{position:absolute;right:14px;top:35%;width:17px;color:#66795c}
+ body[data-mode=mobile] .home-aside .next-panel{display:none}
+ .ux-task-progress{padding:22px;gap:12px}.ux-task-progress h3{font-size:24px}.ux-progress-ring{width:64px;height:64px}.ux-progress-ring>span{width:52px;height:52px;font-size:20px}
+ .task-quick-add{grid-template-columns:minmax(0,1fr) 85px 44px;gap:5px}.task-quick-add input,.task-quick-add select{font-size:14px;padding:10px}
+}
+
+fieldset.person-settings-row{min-width:0;margin:0;border:0}fieldset.person-settings-row:disabled{opacity:.72}
+
+.ux-notice{position:fixed;right:28px;top:calc(16px + env(safe-area-inset-top));z-index:30;pointer-events:none;display:flex;align-items:center;gap:12px;max-width:min(440px,calc(100vw - 36px));padding:12px 10px 12px 18px;background:#234c39;color:#fff;border-radius:14px;box-shadow:0 6px 28px #20382625}
+.ux-notice .message{margin:0;color:inherit;font-size:13px;line-height:1.5;overflow-wrap:anywhere}.ux-notice button{pointer-events:auto;border:0;background:transparent;color:#fff;font-size:20px;width:40px;flex:none}
+body[data-mode=kiosk] .calendar-section{margin-top:0}body[data-mode=kiosk] .home-layout .day-card-header{display:none}
+body[data-mode=kiosk][data-density=compact] .kiosk-heading>div:first-child{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;column-gap:22px}
+body[data-mode=kiosk][data-density=compact] .kiosk-heading .eyebrow{grid-column:1/-1;margin:0 0 5px;font-size:10px}
+body[data-mode=kiosk][data-density=compact] #device-clock{font-size:46px}body[data-mode=kiosk][data-density=compact] #device-date{font-size:15px;margin:0}
+body[data-mode=kiosk][data-density=compact] .dashboard-header{padding-bottom:12px;margin-bottom:12px}
+body[data-mode=kiosk][data-density=compact] .person-chipbar{margin-bottom:10px}
+@media(max-width:699px){.ux-notice{left:18px;right:18px;max-width:none;font-size:12px}}
+
+/* Keep focused and scrolled controls clear of the mobile navigation and quick actions. */
+html:has(body[data-mode=mobile]){scroll-padding-block:100px calc(160px + env(safe-area-inset-bottom))}

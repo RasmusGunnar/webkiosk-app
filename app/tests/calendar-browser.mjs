@@ -1,3 +1,4 @@
+import {openCreate,openSettings,logout,toggleView,routeTo,switchHousehold} from './browser-actions.mjs'
 
 import { chromium, expect } from '@playwright/test'
 import { createClient } from '@supabase/supabase-js'
@@ -25,8 +26,9 @@ async function newPage(width) {
   await page.goto('http://127.0.0.1:5178')
   await page.locator('#email').fill(email);await page.locator('#password').fill(password)
   await page.getByRole('button',{name:'Log ind',exact:true}).click()
-  await expect(page.locator('#settings-button')).toBeVisible()
-  await page.waitForLoadState('networkidle')
+  await expect(page.locator('.product-nav')).toBeVisible()
+  await page.locator('.product-nav [data-product-route=calendar]').click()
+  await expect(page.locator('#calendar-view .day-card').first()).toBeVisible()
   return page
 }
 const card=(page,title)=>page.locator('.calendar-item').filter({has:page.locator('strong',{hasText:title})}).first()
@@ -35,7 +37,7 @@ async function save(page) {
   await expect(page.locator('#calendar-modal')).toHaveCount(0)
 }
 async function create(page,title,{date=today,type='Aktivitet',weekly=false,weekdays=false}={}) {
-  await page.locator('#new-calendar-button').click()
+  await openCreate(page)
   await page.locator('#calendar-title').fill(title);await page.locator('#calendar-date').fill(date)
   await page.locator('#calendar-type').selectOption(type)
   if(weekly)await page.locator('[name=repeatWeekly]').check()
@@ -53,8 +55,8 @@ try {
   ]).select('*'))
   const ida=people.find(p=>p.name==='Ida'), carl=people.find(p=>p.name==='Carl')
   const wall=await newPage(1800), phone=await newPage(390)
-  await expect(wall.locator('.week-grid')).toBeVisible();pass('Desktop defaults week')
-  await expect(phone.locator('.day-view')).toBeVisible();pass('Mobile defaults day')
+  await expect(wall.locator('.week-grid')).toBeVisible();pass('Desktop calendar opens in week view')
+  await expect(phone.locator('.day-view')).toBeVisible();pass('Mobile calendar opens in day view')
   await expect(wall.locator('#calendar-heading-label')).toContainText('Denne uge · uge 40')
   await wall.locator('#calendar-next-button').click()
   await expect(wall.locator('#calendar-heading-label')).toHaveText('Uge 41 · 5.–11. oktober')
@@ -68,14 +70,13 @@ try {
   for(const page of [wall,phone]){await page.locator('#calendar-next-button').click();await page.locator('#calendar-today-button').click()}
   await expect(wall.locator('.day-card.is-today')).toHaveAttribute('data-day',today)
   await expect(phone.locator('.day-card')).toHaveAttribute('data-day',today);pass('Today on desktop/mobile and today highlight')
-  await wall.locator('[data-create-on-date="2026-10-01"]').click()
-  await expect(wall.locator('#calendar-date')).toHaveValue('2026-10-01');await close(wall)
-  await phone.locator('[data-create-on-date="'+today+'"]').click()
-  await expect(phone.locator('#calendar-date')).toHaveValue(today);await close(phone)
-  pass('Create on specific day on both layouts')
-  await phone.locator('#calendar-toggle-view-button').click();await phone.reload()
+  await openCreate(wall);await wall.locator('#calendar-date').fill('2026-10-01');await expect(wall.locator('#calendar-date')).toHaveValue('2026-10-01');await close(wall)
+  await phone.locator('#calendar-next-button').click();await openCreate(phone)
+  await expect(phone.locator('#calendar-date')).toHaveValue('2026-09-29');await close(phone);await phone.locator('#calendar-today-button').click()
+  pass('Global creation preserves selected mobile date; desktop date can be selected in the editor')
+  await toggleView(phone);await phone.reload()
   await expect(phone.locator('.week-grid')).toBeVisible()
-  await phone.locator('#calendar-toggle-view-button').click();await phone.setViewportSize({width:1800,height:900})
+  await toggleView(phone);await phone.setViewportSize({width:1800,height:900})
   await expect(phone.locator('.day-view')).toBeVisible();await phone.reload()
   await expect(phone.locator('.day-view')).toBeVisible();await phone.setViewportSize({width:390,height:900})
   pass('Explicit view survives reload and viewport changes')
@@ -85,7 +86,7 @@ try {
   await wall.locator('[data-person-filter="'+ida.id+'"]').click()
   await expect(card(wall,'Shared live event')).toBeVisible()
   pass('Individual person filter retains Alle events')
-  await wall.locator('#new-calendar-button').click()
+  await openCreate(wall)
   await wall.locator('#calendar-title').fill('Multi-person full editor')
   await wall.locator('[name=people][value="'+ida.id+'"]').check()
   await wall.locator('[name=people][value="'+carl.id+'"]').check()
@@ -215,7 +216,7 @@ try {
   await expect(card(wall,'Edited on phone')).toHaveCount(0,{timeout:12000})
   pass('Realtime preserves unsaved modal DOM, rejects stale edits and propagates delete')
   await create(phone,'Long '+('aftale '.repeat(30)))
-  await phone.locator('#new-calendar-button').click()
+  await openCreate(phone)
   await phone.locator('#calendar-type').selectOption('Opgave')
   await expect(phone.locator('#calendar-title')).toHaveAttribute('list','task-suggestions')
   await expect(phone.locator('#calendar-duration')).toBeVisible()
@@ -225,7 +226,7 @@ try {
   await close(phone);await wall.screenshot({path:'supabase/.temp/mega2/desktop-calendar.png',fullPage:true})
   expect(await phone.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
   pass('Mobile editor touch layout, overflow and long title; desktop/mobile screenshots')
-  for(const page of [phone,wall]){await page.locator('#logout-button').click();await expect(page.locator('#login-form')).toBeVisible()}
+  for(const page of [phone,wall]){await logout(page);await expect(page.locator('#login-form')).toBeVisible()}
   await must(admin.from('calendar_items').insert({household_id:hid,created_by:uid,title:'After logout',date:today}))
   await expect(wall.locator('.calendar-item')).toHaveCount(0)
   expect(errors).toEqual([])

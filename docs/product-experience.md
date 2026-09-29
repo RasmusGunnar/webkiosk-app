@@ -1,5 +1,7 @@
 # Mega 4: mobil, desktop og vægskærm
 
+Denne side dokumenterer Mega 4 historisk. Den aktuelle produktoplevelse er beskrevet i [Product UX 2.0](product-ux-2.md).
+
 Implementeret 2026-09-29 i den eksisterende Vite-app. Ingen React-omskrivning, native wrapper eller offentlig frontend-deployment. Den levende backend er oyyqniwppytipdktzwsy.
 
 ## Enheder og navigation

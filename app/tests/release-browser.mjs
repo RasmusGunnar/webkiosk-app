@@ -1,3 +1,4 @@
+import {openCreate,openSettings,logout,toggleView,routeTo,switchHousehold} from './browser-actions.mjs'
 import {chromium,expect} from '@playwright/test'
 import {createClient} from '@supabase/supabase-js'
 import {randomUUID} from 'node:crypto'
@@ -25,7 +26,7 @@ try{
  await must(admin.from('household_people').insert({household_id:hid,name:'Child UI fixture',role:'child'}))
  await page.locator('#email').fill(email);await page.locator('#password').fill(password);await page.locator('#login-form button[type=submit]').click()
  await expect(page.locator('#start-delete-account')).toBeVisible();pass('Deletion pathway persists through login')
- await page.goto(root);await page.locator('#settings-button').click();await page.locator('[data-settings-tab=account]').click()
+ await page.goto(root);await openSettings(page,'account')
  const downloadPromise=page.waitForEvent('download');await page.locator('#export-family').click()
  const download=await downloadPromise,json=JSON.parse(readFileSync(await download.path(),'utf8'))
  expect(json.household.id).toBe(hid);expect(json.people[0].name).toBe('Child UI fixture')

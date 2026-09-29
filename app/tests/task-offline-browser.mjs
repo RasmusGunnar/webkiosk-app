@@ -1,3 +1,4 @@
+import {openCreate,openSettings,logout,toggleView,routeTo,switchHousehold} from './browser-actions.mjs'
 import { chromium, expect } from '@playwright/test'
 import { createClient } from '@supabase/supabase-js'
 import { randomUUID } from 'node:crypto'
@@ -31,14 +32,15 @@ async function newPage(width) {
  await expect(page.locator('#login-form')).toBeVisible()
  await page.locator('#email').fill(email);await page.locator('#password').fill(password)
  await page.getByRole('button',{name:'Log ind',exact:true}).click()
- await expect(page.locator('#settings-button')).toBeVisible()
+ await expect(page.locator('.product-nav')).toBeVisible()
+ await page.locator('.product-nav [data-product-route=calendar]').click()
  await page.evaluate(()=>navigator.serviceWorker.ready)
  await expect.poll(()=>page.evaluate(()=>Boolean(navigator.serviceWorker.controller))).toBe(true)
  return page
 }
 async function save(page) {await page.locator('#calendar-modal-form button[type=submit]').click();await expect(page.locator('#calendar-modal')).toHaveCount(0)}
 async function create(page,title,{person,done=false,weekly=false}={}) {
- await page.locator('#new-calendar-button').click()
+ await openCreate(page)
  await page.locator('#calendar-title').fill(title);await page.locator('#calendar-date').fill(today)
  await page.locator('#calendar-type').selectOption('Opgave')
  if(person)await page.locator('[data-calendar-person-choice][value="'+person+'"]').check()
@@ -73,7 +75,7 @@ try {
  if(JSON.stringify(cached).includes('private-fixture.ics'))throw Error('Private feed URL cached')
  if(cached.snapshot.items.length!==10||cached.snapshot.people.length!==3)throw Error('Incomplete online snapshot')
  pass('IndexedDB snapshot includes items, people, safe feed metadata and reward state')
- await phone.locator('#settings-button').click()
+ await openSettings(phone)
  await expect(phone.locator('#person-'+adult.id+'-reward-enabled')).not.toBeChecked()
  await expect(phone.locator('#person-'+ida.id+'-reward-enabled')).toBeChecked()
  await phone.locator('#person-'+adult.id+'-reward-enabled').check()
@@ -81,9 +83,9 @@ try {
  await expect.poll(async()=>(await must(admin.from('household_people').select('reward_enabled').eq('id',adult.id).single())).reward_enabled).toBe(true)
  await phone.locator('#person-'+adult.id+'-reward-enabled').uncheck();await phone.locator('[data-save-person="'+adult.id+'"]').click()
  await expect.poll(async()=>(await must(admin.from('household_people').select('reward_enabled').eq('id',adult.id).single())).reward_enabled).toBe(false)
- await phone.locator('#settings-modal-close').click()
+ await phone.locator('#settings-modal-close').click();await routeTo(phone,'calendar')
  pass('Child/adult defaults and explicit persisted reward setting')
- await phone.locator('#new-calendar-button').click();await phone.locator('#calendar-type').selectOption('Opgave')
+ await openCreate(phone);await phone.locator('#calendar-type').selectOption('Opgave')
  await expect(phone.locator('#task-suggestions option')).toHaveCount(17) // seven standard + ten distinct historic/current titles
  await phone.locator('#calendar-modal-close').click()
  pass('Seven standard suggestions plus prior household titles; free text remains available')
@@ -107,9 +109,9 @@ try {
  pass('Undo/redo never celebrates same threshold twice; Escape closes popup')
  await phone.locator('#calendar-next-button').click()
  // Weekly task exists only on its weekday next week, navigate directly via week mode.
- await phone.locator('#calendar-toggle-view-button').click();await phone.locator('#calendar-next-button').click()
+ await toggleView(phone);await phone.locator('#calendar-next-button').click()
  await expect(card(phone,'Tøm tasker').locator('[data-calendar-toggle]')).not.toBeChecked()
- await phone.locator('#calendar-today-button').click();await phone.locator('#calendar-toggle-view-button').click()
+ await phone.locator('#calendar-today-button').click();await toggleView(phone)
  pass('Repeated completion stays on concrete occurrence; next week remains incomplete')
  await create(phone,'Task eight',{person:ida.id,done:true})
  await create(phone,'Task nine',{person:ida.id,done:true})
@@ -190,15 +192,15 @@ try {
  if(!await phone.evaluate(()=>window.testEditor===document.querySelector('#calendar-modal')&&window.testHeader===document.querySelector('.dashboard-header')))throw Error('Realtime replaced dashboard/editor')
  await expect(phone.locator('#calendar-note')).toHaveValue('Unsaved draft');await phone.locator('#calendar-modal-close').click()
  pass('Realtime updates IndexedDB and preserves unsaved editor DOM and dashboard')
- await phone.locator('#household-switch').selectOption(hid2);await expect(card(phone,'Only B')).toBeVisible()
+ await switchHousehold(phone,hid2);await expect(card(phone,'Only B')).toBeVisible()
  await phone.context().setOffline(true)
- await phone.locator('#household-switch').selectOption(hid)
+ await switchHousehold(phone,hid)
  await expect(card(phone,'Realtime cache value')).toBeVisible();await expect(card(phone,'Only B')).toHaveCount(0)
- await phone.locator('#household-switch').selectOption(hid2)
+ await switchHousehold(phone,hid2)
  await expect(card(phone,'Only B')).toBeVisible();await expect(card(phone,'Realtime cache value')).toHaveCount(0)
  pass('Household switching uses isolated cached snapshots offline')
  await create(phone,'Pending before logout')
- await phone.locator('#logout-button').click();await expect(phone.locator('#login-form')).toBeVisible()
+ await logout(phone);await expect(phone.locator('#login-form')).toBeVisible()
  await expect.poll(async()=>(await cache(phone)).filter(row=>row.user_id===uid).length).toBe(0)
  await phone.reload();await expect(phone.locator('#login-form')).toBeVisible()
  pass('Offline logout confirms pending loss, clears every household cache and cannot restore private data')

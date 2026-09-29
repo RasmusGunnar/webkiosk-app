@@ -1,3 +1,4 @@
+import {openCreate,openSettings,logout,toggleView,routeTo,switchHousehold} from './browser-actions.mjs'
 import {chromium,expect} from '@playwright/test'
 import {createClient} from '@supabase/supabase-js'
 import {randomUUID} from 'node:crypto'
@@ -27,7 +28,7 @@ async function login(page,who=email,pw=password) {
  await page.locator('#email').fill(who);await page.locator('#password').fill(pw);await page.getByRole('button',{name:'Log ind',exact:true}).click()
 }
 async function settings(page,tab) {
- await page.locator('#settings-button').click();await page.locator('[data-settings-tab='+tab+']').click()
+ await openSettings(page,tab)
 }
 async function unlock(page,tab='device') {
  await page.locator('#settings-button').click();await expect(page.locator('#pin-modal')).toBeVisible()
@@ -36,7 +37,7 @@ async function unlock(page,tab='device') {
 }
 async function checkLayout(page,label) {
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),label+' page overflow').toBe(true)
- await expect(page.locator('.product-nav')).toBeVisible();await expect(page.locator('#new-calendar-button')).toBeInViewport()
+ await expect(page.locator('.product-nav')).toBeVisible();if(await page.locator('body').getAttribute('data-mode')==='kiosk'){await expect(page.locator('#new-calendar-button')).toBeHidden();await expect(page.locator('.product-nav')).toBeInViewport()}else await expect(page.locator('#new-calendar-button')).toBeInViewport()
  // Read layout atomically and retry if realtime replaces the navigation between checks.
  await expect.poll(()=>page.evaluate(()=>{const nav=document.querySelector('.product-nav')?.getBoundingClientRect();return Boolean(nav&&nav.width>0&&nav.x>=0&&nav.right<=innerWidth+1)}),{message:label+' navigation fits viewport'}).toBe(true)
  await page.screenshot({path:'supabase/.temp/mega4/'+label+'.png',fullPage:true})
@@ -72,13 +73,13 @@ try {
  await expect(phone.locator('#recovery-form')).toBeVisible()
  password=randomUUID()+'!Bb2'
  await phone.locator('#new-password').fill(password);await phone.locator('#repeat-password').fill(password)
- await phone.locator('#recovery-form button').click();await expect(phone.locator('#settings-button')).toBeVisible()
+ await phone.locator('#recovery-form button').click();await expect(phone.locator('.product-nav')).toBeVisible()
  pass('Actual local recovery email opens callback and updates password')
  await expect(phone.locator('body')).toHaveAttribute('data-mode','mobile')
- await expect(phone.locator('.product-nav button')).toHaveCount(4)
- await expect(phone.locator('.day-view')).toBeVisible()
- pass('Mobile four destinations and day default')
- await phone.locator('[data-quick-type=Opgave]').first().click()
+ await expect(phone.locator('.product-nav button')).toHaveCount(5)
+ await expect(phone.locator('.mobile-today')).toBeVisible()
+ pass('Mobile five destinations and Today default')
+ await openCreate(phone,'Opgave')
  await expect(phone.locator('#calendar-type')).toHaveValue('Opgave')
  await phone.locator('#calendar-title').fill('Ny mobilopgave')
  const adult=(await must(admin.from('household_people').select('id').eq('household_id',hid).eq('name','Rasmus').single())).id
@@ -119,7 +120,7 @@ try {
  await phone.locator('#copy-invite').click();expect(await phone.evaluate(()=>navigator.clipboard.readText())).toBe(invitation)
  const invited=await pageAt(430);await invited.goto(invitation);expect(invited.url()).not.toContain('#invite')
  await login(invited,inviteEmail,invitePassword);await invited.locator('#accept-invite').click()
- await expect(invited.locator('#settings-button')).toBeVisible();await invited.locator('[data-product-route=family]').click()
+ await expect(invited.locator('.product-nav')).toBeVisible();await invited.locator('[data-product-route=family]').click();await invited.locator('[data-open-settings=family]').click()
  await expect(invited.locator('#family-admin-content')).toContainText(inviteEmail);await expect(invited.locator('#invite-form')).toHaveCount(0)
  await expect(invited.locator('[data-settings-panel=family]')).toContainText('Kun ejer')
  pass('Email-bound invitation joins correct household; adult cannot administer invitations')
@@ -135,7 +136,7 @@ try {
  await expect(phone.locator('body')).toHaveAttribute('data-mode','mobile')
  expect(await phone.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--accent'))).toBe('#2563eb')
  pass('Curated appearance persists per device and household')
- wall=await pageAt(1920,1080);await wall.addInitScript(()=>Object.defineProperty(navigator,'wakeLock',{value:undefined,configurable:true}));await wall.goto(root);await login(wall);await expect(wall.locator('#settings-button')).toBeVisible()
+ wall=await pageAt(1920,1080);await wall.addInitScript(()=>Object.defineProperty(navigator,'wakeLock',{value:undefined,configurable:true}));await wall.goto(root);await login(wall);await expect(wall.locator('.product-nav')).toBeVisible()
  await settings(wall,'device');await wall.locator('#device-kiosk').check();await wall.locator('#device-pin').fill('1948')
  await wall.locator('#device-wake').check()
  await wall.locator('#shortcut-homey').fill('https://homey.app/');await wall.locator('#device-settings-form button[type=submit]').click()
@@ -166,7 +167,7 @@ try {
  for(const [width,height] of [[375,667],[390,844],[430,932],[768,1024],[820,1180],[1366,768],[1440,900]]){
   await phone.setViewportSize({width,height});await phone.locator('[data-product-route=calendar]').click()
   await checkLayout(phone,'calendar-'+width+'x'+height)
-  await phone.locator('#new-calendar-button').click();await phone.locator('#calendar-note').fill('Lang kladde')
+  await openCreate(phone);await phone.locator('#calendar-note').fill('Lang kladde')
   expect(await phone.locator('.calendar-modal').evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true)
   await phone.locator('#calendar-modal-form button[type=submit]').scrollIntoViewIfNeeded()
   await expect(phone.locator('#calendar-modal-form button[type=submit]')).toBeInViewport()
@@ -180,12 +181,12 @@ try {
  }
  pass('Seven mobile/tablet/desktop sizes: navigation, editor save, settings, no horizontal overflow and focus return')
  await phone.setViewportSize({width:390,height:844});await phone.locator('[data-product-route=calendar]').click()
- await phone.locator('#calendar-toggle-view-button').click();await expect(phone.locator('.week-grid .day-card')).toHaveCount(7)
+ await toggleView(phone);await expect(phone.locator('.week-grid .day-card')).toHaveCount(7)
  const positions=await phone.locator('.week-grid .day-card').evaluateAll(els=>els.map(el=>el.getBoundingClientRect().top))
  expect(positions.every((y,i)=>i===0||y>positions[i-1])).toBe(true)
  await phone.screenshot({path:'supabase/.temp/mega4/mobile-week.png',fullPage:true})
  pass('Mobile week is a readable vertical seven-day list')
- await phone.locator('#new-calendar-button').click();await phone.locator('#calendar-note').fill('Kladde med tastatur')
+ await openCreate(phone);await phone.locator('#calendar-note').fill('Kladde med tastatur')
  await phone.setViewportSize({width:390,height:420});await phone.locator('#calendar-modal-form button[type=submit]').scrollIntoViewIfNeeded()
  await expect(phone.locator('#calendar-modal-form button[type=submit]')).toBeInViewport();await expect(phone.locator('#calendar-note')).toHaveValue('Kladde med tastatur')
  await phone.locator('#calendar-modal-close').focus();await phone.keyboard.press('Shift+Tab');await expect(phone.locator('#calendar-modal-form button[type=submit]')).toBeFocused()
@@ -194,10 +195,10 @@ try {
  await wall.clock.install({time:new Date()});await wall.locator('[data-product-route=tasks]').click()
  await wall.clock.setSystemTime(new Date(Date.now()+16*60000));await wall.clock.runFor(1100)
  await expect(wall.locator('[data-product-route=today]')).toHaveAttribute('aria-current','page')
- await wall.locator('#new-calendar-button').click();await wall.locator('#calendar-title').fill('Bevar denne kladde')
+ await card(wall,'Svømning med hele familien og en ekstra lang titel').click();await expect(wall.locator('#plan-modal')).toBeVisible()
  await wall.clock.setSystemTime(new Date(Date.now()+33*60000));await wall.clock.runFor(1100)
- await expect(wall.locator('#calendar-title')).toHaveValue('Bevar denne kladde');await wall.keyboard.press('Escape')
- pass('Kiosk inactivity returns to Today and never discards an active editor draft')
+ await expect(wall.locator('#plan-modal')).toBeVisible();await expect(wall.locator('#calendar-modal-form')).toHaveCount(0);await wall.keyboard.press('Escape')
+ pass('Kiosk inactivity returns to Today and never interrupts the active read-only viewer')
  const midnight=new Date();midnight.setDate(midnight.getDate()+1);midnight.setHours(0,0,1,0)
  await wall.clock.setSystemTime(midnight);await wall.clock.runFor(1100)
  await expect(wall.locator('.day-card.is-today')).toHaveAttribute('data-day',dateAfter(1))

@@ -1,4 +1,7 @@
 import './style.css'
+import './product.css'
+import './desktop-kiosk.css'
+import './mobile.css'
 import { supabase, configurationError, cacheNamespace, clearLocalAuth } from './lib/supabase'
 import { findPerson, selectPeople, itemPeople, itemPersonIds, itemMatchesPerson, feedPerson } from './lib/people.js'
 import { avatarDisplayUrl, validateAvatar, resolveAvatarUrls, savePerson } from './lib/avatars.js'
@@ -6,7 +9,7 @@ import { normalizeFeedUrl, redactFeedUrl, feedIdOf } from './lib/feeds.js'
 import { calendarPayload } from './lib/calendar.js'
 import { observeSession } from './lib/auth.js'
 import { readAllRows } from './lib/rows.js'
-import { calendarHeading, preferredView, VIEW_KEY, weekDates, parseDate as parseDateIso } from './lib/calendar-dates.js'
+import { calendarHeading, preferredView, VIEW_KEY, weekDates, monthDates, isoWeek, addDays, parseDate as parseDateIso } from './lib/calendar-dates.js'
 import { materialize, displayTitle, value as calendarValue, imported, sourceLabel, repeatContext, baseFor, itemValues, planCreate, planEdit, planDelete, taskSuggestions } from './lib/calendar-semantics.js'
 import { calendarRealtime } from './lib/calendar-realtime.js'
 import { LocalStore, DATABASE_NAME } from './lib/local-store.js'
@@ -23,6 +26,9 @@ import { PushNotifications } from '@capacitor/push-notifications'
 import { App } from '@capacitor/app'
 import { exportFamilyData, clearNativeExports } from './lib/account-data.js'
 import { renderPublicPage } from './lib/public-pages.js'
+import { calendarOnly, isHouseholdPlan, PLAN_TYPES, mealsOn, shoppingItems, ingredientDrafts, planValues, shoppingCategory } from './lib/household-plans.js'
+import { icon, routeLabels, renderNavigation, renderMeals, renderShopping } from './lib/product-ui.js'
+import { PlanEditor } from './lib/plan-editor.js'
 import { installDialogAccessibility } from './lib/dialog-accessibility.js'
 
 const app = document.querySelector('#app')
@@ -96,9 +102,19 @@ const realtime = calendarRealtime(supabase, async () => { await refreshHousehold
 
 const deviceKey=DEVICE_KEY+':'+cacheNamespace
 let device=readDevice(localStorage,deviceKey)
+let shoppingDraft={title:'',note:''},shoppingBusy=false,shoppingOpen=false
+let foodRoute='meals'
 let productRoute='calendar',settingsTab='people',taskRange='today',newCalendarType='Aktivitet'
 let kioskUnlocked=false,pinAttempts=0,pinBlockedUntil=0,members=[],invitations=[]
 const pinRoot=document.createElement('div');document.body.append(pinRoot)
+const createRoot=document.createElement('div');document.body.append(createRoot)
+createRoot.addEventListener('dismiss-dialog',()=>{createRoot.innerHTML=''})
+const planRoot=document.createElement('div');document.body.append(planRoot)
+const planEditor=new PlanEditor({root:planRoot,getRows:()=>calendarItems,getContext:()=>sessionEpoch+':'+activeHousehold?.id,
+ save:(values,existing)=>runCalendarMutation(()=>existing?planEdit([existing],existing,values):planCreate(values)),
+ remove:existing=>runCalendarMutation(()=>({upserts:[],deleteIds:[existing.id],expected:[{id:existing.id,updated_at:existing.updated_at}]})),
+ onSaved:()=>{message='Gemt til familien.';updateCalendarSurface()}
+})
 let pendingInvite=consumeInvite(location,history,sessionStorage)
 let authScreen=location.hash.includes('type=recovery')||sessionStorage.getItem('familiekalender.recovery')?'recovery':'login'
 const wakeScreen=new WakeScreen({api:nativeWakeApi||navigator.wakeLock,visible:()=>nativeActive&&!document.hidden,onStatus:status=>{const el=document.querySelector('#wake-status');if(el)el.textContent=status}})
@@ -116,7 +132,7 @@ const clock=new DeviceClock({
  onDay:now=>{if(session&&(mode()==='kiosk'||['today','tasks'].includes(productRoute))){calendarCursorDate=now;render({preserveDialogs:true})}},
  onIdle:()=>{if(productRoute!=='today'||activePersonFilter!=='Alle')setProductRoute('today')},
  isKiosk:()=>mode()==='kiosk',
- isBusy:()=>isCalendarModalOpen||isSettingsModalOpen||Boolean(pinRoot.firstChild)||syncPanelOpen||Boolean(document.querySelector('.celebration-backdrop')),
+ isBusy:()=>isCalendarModalOpen||isSettingsModalOpen||planEditor.opened||Boolean(createRoot.firstChild)||Boolean(pinRoot.firstChild)||syncPanelOpen||Boolean(document.querySelector('.celebration-backdrop')),
  timeout:()=>settingsForDevice().inactivity
 })
 function preferredHousehold(fallback) {
@@ -195,7 +211,10 @@ async function activateHousehold(household) {
   syncPanelOpen = false; syncPanelRoot.innerHTML = ''
   activeHousehold = household; householdRole = household.memberRole
   members=[];invitations=[];kioskUnlocked=false;pinRoot.innerHTML=''
-  productRoute=mode()==='kiosk'||(mode()==='mobile'&&getDefaultCalendarViewMode()==='day')?'today':'calendar'
+  createRoot.innerHTML='';foodRoute='meals';planEditor.close(true);shoppingDraft={title:'',note:''};shoppingOpen=false
+  const rememberedRoute=settingsForDevice().lastRoute
+  productRoute=mode()!=='kiosk'&&routeLabels[rememberedRoute]?rememberedRoute:'today'
+  if(['meals','shopping'].includes(productRoute))foodRoute=productRoute
   calendarViewMode=productRoute==='today'?'day':getDefaultCalendarViewMode()
   void wakeScreen.set(mode()==='kiosk'&&settingsForDevice().wake)
   calendarItems = []; householdPeople = []; calendarFeeds = []; liveFeedMetadata = []
@@ -252,7 +271,7 @@ async function loadRewardState() {
 }
 
 function clearSessionState() {
-  void wakeScreen.set(false);pinRoot.innerHTML='';kioskUnlocked=false;members=[];invitations=[]
+  void wakeScreen.set(false);pinRoot.innerHTML='';createRoot.innerHTML='';foodRoute='meals';planEditor.close(true);shoppingDraft={title:'',note:''};shoppingOpen=false;kioskUnlocked=false;members=[];invitations=[]
   realtime.stop(); syncEngine?.stop(); syncEngine = null; celebrations.reset()
   syncPanelOpen = false; syncPanelRoot.innerHTML = ''; liveFeedMetadata = []; expandedTaskDays.clear()
   editingCalendarSnapshot = null; editingRowsSnapshot = []
@@ -378,6 +397,7 @@ function renderCreateFirstHousehold() {
 }
 
 function renderDashboard(preserveDialogs = false) {
+  const inlineFocus=captureInlineFocus()
   const savedCalendarModal = preserveDialogs && isCalendarModalOpen ? document.querySelector('#calendar-modal') : null
   const savedSettingsModal = preserveDialogs && isSettingsModalOpen ? document.querySelector('#settings-modal') : null
   const activeInput = document.activeElement
@@ -414,34 +434,33 @@ ${renderProductHeader()}
       </header>
 
       <div id="sync-status" class="sync-status">${renderSyncStatus()}</div>
-      ${mode()!=='kiosk' && households.length > 1 ? '<label class="household-switch">Familie <select id="household-switch">' + households.map(h => '<option value="' + h.id + '" ' + (h.id === activeHousehold.id ? 'selected' : '') + '>' + escapeHtml(h.name) + '</option>').join('') + '</select></label>' : ''}
+      ${(mode()!=='kiosk'&&productRoute==='family') && households.length > 1 ? '<label class="household-switch">Familie <select id="household-switch">' + households.map(h => '<option value="' + h.id + '" ' + (h.id === activeHousehold.id ? 'selected' : '') + '>' + escapeHtml(h.name) + '</option>').join('') + '</select></label>' : ''}
       ${renderProductNav()}
       ${renderInvitation()}
-      ${renderPersonChips()}
+      ${(mode()==='mobile'?['calendar','tasks']:['today','calendar','tasks']).includes(productRoute)?renderPersonChips():''}
 
       <section class="calendar-section">
         <div class="section-heading calendar-heading">
           <div>
-            <h2>${productRoute==='today'?'I dag':productRoute==='tasks'?'Opgaver':'Kalender'}</h2>
-            <p id="calendar-heading-label">${escapeHtml(getCalendarHeaderLabel())}</p>
+            <h2>${['meals','shopping'].includes(productRoute)?'Mad & indkøb':routeLabels[productRoute]||'Kalender'}</h2>
+            <p id="calendar-heading-label">${escapeHtml(['today','calendar','tasks'].includes(productRoute)?getCalendarHeaderLabel():({meals:'Planlæg ugens aftensmad',shopping:'Én fælles liste, uanset hvem der handler',family:'Menneskerne bag alle planerne'}[productRoute]||''))}</p>
             <small id="calendar-sync-status" role="status"></small>
           </div>
-          <div class="calendar-toolbar" ${productRoute==='tasks'?'hidden':''}>
+          <div class="calendar-toolbar" ${productRoute!=='calendar'?'hidden':''}>
             <div class="calendar-nav">
-              <button id="calendar-prev-button" type="button">Forrige ${navUnit}</button>
+              <button id="calendar-prev-button" type="button" aria-label="Forrige ${navUnit}">${mode()==='mobile'?'←':'Forrige '+navUnit}</button>
               <button id="calendar-today-button" type="button">I dag</button>
-              <button id="calendar-next-button" type="button">Næste ${navUnit}</button>
+              <button id="calendar-next-button" type="button" aria-label="Næste ${navUnit}">${mode()==='mobile'?'→':'Næste '+navUnit}</button>
             </div>
-            <button id="calendar-toggle-view-button" type="button">${toggleViewLabel}</button>
+            ${mode()==='mobile'?'<div class="mobile-view-switch" aria-label="Kalendervisning">'+['day','week'].map(view=>'<button type="button" data-calendar-view="'+view+'" aria-pressed="'+(calendarViewMode===view)+'">'+(view==='day'?'Dag':'Uge')+'</button>').join('')+'</div>':'<button id="calendar-toggle-view-button" type="button">'+toggleViewLabel+'</button>'}
           </div>
         </div>
         <div id="calendar-view">${renderCalendarView()}</div>
       </section>
 
-      <p id="message" class="message" role="status">${escapeHtml(message)}</p>
-      <div class="quick-create" aria-label="Opret hurtigt">${['Aktivitet','Opgave','Fødselsdag'].map(type=>'<button data-quick-type="'+type+'">+ '+type+'</button>').join('')}</div>
-      <button id="new-calendar-button" class="floating-new-button" type="button">+ Ny</button>
-      <button id="settings-button" class="floating-settings-button" type="button" aria-label="Indstillinger" title="Indstillinger">&#9881;</button>
+      <div class="ux-notice" ${message?'':'hidden'}><p id="message" class="message" role="status">${escapeHtml(message)}</p><button id="dismiss-message" type="button" aria-label="Luk besked">×</button></div>
+      <button id="new-calendar-button" class="floating-new-button" type="button" aria-label="Opret ny" ${mode()==='kiosk'?'hidden':''}>${icon('plus')}<span>Ny</span></button>
+      <button id="settings-button" class="floating-settings-button" type="button" ${mode()!=='kiosk'?'hidden':''} aria-label="Indstillinger" title="Indstillinger">${icon('settings')}</button>
       ${renderCalendarModal()}
       ${renderSettingsModal()}
     </main>
@@ -452,14 +471,15 @@ ${renderProductHeader()}
   if (savedSettingsModal) document.querySelector('#settings-modal')?.replaceWith(savedSettingsModal)
   for (const [panel, scrollTop] of dialogScroll) panel.scrollTop = scrollTop
   if (restoreInput) { activeInput.focus({ preventScroll: true }); if (selection) activeInput.setSelectionRange(...selection) }
-  document.querySelector('#new-calendar-button').addEventListener('click', () => {newCalendarType='Aktivitet';openCreateCalendarModal()})
+  document.querySelector('#new-calendar-button').addEventListener('click', openCreateSheet)
   document.querySelector('#calendar-today-button').addEventListener('click', () => { calendarCursorDate = new Date(); render() })
   bindCalendarSurface()
   document.querySelector('#household-switch')?.addEventListener('change', async event => { await activateHousehold(households.find(h => h.id === event.target.value)); render(); await refreshHousehold() })
   document.querySelector('#settings-button').addEventListener('click', openSettingsModal)
   document.querySelector('#calendar-prev-button').addEventListener('click', () => navigateCalendar(-1))
   document.querySelector('#calendar-next-button').addEventListener('click', () => navigateCalendar(1))
-  document.querySelector('#calendar-toggle-view-button').addEventListener('click', toggleCalendarViewMode)
+  document.querySelector('#calendar-toggle-view-button')?.addEventListener('click', toggleCalendarViewMode)
+  document.querySelectorAll('[data-calendar-view]').forEach(button=>button.onclick=()=>{if(button.dataset.calendarView!==calendarViewMode)toggleCalendarViewMode()})
 
   const modalForm = document.querySelector('#calendar-modal-form')
   const modalBackdrop = document.querySelector('#calendar-modal')
@@ -548,7 +568,7 @@ ${renderProductHeader()}
     })
   }
   if(!isCalendarModalOpen&&!isSettingsModalOpen&&!pinRoot.firstChild&&activeInput?.id)document.getElementById(activeInput.id)?.focus({preventScroll:true})
-  bindProductControls(!savedSettingsModal)
+  bindProductControls(!savedSettingsModal);restoreInlineFocus(inlineFocus)
   if(isSettingsModalOpen && settingsTab==='family')void loadMemberships()
 }
 
@@ -558,22 +578,30 @@ function scheduleCalendarSurface() {
 }
 function updateCalendarSurface() {
   if (!session || !activeHousehold || !document.querySelector('#calendar-view')) return
+  const inlineFocus=captureInlineFocus()
   document.querySelector('#calendar-view').innerHTML = renderCalendarView()
   const chips = document.querySelector('#person-chipbar')
-  if (chips) chips.outerHTML = renderPersonChips()
+  if (chips) {
+    const scrollLeft=chips.scrollLeft,focused=chips.contains(document.activeElement)?document.activeElement.dataset.personFilter:null
+    chips.outerHTML=renderPersonChips()
+    const next=document.querySelector('#person-chipbar');next.scrollLeft=scrollLeft
+    if(focused)[...next.children].find(button=>button.dataset.personFilter===focused)?.focus({preventScroll:true})
+  }
   document.querySelector('#sync-status').innerHTML = renderSyncStatus()
   document.querySelector('#message').textContent = message
-  bindCalendarSurface();bindProductSurface()
+  const notice=document.querySelector('.ux-notice');if(notice)notice.hidden=!message
+  bindCalendarSurface();bindProductSurface();restoreInlineFocus(inlineFocus)
   if (syncPanelOpen) renderSyncPanel()
 }
 function bindCalendarSurface() {
+  const chips=document.querySelector('#person-chipbar')
+  if(chips){const updateEdge=()=>chips.classList.toggle('has-more',chips.scrollWidth-chips.clientWidth-chips.scrollLeft>2);chips.onscroll=updateEdge;updateEdge()}
   document.querySelectorAll('[data-calendar-toggle]').forEach(checkbox => checkbox.onchange = () => toggleCalendarItemDone(checkbox.dataset.calendarToggle,checkbox.checked))
   document.querySelectorAll('[data-calendar-item]').forEach(card => {
     card.onclick = event => { if (!event.target.closest('[data-calendar-toggle], .done-toggle')) openEditCalendarModal(card.dataset.calendarItem) }
     card.onkeydown = event => { if (event.target===card && ['Enter',' '].includes(event.key)) {event.preventDefault();openEditCalendarModal(card.dataset.calendarItem)} }
   })
   document.querySelectorAll('[data-person-filter]').forEach(button => button.onclick = () => {activePersonFilter=button.dataset.personFilter;updateCalendarSurface()})
-  document.querySelectorAll('[data-create-on-date]').forEach(button => button.onclick = () => openCreateCalendarModal(button.dataset.createOnDate))
   document.querySelectorAll('[data-completed-date]').forEach(details => details.ontoggle = () => {
     if(details.open)expandedTaskDays.add(details.dataset.completedDate);else expandedTaskDays.delete(details.dataset.completedDate)
   })
@@ -606,7 +634,7 @@ function renderSyncPanel() {
   syncPanelRoot.querySelector('[data-sync-retry]')?.addEventListener('click',()=>syncEngine.retry())
 }
 function renderDayItems(section,items,date) {
-  if(section!=='Opgave'||!(mode()==='kiosk'||(calendarViewMode==='day'&&mode()==='mobile')))return items.length?items.map(renderCalendarItemCard).join(''):'<p class="empty-section">Ingen</p>'
+  if(section!=='Opgave'||!(mode()==='kiosk'||mode()==='mobile'))return items.length?items.map(renderCalendarItemCard).join(''):'<p class="empty-section">Ingen</p>'
   const open=items.filter(item=>!item.done),completed=items.filter(item=>item.done)
   return (open.length?open.map(renderCalendarItemCard).join(''):'<p class="empty-section">Ingen åbne opgaver</p>')+
     (completed.length?'<details class="completed-tasks" data-completed-date="'+date+'" '+(expandedTaskDays.has(date)?'open':'')+'><summary>'+completed.length+' udførte opgaver</summary>'+completed.map(renderCalendarItemCard).join('')+'</details>':'')
@@ -615,6 +643,9 @@ function renderDayItems(section,items,date) {
 function renderCalendarView() {
   if(productRoute==='today')return renderHome()
   if(productRoute==='tasks')return renderTaskView()
+  if(productRoute==='meals')return renderFoodTabs()+renderMeals(calendarItems,calendarCursorDate,mode()==='kiosk',true)
+  if(productRoute==='shopping')return renderFoodTabs()+renderShopping(calendarItems,shoppingDraft,mode()==='mobile',mode()==='kiosk')
+  if(productRoute==='family')return renderFamilyHome()
   if (isLoadingCalendar) {
     return '<p class="calendar-status">Henter kalender...</p>'
   }
@@ -648,12 +679,13 @@ function renderPersonChips() {
 }
 
 function renderDayCard(date) {
+  if(mode()==='mobile')return renderMobileDay(date)
   const dateIso = toDateIso(date)
   const dayItems = getRenderableCalendarItems()
     .filter((item) => getCalendarValue(item, 'date') === dateIso && doesItemMatchPersonFilter(item))
   const sections = [
     { key: 'Aktivitet', label: 'Aktiviteter' },
-    { key: 'Fritidsinteresse', label: 'Fritidsinteresser' },
+    { key: 'Fritidsinteresse', label: mode()==='kiosk'?'Fritid':'Fritidsinteresser' },
     { key: 'Opgave', label: 'Opgaver' },
   ]
   if (calendarViewMode === 'day' && mode() === 'mobile') sections.sort((a,b) => Number(b.key==='Opgave')-Number(a.key==='Opgave'))
@@ -663,12 +695,13 @@ function renderDayCard(date) {
       <header class="day-card-header">
         <strong>${escapeHtml(formatWeekday(date))}</strong>
         <span>${escapeHtml(formatShortDate(date))}${dateIso === toDateIso(new Date()) ? ' · I dag' : ''}</span>
-        <button class="day-add-button" type="button" data-create-on-date="${dateIso}" aria-label="Ny aftale ${dateIso}">+</button>
+
       </header>
 
       <div class="day-sections">
         ${sections.map((section) => {
           const items = dayItems.filter((item) => getCalendarSection(getCalendarValue(item, 'type')) === section.key)
+          if (!items.length) return ''
 
           return `
             <section class="calendar-day-section">
@@ -678,13 +711,14 @@ function renderDayCard(date) {
               </div>
             </section>
           `
-        }).join('')}
+        }).join('') || '<p class="empty-section empty-day">Ingen planer</p>'}
       </div>
     </article>
   `
 }
 
 function renderCalendarItemCard(item) {
+  if(mode()==='mobile')return renderMobileAgendaItem(item)
   const id = item.id
   const type = getCalendarSection(getCalendarValue(item, 'type'))
   const done = Boolean(getCalendarValue(item, 'done'))
@@ -1381,7 +1415,7 @@ function renderPersonSettingsRow(person, { isNew = false } = {}) {
   const avatar = avatarDisplayUrl(person)
 
   return `
-    <div class="person-settings-row ${person.is_active===false?'is-archived':''}" data-person-row="${escapeHtml(rowId)}">
+    <fieldset ${isCreatingPerson ? 'disabled' : ''} class="person-settings-row ${person.is_active===false?'is-archived':''}" data-person-row="${escapeHtml(rowId)}">
       <div class="person-avatar-preview" data-avatar-preview="${escapeHtml(rowId)}">
         ${renderPersonAvatar(person, 'person-settings-avatar')}
       </div>
@@ -1409,7 +1443,7 @@ function renderPersonSettingsRow(person, { isNew = false } = {}) {
       <label class="reward-setting"><input type="checkbox" id="${prefix}-reward-enabled" ${rewardEnabled(person) ? 'checked' : ''} />Med i ugentlig opgavebelønning</label>
       <span class="person-settings-swatch" style="background:${escapeHtml(color)}" data-person-color-swatch="${escapeHtml(rowId)}"></span>
       ${isNew ? '' : `<div class="person-row-actions"><button class="btn small" type="button" data-save-person="${escapeHtml(rowId)}">Gem</button><button type="button" data-archive-person="${escapeHtml(rowId)}">${person.is_active===false?'Gendan':'Arkivér'}</button></div>`}
-    </div>
+    </fieldset>
   `
 }
 
@@ -1706,8 +1740,8 @@ async function handleSavePeopleSettings(event) {
     else pendingAvatarFiles.delete(update.existing?.id || 'new')
   }
   if (epoch !== sessionEpoch) return
-  isCreatingPerson = false
   await loadHouseholdPeople()
+  isCreatingPerson = false
   settingsMessage = errors.length ? 'Kunne ikke gemme alle personer: ' + errors.join(', ') : 'Personer gemt.'
   render()
 }
@@ -1723,9 +1757,9 @@ async function handleSavePersonRow(personId) {
   isCreatingPerson = true; settingsMessage = 'Gemmer person...'; render()
   const { error } = await savePerson(supabase, getHouseholdId(activeHousehold), values, { existing, file: pendingAvatarFiles.get(personId) })
   if (epoch !== sessionEpoch) return
-  isCreatingPerson = false
   if (!error) pendingAvatarFiles.delete(personId)
   await loadHouseholdPeople()
+  isCreatingPerson = false
   settingsMessage = error ? 'Kunne ikke gemme person: ' + error.message : 'Person gemt.'
   render()
 }
@@ -1842,6 +1876,7 @@ function getPersonPreviewColor(rowId) {
 }
 
 function openCreateCalendarModal(date = null,type='Aktivitet') {
+  if(mode()==='kiosk')return
   newCalendarType=type
   editingCalendarItemId = null; editingCalendarSnapshot = null; editingRowsSnapshot = []
   newCalendarDate = date || toDateIso(calendarCursorDate)
@@ -1850,6 +1885,7 @@ function openCreateCalendarModal(date = null,type='Aktivitet') {
 }
 
 function openEditCalendarModal(itemId) {
+  if(mode()==='kiosk'){const item=findRenderableCalendarItem(itemId);if(item)planEditor.view({title:getCalendarItemTitle(item),date:formatDayHeaderDate(parseDateIso(item.date)),time:item.time,note:getCalendarValue(item,'note'),people:getCalendarItemPeople(item).join(', '),source:sourceLabel(item)});return}
   const item = findRenderableCalendarItem(itemId)
   if (!item) return
   editingCalendarItemId = itemId
@@ -2370,6 +2406,11 @@ function syncDefaultCalendarViewMode() {
 }
 
 function getCalendarHeaderLabel() {
+  if(mode()==='mobile'){
+    if(calendarViewMode==='day')return new Intl.DateTimeFormat('da-DK',{weekday:'long',day:'numeric',month:'long'}).format(calendarCursorDate)
+    const dates=weekDates(toDateIso(calendarCursorDate)),first=parseDateIso(dates[0]),last=parseDateIso(dates[6]),format=new Intl.DateTimeFormat('da-DK',{day:'numeric',month:'short',...(first.getFullYear()!==last.getFullYear()?{year:'numeric'}:{})})
+    return 'Uge '+isoWeek(dates[0]).week+' · '+format.format(first)+' – '+format.format(last)
+  }
   return calendarHeading(toDateIso(calendarCursorDate), calendarViewMode)
 }
 
@@ -2420,10 +2461,10 @@ function formatDayHeaderDate(date) {
   }).format(date)
 }
 
-function getRenderableCalendarItems() { return materialize(calendarItems, getVisibleCalendarDates()) }
+function getRenderableCalendarItems() { return materialize(calendarOnly(calendarItems), getVisibleCalendarDates()) }
 
 function getVisibleCalendarDates() {
-  if(productRoute==='tasks')return taskRange==='week'?weekDates(toDateIso(new Date())):[toDateIso(new Date())]
+  if(productRoute==='tasks')return taskDates()
   if (calendarViewMode === 'day') {
     return [toDateIso(calendarCursorDate)]
   }
@@ -2524,31 +2565,47 @@ function applyDeviceAppearance() {
   document.body.dataset.route=productRoute
   document.body.dataset.density=densityFor(current,innerWidth,innerHeight,config.density)
   document.documentElement.style.setProperty('--accent',['#0f172a','#2563eb','#7c3aed','#047857','#be123c'].includes(config.accent)?config.accent:'#0f172a')
-  document.documentElement.style.setProperty('--bg',({cloud:'#f6f7fb',warm:'#faf7f2',cool:'#f0f7f8'})[config.tone]||'#f6f7fb')
+  document.documentElement.style.setProperty('--bg',({cloud:'#f6f7f3',warm:'#faf7f2',cool:'#f0f7f8'})[config.tone]||'#f6f7fb')
 }
 function setProductRoute(route) {
-  if(route==='family'){openSettingsModal('family');return}
-  productRoute=route;calendarCursorDate=new Date();activePersonFilter='Alle'
+  if(route==='food')route=foodRoute
+  if(['meals','shopping'].includes(route))foodRoute=route
+  if(!routeLabels[route]||mode()==='kiosk'&&!['today','calendar','meals','shopping','tasks'].includes(route))return
+  productRoute=route;calendarCursorDate=new Date();activePersonFilter='Alle';message=''
   if(route==='today')calendarViewMode='day'
-  if(route==='calendar'&&mode()==='kiosk')calendarViewMode='week'
+  if(route==='calendar')calendarViewMode=mode()==='kiosk'?'week':getDefaultCalendarViewMode()
+  if(mode()!=='kiosk')updateDeviceProfile({lastRoute:route})
   if(route==='tasks')calendarViewMode='day'
   hasUserSelectedCalendarView=true
   render()
 }
-function renderProductNav() {
-  const entries=mode()==='kiosk'?[['today','I dag'],['calendar','Uge'],['tasks','Opgaver']]:[['today','I dag'],['calendar','Kalender'],['tasks','Opgaver'],['family','Familie']]
-  return '<nav class="product-nav" aria-label="Primær navigation">'+entries.map(([id,label])=>'<button type="button" data-product-route="'+id+'" aria-current="'+(productRoute===id?'page':'false')+'">'+label+'</button>').join('')+'</nav>'
-}
+function renderProductNav() { return renderNavigation(productRoute,mode()==='kiosk',mode()==='mobile') }
 function renderProductHeader() {
-  if(mode()==='kiosk')return '<div class="kiosk-heading"><div><p class="eyebrow">'+escapeHtml(getHouseholdName(activeHousehold))+'</p><time id="device-clock"></time><p id="device-date"></p></div><span class="kiosk-label">Familiens dag</span></div>'
-  return '<div><p class="eyebrow">Familie</p><h1>'+escapeHtml(getHouseholdName(activeHousehold))+'</h1><p>Små planer. Mere tid sammen.</p></div><button id="logout-button" class="logout-button" type="button">Log ud</button>'
+ if(mode()==='mobile')return '<div class="mobile-brand"><span class="mobile-brand-icon" aria-label="Familiekalender">'+icon('calendar')+'</span><h1>'+escapeHtml(['meals','shopping'].includes(productRoute)?'Mad & indkøb':routeLabels[productRoute])+'</h1></div>'
+ if(mode()==='kiosk')return '<div class="kiosk-heading"><div><p class="eyebrow">'+escapeHtml(getHouseholdName(activeHousehold))+'</p><time id="device-clock"></time><p id="device-date"></p></div><div class="kiosk-label"><span class="ux-live-dot"></span> Et hjem. Alle vores planer.</div></div>'
+ return '<div class="ux-brand"><span class="ux-brand-icon">'+icon('calendar')+'</span><div><p class="eyebrow">Familiekalender</p><h1>'+escapeHtml(getHouseholdName(activeHousehold))+'</h1></div></div><button id="logout-button" class="logout-button" type="button">Log ud</button>'
 }
 function renderHome() {
-  const upcoming=upcomingItems(calendarItems,householdPeople,activePersonFilter)
-  const next=upcoming[0],later=upcoming.filter(item=>item.date>toDateIso(new Date())).slice(0,4)
-  const eventButton=item=>'<button class="upcoming-event" data-upcoming="'+escapeHtml(item.id)+'" style="border-left-color:'+escapeHtml(getCalendarItemColor(item))+'"><span class="upcoming-date">'+escapeHtml(formatShortDate(parseDateIso(item.date)))+' · '+escapeHtml(item.time||'Heldag')+'</span><strong>'+escapeHtml(getCalendarItemTitle(item))+'</strong><span>'+escapeHtml(getCalendarItemPeople(item).join(', '))+'</span></button>'
-  return '<div class="home-layout"><div class="day-view">'+renderDayCard(calendarCursorDate)+'</div><aside class="home-aside"><section class="panel next-panel"><p class="eyebrow">Næste aftale</p>'+(next?eventButton(next):'<p class="empty-state">Ingen kommende aftaler endnu.</p>')+'</section>'+
-    (mode()==='kiosk'?'<section class="panel upcoming-panel"><h3>De kommende dage</h3>'+(later.length?later.map(eventButton).join(''):'<p class="empty-state">Plads til nye planer.</p>')+'</section>'+renderShortcuts():'')+'</aside></div>'
+ if(mode()==='mobile'){const now=new Date(),greeting=now.getHours()<10?'Godmorgen':now.getHours()<17?'Goddag':'God aften';return '<div class="mobile-today"><header class="mobile-today-heading"><h2>'+escapeHtml(new Intl.DateTimeFormat('da-DK',{weekday:'long',day:'numeric',month:'long'}).format(now))+'</h2><p>'+greeting+', familien</p></header>'+renderMobileDay(now,{heading:false})+'</div>'}
+ const now=new Date(),today=toDateIso(now),upcoming=upcomingItems(calendarItems,householdPeople,activePersonFilter)
+ const next=upcoming[0],later=upcoming.filter(item=>item.date>today).slice(0,4),kiosk=mode()==='kiosk'
+ const daily=materialize(calendarOnly(calendarItems),[today]).filter(doesItemMatchPersonFilter)
+ const tasks=daily.filter(item=>item.type==='Opgave'),completed=tasks.filter(item=>item.done).length,meals=mealsOn(calendarItems,today),shopping=shoppingItems(calendarItems).filter(item=>!item.done)
+ const eventButton=item=>'<button class="upcoming-event" data-upcoming="'+escapeHtml(item.id)+'" style="border-left-color:'+escapeHtml(getCalendarItemColor(item))+'"><span class="upcoming-date">'+escapeHtml(formatShortDate(parseDateIso(item.date)))+' · '+escapeHtml(item.time||'Heldag')+'</span><strong>'+escapeHtml(getCalendarItemTitle(item))+'</strong><span>'+escapeHtml(getCalendarItemPeople(item).join(', '))+'</span></button>'
+ const mealCard='<section class="ux-dinner"><div class="ux-dinner-top"><span>'+icon('meals')+'</span><p class="eyebrow">På menuen i aften</p></div>'+(meals.length?meals.map(meal=>'<button data-plan-edit="'+meal.id+'" class="ux-dinner-name"><strong>'+escapeHtml(meal.title)+'</strong>'+(meal.time||!kiosk?'<small>'+escapeHtml(meal.time||'God appetit, allesammen')+'</small>':'')+'</button>').join(''):'<h3>Hvad har I lyst til?</h3><p>'+(kiosk?'Planlæg aftensmaden fra familiens mobil.':'En lille plan gør eftermiddagen lettere.')+'</p>')+(!kiosk?'<button class="ux-link" data-go-route="meals">'+(meals.length?'Se ugens madplan':'Planlæg aftensmad')+' '+icon('arrow')+'</button>':'')+'</section>'
+ const greeting=now.getHours()<10?'Godmorgen':now.getHours()<17?'Hej med jer':'God aften'
+ return (!kiosk?'<section class="ux-welcome"><div><p class="eyebrow">'+escapeHtml(formatDayHeaderDate(now))+'</p><h3>'+greeting+' <span>— her er jeres dag.</span></h3><p>'+ (daily.length?'Der er '+daily.filter(item=>item.type!=='Opgave').length+' aftaler og '+(tasks.length-completed)+' åbne opgaver i dag.':'En dag med plads til nye planer.')+'</p></div><span class="ux-welcome-sun">'+icon('sun')+'</span></section><div class="ux-day-stats"><button data-go-route="calendar">'+icon('calendar')+'<span><strong>'+daily.filter(item=>item.type!=='Opgave').length+'</strong> aftaler i dag</span>'+icon('arrow')+'</button><button data-go-route="tasks">'+icon('tasks')+'<span><strong>'+completed+' / '+tasks.length+'</strong> opgaver klaret</span>'+icon('arrow')+'</button><button data-go-route="shopping">'+icon('shopping')+'<span><strong>'+shopping.length+'</strong> varer på listen</span>'+icon('arrow')+'</button></div>':'')+
+ (!kiosk&&next?'<button class="ux-next-inline" data-upcoming="'+escapeHtml(next.id)+'"><span>'+icon('calendar')+'<small>Næste aftale · '+escapeHtml(next.date===today?(next.time||'I dag'):formatShortDate(parseDateIso(next.date)))+'</small></span><strong>'+escapeHtml(getCalendarItemTitle(next))+'</strong>'+icon('arrow')+'</button>':'')+
+ '<div class="home-layout"><div class="day-view">'+renderDayCard(calendarCursorDate)+'</div><aside class="home-aside">'+mealCard+(kiosk?renderKioskProgress(tasks,completed,today):'')+'<section class="panel next-panel"><p class="eyebrow">Næste aftale</p>'+(next?eventButton(next):'<div class="ux-quiet-empty">'+icon('sun')+'<p>Der er ro på kalenderen.</p></div>')+'</section>'+
+ (kiosk?(later.filter(item=>item.id!==next?.id).length?'<section class="panel upcoming-panel"><h3>De kommende dage</h3>'+later.filter(item=>item.id!==next?.id).slice(0,2).map(eventButton).join('')+'</section>':'')+renderShortcuts():'')+'</aside></div>'
+}
+function renderKioskProgress(tasks,completed,today){
+ const rewards=weeklyProgress(calendarItems,householdPeople.filter(isActiveHouseholdPerson),today).filter(row=>row.count)
+ return '<section class="kiosk-progress"><button data-go-route="tasks"><span>'+icon('tasks')+' Dagens opgaver</span><strong>'+completed+' / '+tasks.length+' klaret</strong></button>'+(rewards.length?'<div class="kiosk-rewards" aria-label="Ugens belønningsprogression">'+rewards.map(row=>{const person=householdPeople.find(person=>person.id===row.personId);return '<span>'+escapeHtml(person?.name||'')+' · '+row.count+' '+row.symbol+'</span>'}).join('')+'</div>':'')+'</section>'
+}
+function renderFamilyHome(){
+ const people=householdPeople.filter(isActiveHouseholdPerson)
+ return '<div class="family-view"><section class="ux-family-intro"><div><p class="eyebrow">Sammen om hverdagen</p><h3>'+escapeHtml(getHouseholdName(activeHousehold))+'</h3><p>'+people.length+' familieprofiler · din rolle er '+escapeHtml(roleLabel(householdRole)).toLocaleLowerCase('da')+'</p></div>'+icon('family')+'</section><div class="ux-family-grid">'+people.map(person=>'<article class="ux-family-person" style="--person-color:'+escapeHtml(person.color||'#64748b')+'">'+renderPersonAvatar(person,'ux-family-avatar')+'<h4>'+escapeHtml(person.name)+'</h4><p>'+escapeHtml({barn:'Barn',voksen:'Voksen',andet:'Familie',child:'Barn',adult:'Voksen'}[person.role]||'Familie')+'</p><button data-open-settings="people">Se profil '+icon('arrow')+'</button></article>').join('')+'<button class="ux-add-person" data-open-settings="people">'+icon('plus')+'<strong>Tilføj en person</strong><span>Også børn uden eget login</span></button></div><div class="ux-family-tools">'+[['family','Medlemmer og invitationer','Giv andre adgang til familien.','family'],['feeds','Kalender-import','Saml Aula, Google og andre kalendere.','calendar'],['device','Vægskærm og enhed','Indret denne skærm til jeres hjem.','today'],['appearance','Udseende','Farver og tæthed på denne enhed.','sun'],['account','Din konto','Log ud, eksport og privatliv.','settings']].map(([tab,title,description,i])=>'<button data-open-settings="'+tab+'">'+icon(i)+'<span><strong>'+title+'</strong><small>'+description+'</small></span>'+icon('arrow')+'</button>').join('')+'</div></div>'
 }
 function renderShortcuts() {
   const config=settingsForDevice().shortcuts,links=[['Homey',config.homey],['Sonos',config.sonos],[config.label||'Genvej',config.custom]]
@@ -2557,14 +2614,15 @@ function renderShortcuts() {
   }).join('')+'</div>'
 }
 function renderTaskView() {
-  const today=toDateIso(new Date()),dates=taskRange==='week'?weekDates(today):[today]
+  if(mode()==='kiosk'&&taskRange==='month')taskRange='week'
+  const dates=taskDates()
   const tasks=materialize(calendarItems,dates,{milestones:false}).filter(item=>item.type==='Opgave'&&doesItemMatchPersonFilter(item))
   const open=tasks.filter(item=>!item.done),done=tasks.filter(item=>item.done)
   const group=items=>dates.map(date=>{
     const daily=items.filter(item=>item.date===date)
     return daily.length?'<section class="task-date-group"><h3>'+escapeHtml(formatDayHeaderDate(parseDateIso(date)))+'</h3>'+daily.map(renderCalendarItemCard).join('')+'</section>':''
   }).join('')
-  return '<div class="task-view"><div class="segmented-control"><button data-task-range="today" aria-pressed="'+(taskRange==='today')+'">I dag</button><button data-task-range="week" aria-pressed="'+(taskRange==='week')+'">Denne uge</button><button data-quick-type="Opgave">+ Opgave</button></div>'+
+  return '<div class="task-view">'+renderTaskCapture(tasks,done)+'<div class="segmented-control"><button data-task-range="today" aria-pressed="'+(taskRange==='today')+'">I dag</button><button data-task-range="week" aria-pressed="'+(taskRange==='week')+'">Denne uge</button>'+(mode()!=='kiosk'?'<button data-task-range="month" aria-pressed="'+(taskRange==='month')+'">Måned</button>':'')+'</div>'+
     (open.length?group(open):'<div class="panel empty-state">Ingen åbne opgaver. Godt gået.</div>')+
     (done.length?'<details class="completed-tasks" data-completed-date="task-view" '+(expandedTaskDays.has('task-view')?'open':'')+'><summary>'+done.length+' udførte opgaver</summary>'+group(done)+'</details>':'')+'</div>'
 }
@@ -2572,6 +2630,7 @@ function bindProductSurface() {
   document.querySelectorAll('[data-upcoming]').forEach(button=>button.onclick=()=>openEditCalendarModal(button.dataset.upcoming))
   document.querySelectorAll('[data-task-range]').forEach(button=>button.onclick=()=>{taskRange=button.dataset.taskRange;updateCalendarSurface()})
   document.querySelectorAll('[data-quick-type]').forEach(button=>button.onclick=()=>{openCreateCalendarModal(toDateIso(new Date()),button.dataset.quickType)})
+  bindPlanningSurface()
 }
 function bindProductControls(freshSettings=true) {
   document.querySelectorAll('[data-product-route]').forEach(button=>button.onclick=()=>setProductRoute(button.dataset.productRoute))
@@ -2794,6 +2853,102 @@ async function loadAccountDeletion(){
    authScreen='login';message='Din konto og de bekræftede familier er slettet.';render()
   }catch(error){info.textContent=error.message;submit.disabled=false}
  }
+}
+
+
+function renderTaskCapture(tasks,done){
+ const ratio=tasks.length?Math.round(done.length/tasks.length*100):0
+ return '<section class="ux-task-progress'+(!tasks.length?' is-empty':'')+'"><div><p class="eyebrow">'+(taskRange==='month'?'Månedens fælles indsats':taskRange==='week'?'Ugens fælles indsats':'Dagens fælles indsats')+'</p><h3>'+done.length+' af '+tasks.length+' opgaver klaret</h3><p>'+(tasks.length-done.length?'Små ting, vi hjælpes ad med.':'Der er styr på listen.')+'</p></div><div class="ux-progress-ring" style="--progress:'+ratio+'%"><span>'+ratio+'<small>%</small></span></div></section>'
+}
+function captureInlineFocus(){
+ const input=document.activeElement
+ if(!input?.closest('.ux-inline-form'))return null
+ return {id:input.id,start:input.selectionStart,end:input.selectionEnd}
+}
+function restoreInlineFocus(saved){
+ if(!saved)return
+ const input=document.getElementById(saved.id);input?.focus({preventScroll:true})
+ if(input&&typeof saved.start==='number')input.setSelectionRange(saved.start,saved.end)
+}
+function bindPlanningSurface(){
+ document.querySelectorAll('[data-food-tab]').forEach(button=>button.onclick=()=>setProductRoute(button.dataset.foodTab))
+ const dismiss=document.querySelector('#dismiss-message');if(dismiss)dismiss.onclick=()=>{message='';document.querySelector('#message').textContent='';document.querySelector('.ux-notice').hidden=true}
+ document.querySelectorAll('[data-go-route]').forEach(button=>button.onclick=()=>setProductRoute(button.dataset.goRoute))
+ document.querySelectorAll('[data-product-route]').forEach(button=>button.onclick=()=>setProductRoute(button.dataset.productRoute))
+ document.querySelectorAll('[data-open-settings]').forEach(button=>button.onclick=()=>openSettingsModal(button.dataset.openSettings))
+ document.querySelectorAll('[data-plan-new]').forEach(button=>button.onclick=()=>{if(mode()!=='kiosk')planEditor.open(button.dataset.planNew,{date:button.dataset.planDate||toDateIso(new Date())})})
+ document.querySelectorAll('[data-plan-edit]').forEach(button=>button.onclick=()=>{
+  const row=calendarItems.find(item=>item.id===button.dataset.planEdit);if(!isHouseholdPlan(row))return
+  if(mode()==='kiosk'){planEditor.view({title:row.title,date:formatDayHeaderDate(parseDateIso(row.date)),time:row.time,note:row.note});return}
+  planEditor.open(row.type===PLAN_TYPES.meal?'meal':'shopping',{id:row.id})
+ })
+ document.querySelectorAll('[data-meal-week]').forEach(button=>button.onclick=()=>{calendarCursorDate=button.dataset.mealWeek==='0'?new Date():parseDateIso(addDays(toDateIso(calendarCursorDate),Number(button.dataset.mealWeek)*7));updateCalendarSurface()})
+ document.querySelectorAll('[data-meal-ingredients]').forEach(button=>button.onclick=async()=>{
+  const meal=calendarItems.find(row=>row.id===button.dataset.mealIngredients);if(!meal)return
+  button.disabled=true
+  try{const drafts=ingredientDrafts(meal.note,calendarItems);if(!drafts.length){message='Ingredienserne er allerede på indkøbslisten.';updateCalendarSurface();return}
+   const result=await runCalendarMutation(()=>({upserts:drafts.flatMap(fields=>planCreate(planValues('shopping',fields)).upserts),deleteIds:[],expected:[]}))
+   message=result.error?result.error.message:drafts.length+' varer føjet til indkøbslisten.'
+  }catch(error){message=error.message}finally{button.disabled=false;updateCalendarSurface()}
+ })
+ document.querySelectorAll('[data-shopping-toggle]').forEach(input=>input.onchange=async()=>{
+  const row=calendarItems.find(item=>item.id===input.dataset.shoppingToggle);if(row?.type!==PLAN_TYPES.shopping)return
+  input.disabled=true
+  const {error}=await runCalendarMutation(()=>planEdit(calendarItems,row,{...itemValues(row),done:input.checked}),{action:'toggle_done',entityId:row.id})
+  if(error)message=error.message;updateCalendarSurface()
+ })
+ const completed=document.querySelector('.shopping-completed');if(completed){completed.open=shoppingOpen;completed.ontoggle=()=>{shoppingOpen=completed.open}}
+ document.querySelector('#clear-shopping')?.addEventListener('click',async()=>{
+  const rows=shoppingItems(calendarItems).filter(row=>row.done)
+  if(!rows.length||!confirm('Fjern '+rows.length+' købte varer? Varer, I stadig mangler, bliver på listen.'))return
+  const {error}=await runCalendarMutation(()=>({upserts:[],deleteIds:rows.map(row=>row.id),expected:rows.map(row=>({id:row.id,updated_at:row.updated_at}))}))
+  message=error?error.message:'Købte varer fjernet.';updateCalendarSurface()
+ })
+ const form=document.querySelector('#shopping-add')
+ if(form){
+  form.oninput=()=>{shoppingDraft=Object.fromEntries(new FormData(form))}
+  form.querySelector('button').disabled=shoppingBusy
+  form.onsubmit=async event=>{
+   event.preventDefault();if(shoppingBusy)return
+   const context=sessionEpoch+':'+activeHousehold?.id,draft={...shoppingDraft};shoppingBusy=true;form.querySelector('button').disabled=true
+   try{const values=planValues('shopping',{...draft,location:shoppingCategory(draft.title)}),{error}=await runCalendarMutation(()=>planCreate(values))
+    if(context!==sessionEpoch+':'+activeHousehold?.id)return
+    if(error)throw error
+    if(JSON.stringify(draft)===JSON.stringify(shoppingDraft))shoppingDraft={title:'',note:''}
+    message='Varen er føjet til familiens liste.'
+   }catch(error){message=error.message}finally{shoppingBusy=false;if(context===sessionEpoch+':'+activeHousehold?.id){updateCalendarSurface();document.querySelector('#shopping-title')?.focus({preventScroll:true})}}
+  }
+ }
+}
+
+
+function taskDates(){const today=toDateIso(new Date());return taskRange==='month'?monthDates(today):taskRange==='week'?weekDates(today):[today]}
+function renderFoodTabs(){return '<nav class="food-tabs" aria-label="Mad og indkøb"><button data-food-tab="meals" aria-pressed="'+(productRoute==='meals')+'">Madplan</button><button data-food-tab="shopping" aria-pressed="'+(productRoute==='shopping')+'">Indkøb</button></nav>'}
+function openCreateSheet(){
+ if(mode()==='kiosk')return
+ createRoot.innerHTML='<div id="create-sheet" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="create-sheet-title"><section class="create-sheet"><header><h2 id="create-sheet-title">Hvad vil du tilføje?</h2><button type="button" data-create-close aria-label="Luk">×</button></header>'+[['Aktivitet','Aktivitet','calendar'],['Opgave','Opgave','tasks'],['meal','Måltid','meals'],['shopping','Indkøbsvare','shopping'],['Fødselsdag','Fødselsdag / mærkedag','sun']].map(([kind,label,i])=>'<button type="button" data-create-kind="'+kind+'">'+icon(i)+'<span>'+label+'</span>'+icon('plus')+'</button>').join('')+'</section></div>'
+ createRoot.querySelector('[data-create-close]').onclick=()=>{createRoot.innerHTML=''}
+ createRoot.querySelector('.modal-backdrop').onclick=e=>{if(e.target===e.currentTarget)createRoot.innerHTML=''}
+ createRoot.querySelectorAll('[data-create-kind]').forEach(button=>button.onclick=()=>{
+  const kind=button.dataset.createKind;createRoot.innerHTML=''
+  const date=productRoute==='calendar'?toDateIso(calendarCursorDate):toDateIso(new Date())
+  if(['meal','shopping'].includes(kind))planEditor.open(kind,{date});else openCreateCalendarModal(date,kind)
+ })
+}
+function renderMobileAgendaItem(item){
+ const title=getCalendarItemTitle(item),type=getCalendarValue(item,'type'),task=type==='Opgave',done=Boolean(getCalendarValue(item,'done')),time=getCalendarValue(item,'time'),location=getCalendarValue(item,'location')
+ const badge=renderCalendarItemIcon(item)||icon(type==='Fritidsinteresse'?'sun':'calendar')
+ return '<article class="calendar-item mobile-agenda-item '+(done?'is-done':'')+'" data-calendar-item="'+escapeHtml(item.id)+'" tabindex="0" role="button" aria-label="'+escapeHtml(title)+'" style="--agenda-color:'+escapeHtml(getCalendarItemColor(item))+'"><span class="agenda-time'+(task?' is-task':'')+'">'+(task?badge:escapeHtml(time||'Heldag'))+'</span><div class="agenda-content"><strong>'+escapeHtml(title)+'</strong><p class="agenda-meta">'+(!task?'<span class="agenda-type" title="'+escapeHtml(type)+'" aria-label="'+escapeHtml(type)+'">'+badge+'</span>':'')+escapeHtml(getCalendarItemPeople(item).join(', ')||'Alle')+(task&&time?' · '+escapeHtml(time):'')+(location?' · '+escapeHtml(location):'')+'</p>'+renderCalendarRepeatMeta(item)+(sourceLabel(item)?'<span class="calendar-source-badge">'+escapeHtml(sourceLabel(item))+'</span>':'')+'</div>'+(task&&!imported(item)?'<label class="done-toggle"><input type="checkbox" data-calendar-toggle="'+escapeHtml(item.id)+'" '+(done?'checked':'')+' aria-label="'+escapeHtml((done?'Fortryd udført: ':'Markér udført: ')+title)+'"><span class="sr-only">'+(done?'Udført':'Markér udført')+'</span></label>':'')+'</article>'
+}
+function renderMobileDay(date,{heading=true}={}){
+ const day=toDateIso(date),week=productRoute==='calendar'&&calendarViewMode==='week'
+ const rows=getRenderableCalendarItems().filter(item=>getCalendarValue(item,'date')===day&&doesItemMatchPersonFilter(item)).sort((a,b)=>(getCalendarValue(a,'time')||'').localeCompare(getCalendarValue(b,'time')||''))
+ const appointments=rows.filter(item=>getCalendarValue(item,'type')!=='Opgave'),tasks=rows.filter(item=>getCalendarValue(item,'type')==='Opgave'),meals=mealsOn(calendarItems,day)
+ const dayTitle=week?formatWeekday(date)+' '+formatShortDate(date):new Intl.DateTimeFormat('da-DK',{weekday:'long',day:'numeric',month:'long'}).format(date)
+ let content
+ if(week)content=rows.length?appointments.map(renderMobileAgendaItem).join('')+(tasks.length?renderDayItems('Opgave',tasks,day):''):'<p class="agenda-empty">Ingen aftaler</p>'
+ else content=(appointments.length?'<section class="mobile-agenda-section"><h3>Aftaler</h3>'+appointments.map(renderMobileAgendaItem).join('')+'</section>':!tasks.length&&!meals.length?'<p class="agenda-empty">Ingen planer</p>':'')+(tasks.length?'<section class="mobile-agenda-section"><h3>Opgaver</h3>'+renderDayItems('Opgave',tasks,day)+'</section>':'')+(meals.length?'<section class="mobile-agenda-section mobile-dinner'+(meals.length===1&&!meals[0].time?' is-title-only':'')+'"><h3>'+icon('meals')+' Aftensmad</h3>'+meals.map(meal=>'<button data-plan-edit="'+meal.id+'"><strong>'+escapeHtml(meal.title)+'</strong>'+(meal.time?'<small>'+escapeHtml(meal.time)+'</small>':'')+'</button>').join('')+'</section>':'')
+ return '<article class="day-card mobile-agenda-day '+(day===toDateIso(new Date())?'is-today':'')+'" data-day="'+day+'">'+(heading&&week?'<header class="day-card-header"><strong>'+escapeHtml(dayTitle)+'</strong>'+(day===toDateIso(new Date())?'<span>I dag</span>':'')+'</header>':'')+content+'</article>'
 }
 
 init()

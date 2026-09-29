@@ -4,7 +4,7 @@ Opdateret 29. september 2026. Samme tekst som appens offentlige /privacy-side.
 
 ## Dine oplysninger
 
-Familiekalender gemmer din email, dit konto-id og dine medlemskaber af familier. Adgangskoder behandles af Supabase Auth. Familien deler kalenderaftaler, noter, steder, opgaver, færdigmarkeringer, gentagelser og belønningshistorik med de logins, der er medlemmer.
+Familiekalender gemmer din email, dit konto-id og dine medlemskaber af familier. Adgangskoder behandles af Supabase Auth. Familien deler kalenderaftaler, noter, steder, opgaver, færdigmarkeringer, gentagelser, belønningshistorik, madplaner, ingredienslister og indkøb med de logins, der er medlemmer.
 
 ## Børn og familieprofiler
 
@@ -16,7 +16,7 @@ Avatarer ligger i en privat Supabase Storage-bucket og vises med tidsbegrænsede
 
 ## Enheden og offline
 
-Denne enhed gemmer login-session, kalender, personer, belønninger og ventende ændringer lokalt, så appen kan bruges offline. Del derfor kun enheden med personer, som må se familien. Log ud rydder appens lokale familiedata og ventende ændringer. Udseende og vægskærmsindstillinger, herunder en saltet PIN-hash, bevares til næste login. Systemets egne sikkerhedskopier kan have en anden levetid.
+Denne enhed gemmer login-session, kalender, personer, belønninger, madplan, indkøb og ventende ændringer lokalt, så appen kan bruges offline. Del derfor kun enheden med personer, som må se familien. Log ud rydder appens lokale familiedata og ventende ændringer. Udseende og vægskærmsindstillinger, herunder en saltet PIN-hash, bevares til næste login. Systemets egne sikkerhedskopier kan have en anden levetid.
 
 ## Native enheder og push
 
@@ -32,7 +32,7 @@ Data opbevares, mens familien bruger tjenesten, indtil medlemmer sletter dem ell
 
 ## Oprydning og kopier
 
-Ved familiesletning fjernes kalender, personer, feeds, medlemskaber, belønninger og avatarfiler. Konto, profil, loginmedlemskaber, invitationer og enhedsregistreringer fjernes. Hvis netværksoprydning fejler, gemmes en intern sletteopgave, som færdiggøres ved næste forsøg. Andre enheders offlinekopier kan først ryddes, når de forbinder igen eller logger ud. Leverandørers backups og sikkerhedslogs udløber efter deres aftalte retention; den præcise produktionsperiode skal fastlægges før offentlig lancering.
+Ved familiesletning fjernes kalender, madplan, indkøb, personer, feeds, medlemskaber, belønninger og avatarfiler. Konto, profil, loginmedlemskaber, invitationer og enhedsregistreringer fjernes. Hvis netværksoprydning fejler, gemmes en intern sletteopgave, som færdiggøres ved næste forsøg. Andre enheders offlinekopier kan først ryddes, når de forbinder igen eller logger ud. Leverandørers backups og sikkerhedslogs udløber efter deres aftalte retention; den præcise produktionsperiode skal fastlægges før offentlig lancering.
 
 ## Gemte eksporter
 

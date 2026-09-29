@@ -1,7 +1,9 @@
+import { calendarOnly } from './household-plans.js'
 import { addDays, dateIso, parseDate } from './calendar-dates.js'
 import { materialize, value } from './calendar-semantics.js'
 import { itemMatchesPerson } from './people.js'
 export function upcomingItems(rows,people,filter='Alle',now=new Date()){
+ rows=calendarOnly(rows)
  const today=dateIso(now),year=now.getFullYear()
  const dates=new Set(Array.from({length:36},(_,i)=>addDays(today,i)))
  for(const row of rows){

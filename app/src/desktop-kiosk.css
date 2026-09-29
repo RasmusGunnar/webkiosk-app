@@ -1,0 +1,150 @@
+/* UX 2.3: controller desktop and wall display. Mobile 2.2 stays in mobile.css. */
+body[data-mode=desktop] .dashboard-header{margin-bottom:18px}
+body[data-mode=desktop] .person-chipbar{gap:6px;margin-bottom:16px}
+body[data-mode=desktop] .person-chip{min-height:38px;font-size:12px;font-weight:500}
+body[data-mode=desktop] .person-chip-avatar{width:24px;height:24px}
+body[data-mode=desktop] .calendar-heading{margin-bottom:16px}
+body[data-mode=desktop][data-route=today] .calendar-heading{display:none}
+body[data-mode=desktop] .ux-welcome{padding:18px 22px;gap:16px}
+body[data-mode=desktop] .ux-welcome h3{font-size:28px;margin:7px 0}
+body[data-mode=desktop] .ux-welcome h3 span{display:inline}
+body[data-mode=desktop] .ux-welcome-sun{width:64px;height:64px}
+body[data-mode=desktop] .ux-welcome-sun svg{width:38px;height:38px}
+body[data-mode=desktop] .ux-day-stats{margin-bottom:16px}
+body[data-mode=desktop] .ux-day-stats button{min-height:62px;padding:12px 16px}
+body[data-mode=desktop] .ux-day-stats strong{display:inline;font-size:20px;margin-right:5px}
+body[data-mode=desktop] .floating-new-button{display:flex;align-items:center;gap:8px;bottom:28px;right:32px;background:var(--ux-green);min-height:52px;padding:12px 22px;z-index:21}
+body[data-mode=desktop] #create-sheet{align-items:center;padding:24px}
+body[data-mode=desktop] .create-sheet{border-radius:22px;padding:24px;max-width:440px;box-shadow:0 20px 80px #213b2928}
+body[data-mode=desktop] .create-sheet>button{min-height:64px}
+body[data-mode=desktop] .ux-task-progress.is-empty{padding:16px 22px}
+body[data-mode=desktop] .ux-task-progress.is-empty h3{font-size:22px;margin:4px 0}
+body[data-mode=desktop] .ux-task-progress.is-empty .ux-progress-ring{display:none}
+body[data-mode=desktop] .week-grid{gap:10px}
+body[data-mode=desktop] .week-grid .day-card{padding:12px}
+body[data-mode=desktop] .week-grid .calendar-day-section h3{font-size:11px;overflow-wrap:anywhere}
+body[data-mode=desktop] .week-grid .calendar-item{padding:10px 8px}
+body[data-mode=desktop] .week-grid .calendar-item-layout{gap:6px}
+body[data-mode=desktop] .week-grid .calendar-item-icon-column{width:auto;flex-basis:auto}
+body[data-mode=desktop] .week-grid .task-emoji{font-size:18px}
+body[data-mode=desktop] .week-grid .calendar-item-title-row strong{font-size:14px;line-height:1.4}
+body[data-mode=desktop] .week-grid .calendar-item-meta,body[data-mode=desktop] .week-grid .calendar-person{font-size:11px}
+body[data-mode=desktop] .empty-day,body[data-mode=kiosk] .empty-day{margin:4px 0;color:#78826f;font-size:14px}
+body[data-mode=desktop] .calendar-toolbar,body[data-mode=kiosk] .calendar-toolbar{gap:8px}
+body[data-mode=desktop] .calendar-toolbar button,body[data-mode=kiosk] .calendar-toolbar button{height:44px;min-height:44px}
+body:is([data-mode=desktop],[data-mode=kiosk]) .food-tabs{display:inline-flex;min-width:300px;max-width:100%;margin:0 0 18px}
+body:is([data-mode=desktop],[data-mode=kiosk]) .food-tabs button{min-width:140px;font-size:14px}
+body:is([data-mode=desktop],[data-mode=kiosk]) .meal-calendar-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 18px}
+body:is([data-mode=desktop],[data-mode=kiosk]) .meal-week-label{font-size:16px;color:#69745f;margin:0}
+body:is([data-mode=desktop],[data-mode=kiosk]) .meal-week-nav{display:inline-flex;gap:4px;padding:3px;background:var(--ux-sage);border-radius:12px;margin:0}
+body:is([data-mode=desktop],[data-mode=kiosk]) .meal-week-nav button{min-width:44px;min-height:44px;padding:8px 12px;border:0;background:transparent;font-size:16px;border-radius:10px}
+body:is([data-mode=desktop],[data-mode=kiosk]) .meal-week-nav [data-meal-week="0"]{background:#fff;font-size:13px}
+body[data-mode=desktop] .meal-day{display:grid;grid-template-columns:90px minmax(0,1fr)}
+body[data-mode=desktop] .meal-day>header{flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:5px;padding:18px 12px;border-bottom:0;border-right:1px solid var(--ux-line);font-size:13px}
+body[data-mode=desktop] .meal-day>header strong{margin:0;font-size:12px}
+body[data-mode=desktop] .meal-day-content{padding:18px}
+body[data-mode=desktop] .meal-symbol{display:none}
+body[data-mode=desktop] .meal-card strong{font-size:18px;line-height:1.4}
+body[data-mode=desktop] .meal-empty{margin:4px 0}
+/* Kiosk keeps its own full-height display, with bounded lists for busy days. */
+body[data-mode=kiosk] .app-shell{padding:18px 24px 88px}
+body[data-mode=kiosk] .dashboard-header{margin-bottom:12px;padding-bottom:12px}
+body[data-mode=kiosk] .kiosk-label{font-size:15px}
+body[data-mode=kiosk] .person-chipbar{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding:2px 0 4px;margin-bottom:12px}
+body[data-mode=kiosk] .person-chip{flex:none;min-height:44px;font-size:16px}
+body[data-mode=kiosk] .person-chipbar::-webkit-scrollbar{display:none}
+body[data-mode=kiosk][data-route=today] .calendar-heading{display:none}
+body[data-mode=kiosk] .home-layout{grid-template-columns:minmax(0,1.5fr) minmax(300px,1fr);gap:18px}
+body[data-mode=kiosk][data-density=compact] .home-layout{grid-template-columns:minmax(0,1.5fr) minmax(300px,1fr);gap:14px}
+body[data-mode=kiosk] .home-layout>.day-view>.day-card{padding:18px}
+body[data-mode=kiosk] .home-layout .day-sections{display:flex;flex-direction:column;gap:18px}
+body[data-mode=kiosk] .home-layout .calendar-day-section h3{font-size:14px}
+body[data-mode=kiosk] .home-layout .calendar-item{padding:12px 14px;min-height:60px}
+body[data-mode=kiosk] .home-layout .calendar-item-title-row strong{font-size:clamp(18px,1.3vw,25px)}
+body[data-mode=kiosk] .home-layout .calendar-item-icon-column{width:28px;flex-basis:28px}
+body[data-mode=kiosk] .home-layout .task-emoji{font-size:24px}
+body[data-mode=kiosk] .home-aside{gap:12px}
+body[data-mode=kiosk] .ux-dinner,body[data-mode=kiosk][data-density=compact] .ux-dinner{padding:16px 20px}
+body[data-mode=kiosk] .ux-dinner-top{margin-bottom:10px}
+body[data-mode=kiosk] .ux-dinner-top>span{width:30px;height:30px}
+body[data-mode=kiosk] .ux-dinner .eyebrow{font-size:12px}
+body[data-mode=kiosk] .ux-dinner-name strong{font-size:clamp(23px,1.8vw,34px);line-height:1.25}
+body[data-mode=kiosk] .ux-dinner-name small{font-size:14px;margin-top:6px}
+body[data-mode=kiosk] .home-aside .panel{padding:14px 18px}
+body[data-mode=kiosk] .home-aside .eyebrow{font-size:12px}
+body[data-mode=kiosk] .home-aside .upcoming-event{margin-top:8px;padding:8px 10px}
+body[data-mode=kiosk] .upcoming-event strong{font-size:clamp(18px,1.2vw,23px);line-height:1.35}
+body[data-mode=kiosk] .upcoming-event span{font-size:14px}
+body[data-mode=kiosk] .upcoming-panel h3{font-size:16px;margin-bottom:8px}
+body[data-mode=kiosk] .kiosk-progress{background:var(--ux-sage);border:1px solid #d3ddca;border-radius:18px;padding:14px 18px;color:var(--ux-green)}
+body[data-mode=kiosk] .kiosk-progress>button{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;text-align:left;background:none;border:0;border-radius:0;padding:0;min-height:32px;font-size:16px}
+body[data-mode=kiosk] .kiosk-progress>button>span{display:flex;align-items:center;gap:8px;font-weight:500}
+body[data-mode=kiosk] .kiosk-progress strong{font-size:19px;white-space:nowrap}
+body[data-mode=kiosk] .kiosk-rewards{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px;padding-top:10px;border-top:1px solid #ccd9c3;font-size:15px}
+body[data-mode=kiosk] .kiosk-rewards span{overflow-wrap:anywhere}
+body[data-mode=kiosk] .product-nav button{font-size:15px;min-width:110px;min-height:46px}
+body[data-mode=kiosk] .product-nav .ux-icon{width:20px;height:20px}
+body[data-mode=kiosk][data-route=calendar] .week-grid{gap:8px}
+body[data-mode=kiosk][data-route=calendar] .week-grid .day-card{padding:10px;min-width:0}
+body[data-mode=kiosk][data-route=calendar] .week-grid .calendar-item{padding:10px 8px}
+body[data-mode=kiosk][data-route=calendar] .week-grid .calendar-item-title-row strong{font-size:clamp(15px,1.05vw,20px);line-height:1.4}
+body[data-mode=kiosk][data-route=calendar] .week-grid .calendar-item-meta,body[data-mode=kiosk][data-route=calendar] .week-grid .calendar-person{font-size:13px}
+body[data-mode=kiosk][data-route=calendar] .week-grid .calendar-item-layout{gap:5px}
+body[data-mode=kiosk][data-route=calendar] .week-grid .calendar-item-icon-column{width:auto;flex-basis:auto}
+body[data-mode=kiosk][data-route=calendar] .week-grid .task-emoji{font-size:19px}
+body[data-mode=kiosk][data-route=calendar] .week-grid .calendar-day-section h3{font-size:12px;overflow-wrap:anywhere}
+body[data-mode=kiosk]:is([data-route=meals],[data-route=shopping]) #calendar-view{display:flex;flex-direction:column;overflow:hidden}
+body[data-mode=kiosk] .food-tabs{flex-shrink:0;align-self:start}
+body[data-mode=kiosk] .meal-view,body[data-mode=kiosk] .kiosk-shopping{overflow:auto;min-height:0;scrollbar-width:thin}
+body[data-mode=kiosk] .meal-week{grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+body[data-mode=kiosk] .meal-day-content{padding:16px}
+body[data-mode=kiosk] .meal-card strong{font-size:clamp(20px,1.3vw,26px)}
+body[data-mode=kiosk] .meal-card small,body[data-mode=kiosk] .meal-empty{font-size:15px}
+body[data-mode=kiosk] .meal-symbol{display:none}
+body[data-mode=kiosk] .meal-day>header{font-size:16px;padding:12px 16px}
+body[data-mode=kiosk] .kiosk-shopping .shopping-count{font-size:18px;margin:0 0 18px}
+body[data-mode=kiosk] .kiosk-shopping .shopping-groups{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:start}
+body[data-mode=kiosk] .kiosk-shopping .shopping-group{margin:0;padding:20px}
+body[data-mode=kiosk] .kiosk-shopping h4{font-size:16px}
+body[data-mode=kiosk] .kiosk-shopping .shopping-name strong{font-size:22px}
+body[data-mode=kiosk] .kiosk-shopping .shopping-name small{font-size:16px}
+@media(min-width:1600px){body[data-mode=kiosk] .home-layout .day-sections{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}body[data-mode=kiosk] .home-layout .calendar-day-section:last-child{grid-column:1/-1}body[data-mode=kiosk] .home-aside{gap:18px}body[data-mode=kiosk] .home-aside .panel,body[data-mode=kiosk] .ux-dinner,body[data-mode=kiosk] .kiosk-progress{padding:22px}}
+
+/* Four wall destinations stay on one row and clear the content area. */
+body[data-mode=kiosk] .product-nav{width:max-content;max-width:calc(100vw - 130px);flex-wrap:nowrap}
+body[data-mode=kiosk] .product-nav button{flex:none;white-space:nowrap}
+body[data-mode=kiosk] .ux-dinner-name{min-height:32px}
+body[data-mode=kiosk][data-route=calendar] .week-grid .calendar-day-section h3{letter-spacing:0;font-size:11px}
+body[data-mode=kiosk][data-density=compact] .home-layout>.day-view>.day-card{padding:14px}
+body[data-mode=kiosk][data-density=compact] .home-layout .day-sections{gap:12px}
+body[data-mode=kiosk][data-density=compact] .home-layout .calendar-items{gap:8px}
+body[data-mode=kiosk][data-density=compact] .home-layout .calendar-day-section h3{margin-bottom:8px}
+body[data-mode=kiosk][data-density=compact] .home-layout .calendar-item{padding:9px 12px;min-height:0}
+body[data-mode=kiosk][data-density=compact] .home-layout .calendar-item-title-row{gap:4px}
+body[data-mode=kiosk][data-density=compact] .home-layout .calendar-person{margin-top:4px;font-size:14px}
+body[data-mode=kiosk][data-density=compact] .home-layout .calendar-item-footer{margin-top:4px}
+body[data-mode=kiosk][data-density=compact] .home-layout .calendar-note{font-size:13px}
+body[data-mode=kiosk][data-density=compact] .home-aside{gap:10px}
+body[data-mode=kiosk][data-density=compact] .ux-dinner{padding:12px 16px}
+body[data-mode=kiosk][data-density=compact] .ux-dinner-top{margin-bottom:6px}
+body[data-mode=kiosk][data-density=compact] .ux-dinner-top>span{width:24px;height:24px}
+body[data-mode=kiosk][data-density=compact] .kiosk-progress{padding:10px 16px}
+body[data-mode=kiosk][data-density=compact] .kiosk-rewards{margin-top:6px;padding-top:6px}
+body[data-mode=kiosk][data-density=compact] .home-aside .panel{padding:10px 16px}
+body[data-mode=kiosk][data-density=compact] .home-aside .upcoming-event{gap:2px;margin-top:6px;padding:6px 10px}
+
+body:is([data-mode=desktop],[data-mode=kiosk]) .meal-week-nav [data-meal-week="0"]{width:auto;white-space:nowrap}
+body[data-mode=kiosk][data-density=compact] .home-layout .calendar-item-content{gap:3px}
+body[data-mode=kiosk][data-density=compact] .home-layout .calendar-person,body[data-mode=kiosk][data-density=compact] .home-layout .calendar-item-meta{margin:0;line-height:1.3}
+body[data-mode=kiosk][data-density=compact] .home-layout .calendar-item-footer{margin-top:0;padding-top:0}
+body[data-mode=kiosk][data-density=compact] .home-layout .calendar-item.has-icon .calendar-item-content{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px}
+body[data-mode=kiosk][data-density=compact] .home-layout .calendar-item.has-icon .calendar-item-title-row{grid-column:1}
+body[data-mode=kiosk][data-density=compact] .home-layout .calendar-item.has-icon .calendar-item-meta{grid-column:1}
+body[data-mode=kiosk][data-density=compact] .home-layout .calendar-item.has-icon .calendar-item-footer{grid-column:1/-1}
+body[data-mode=kiosk][data-density=compact] .home-layout .done-toggle{grid-column:2;grid-row:1/3;align-self:center;margin:0;font-size:13px}
+@media(min-width:1600px){body[data-mode=kiosk] .home-layout .calendar-day-section:last-child{grid-column:auto}body[data-mode=kiosk] .home-layout .calendar-day-section:nth-child(3):last-child{grid-column:1/-1}}
+
+body[data-mode=kiosk] .home-layout .calendar-item{margin-top:0}
+body[data-mode=kiosk] .home-layout .calendar-person{font-size:clamp(14px,1vw,18px)}
+body[data-mode=kiosk] .task-view .calendar-item-title-row strong{font-size:20px}
+body[data-mode=kiosk] .task-view .segmented-control button,body[data-mode=kiosk] .task-view .task-date-group>h3{font-size:16px}

@@ -10,7 +10,7 @@ export function installDialogAccessibility(){
   const modal=dialogs().at(-1)||null
   if(modal!==last){
    if(modal){if(!last){returnElement=lastFocused||document.activeElement;returnId=returnElement?.id}if(!modal.contains(document.activeElement))(fields(modal).find(el=>el.tagName==='INPUT')||fields(modal)[0]||modal).focus({preventScroll:true})}
-   else{(document.getElementById(returnId)|| (returnElement?.isConnected?returnElement:null)||document.querySelector('#new-calendar-button'))?.focus({preventScroll:true})}
+   else{(document.getElementById(returnId)|| (returnElement?.isConnected?returnElement:null)||document.querySelector('#new-calendar-button:not([hidden]), #settings-button'))?.focus({preventScroll:true})}
    last=modal;document.body.classList.toggle('has-dialog',Boolean(modal))
   }
  }

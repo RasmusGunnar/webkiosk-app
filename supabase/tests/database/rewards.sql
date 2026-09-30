@@ -38,17 +38,17 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
 select pg_temp.assert_true(jsonb_array_length(pg_temp.complete(6)->'celebrations')=0,'Six single-person tasks no threshold');
 select pg_temp.assert_true(jsonb_array_length(public.sync_calendar_mutation('99999999-9999-4999-8999-999999999999','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','[]',
- jsonb_build_array(pg_temp.task('77777777-7777-4777-8777-777777777777',true)),'{}')->'celebrations')=1,'Seventh task atomically claims threshold 7');
-select pg_temp.assert_true((select count(*)=1 and min(threshold)=7 and min(completed_count)=7 and min(jsonb_array_length(tasks))=6 from public.reward_celebrations),'Claim stores week, count and at most six task titles');
+ jsonb_build_array(pg_temp.task('77777777-7777-4777-8777-777777777777',true)),'{}')->'celebrations')=0,'Seventh task no longer claims a legacy threshold');
+select pg_temp.assert_true((select count(*)=0 from public.reward_celebrations),'Weekly celebration writes are disabled');
 select pg_temp.assert_true((public.sync_calendar_mutation('99999999-9999-4999-8999-999999999999','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','[]','[]','{}')->>'already_applied')::boolean,'Response-loss retry is idempotent');
 select pg_temp.assert_true((select count(*)=7 from public.calendar_items),'Idempotent retry never duplicates rows');
 select public.sync_calendar_mutation(gen_random_uuid(),'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',pg_temp.expected('77777777-7777-4777-8777-777777777777'),
  jsonb_build_array(pg_temp.task('77777777-7777-4777-8777-777777777777',false)),'{}');
 select pg_temp.assert_true(jsonb_array_length(public.sync_calendar_mutation(gen_random_uuid(),'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',pg_temp.expected('77777777-7777-4777-8777-777777777777'),
  jsonb_build_array(pg_temp.task('77777777-7777-4777-8777-777777777777',true)),'{}')->'celebrations')=0,'Undo/redo does not repeat celebration');
-select pg_temp.assert_true((pg_temp.complete(2)->'celebrations'->0->>'threshold')::int=9,'Threshold 9');
-select pg_temp.assert_true((pg_temp.complete(3)->'celebrations'->0->>'threshold')::int=12,'Threshold 12');
-select pg_temp.assert_true((select count(*)=3 and count(distinct (person_id,iso_year,iso_week,threshold))=3 from public.reward_celebrations),'Persistent unique crossing per person ISO week');
+select pg_temp.assert_true(jsonb_array_length(pg_temp.complete(2)->'celebrations')=0,'Ninth completion creates no legacy reward');
+select pg_temp.assert_true(jsonb_array_length(pg_temp.complete(3)->'celebrations')=0,'Twelfth completion creates no legacy reward');
+select pg_temp.assert_true((select count(*)=0 from public.reward_celebrations),'No active legacy weekly records');
 select public.sync_calendar_mutation(gen_random_uuid(),'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','[]',jsonb_build_array(
  pg_temp.task(gen_random_uuid(),true,'["cccccccc-cccc-4ccc-8ccc-cccccccccccc","dddddddd-dddd-4ddd-8ddd-dddddddddddd"]'),
  pg_temp.task(gen_random_uuid(),true,'[]')),'{}');

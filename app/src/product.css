@@ -27,7 +27,6 @@ body[data-mode=desktop] .product-nav:before{content:'VORES HVERDAG';font-size:10
 .person-chip{border:1px solid var(--ux-line)!important;padding:5px 12px 5px 6px;min-height:44px;box-shadow:none;border-radius:30px;background:#fff;color:#344232;gap:8px;font-size:13px;font-weight:600}
 .person-chip.active{background:var(--accent);color:#fff;border-color:var(--accent)!important}
 .person-chip-avatar{width:28px;height:28px;font-size:12px}
-.reward-progress{font-size:12px}
 .calendar-heading{align-items:center;margin-bottom:22px;gap:16px}
 .calendar-heading h2{font-size:26px;letter-spacing:-.045em;margin:0 0 4px;font-weight:720}
 .calendar-heading p{font-size:13px;color:#76806e}

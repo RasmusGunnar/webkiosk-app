@@ -10,6 +10,10 @@ Familiekalender gemmer din email, dit konto-id og dine medlemskaber af familier.
 
 Personer i kalenderen er familieprofiler, ikke automatisk brugerkonti. Navn, farve, valgfrit fødselsår, avatar og opgaveindstillinger kan gemmes. Den voksne, der opretter eller inviterer til familien, skal have ret til at dele oplysningerne. Andre medlemmer kan læse og redigere fælles kalender- og persondata.
 
+## Opgaver og belønninger
+
+Belønninger omfatter månedlige lommepengeberegninger og udbetalingsmarkeringer, bonusstjerner med et historisk regnskab, familiens belønningskatalog, mål, indløsningsønsker, voksengodkendelser og begrundelser for fritagelse. Familien kan læse oplysningerne. Voksne styrer godkendelser og indstillinger. Appen flytter ikke penge. Historikken bevares ved arkivering af en person og indgår i familiens eksport og sletning.
+
 ## Billeder og kalenderfeeds
 
 Avatarer ligger i en privat Supabase Storage-bucket og vises med tidsbegrænsede links. Ældre avatarer kan være eksterne billedlinks. Google-, Aula- og andre ICS-links gemmes på backend og hentes af en Supabase Edge Function. Linkene kan give adgang til private kalendere; de vises kun for ejer/administrator og udelades fra JSON-eksporten.

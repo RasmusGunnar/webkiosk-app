@@ -1,0 +1,418 @@
+{
+  "project": "oyyqniwppytipdktzwsy",
+  "rollback_baseline": "12f28ffad074b2ed5da2306a0cd7b00b1bc4f3fa",
+  "migration": "20260930091444_rewards_21_simplify",
+  "backup": {
+    "id": 1824392287,
+    "status": "COMPLETED",
+    "inserted_at": "2026-09-30T03:36:11.610Z",
+    "restore_performed": false
+  },
+  "preflight_schema_matches_prior_snapshot": true,
+  "before": [
+    {
+      "table_name": "auth.users",
+      "row_count": 1,
+      "fingerprint": "18398543487abd1dafc7c7da78548e5d"
+    },
+    {
+      "table_name": "public.account_deletion_jobs",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.allowance_monthly_snapshots",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.calendar_feeds",
+      "row_count": 4,
+      "fingerprint": "82d21000f2bba009a3f6d3678baa0ff3"
+    },
+    {
+      "table_name": "public.calendar_items",
+      "row_count": 486,
+      "fingerprint": "afd7146bfaf667377c5670bb5b8eebd8"
+    },
+    {
+      "table_name": "public.calendar_mutation_receipts",
+      "row_count": 9,
+      "fingerprint": "bb5a06eaff8183d8f8220432da3bc1aa"
+    },
+    {
+      "table_name": "public.calendar_revisions",
+      "row_count": 1,
+      "fingerprint": "40d33a45ed24adeabbe6bbd32d4b8b83"
+    },
+    {
+      "table_name": "public.household_invitations",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.household_members",
+      "row_count": 2,
+      "fingerprint": "a1f375c4cdaaaf66b69bf2e517124a19"
+    },
+    {
+      "table_name": "public.household_people",
+      "row_count": 5,
+      "fingerprint": "43e693d038bda8bed4cd0503ef5de854"
+    },
+    {
+      "table_name": "public.households",
+      "row_count": 2,
+      "fingerprint": "964149b5f72d5b7cff0ba952832315fa"
+    },
+    {
+      "table_name": "public.native_devices",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.profiles",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.reward_allowance_periods",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.reward_catalog",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.reward_celebrations",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.reward_goals",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.reward_occurrence_events",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.reward_person_config",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.reward_redemptions",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.reward_requests",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.reward_star_ledger",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.task_reward_occurrences",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "storage.buckets",
+      "row_count": 1,
+      "fingerprint": "58ed9021db8b215783c5dc377705504d"
+    },
+    {
+      "table_name": "storage.objects",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    }
+  ],
+  "after_migration": [
+    {
+      "table_name": "auth.users",
+      "row_count": 1,
+      "fingerprint": "18398543487abd1dafc7c7da78548e5d"
+    },
+    {
+      "table_name": "public.account_deletion_jobs",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.allowance_monthly_snapshots",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.calendar_feeds",
+      "row_count": 4,
+      "fingerprint": "82d21000f2bba009a3f6d3678baa0ff3"
+    },
+    {
+      "table_name": "public.calendar_items",
+      "row_count": 486,
+      "fingerprint": "afd7146bfaf667377c5670bb5b8eebd8"
+    },
+    {
+      "table_name": "public.calendar_mutation_receipts",
+      "row_count": 9,
+      "fingerprint": "bb5a06eaff8183d8f8220432da3bc1aa"
+    },
+    {
+      "table_name": "public.calendar_revisions",
+      "row_count": 1,
+      "fingerprint": "40d33a45ed24adeabbe6bbd32d4b8b83"
+    },
+    {
+      "table_name": "public.household_invitations",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.household_members",
+      "row_count": 2,
+      "fingerprint": "a1f375c4cdaaaf66b69bf2e517124a19"
+    },
+    {
+      "table_name": "public.household_people",
+      "row_count": 5,
+      "fingerprint": "43e693d038bda8bed4cd0503ef5de854"
+    },
+    {
+      "table_name": "public.households",
+      "row_count": 2,
+      "fingerprint": "964149b5f72d5b7cff0ba952832315fa"
+    },
+    {
+      "table_name": "public.native_devices",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.profiles",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.reward_allowance_periods",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.reward_catalog",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.reward_celebrations",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.reward_goals",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.reward_occurrence_events",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.reward_person_config",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.reward_redemptions",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.reward_requests",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.reward_star_ledger",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.task_reward_occurrences",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "storage.buckets",
+      "row_count": 1,
+      "fingerprint": "58ed9021db8b215783c5dc377705504d"
+    },
+    {
+      "table_name": "storage.objects",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    }
+  ],
+  "after_smoke": [
+    {
+      "table_name": "auth.users",
+      "row_count": 1,
+      "fingerprint": "18398543487abd1dafc7c7da78548e5d"
+    },
+    {
+      "table_name": "public.account_deletion_jobs",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.allowance_monthly_snapshots",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.calendar_feeds",
+      "row_count": 4,
+      "fingerprint": "82d21000f2bba009a3f6d3678baa0ff3"
+    },
+    {
+      "table_name": "public.calendar_items",
+      "row_count": 486,
+      "fingerprint": "afd7146bfaf667377c5670bb5b8eebd8"
+    },
+    {
+      "table_name": "public.calendar_mutation_receipts",
+      "row_count": 9,
+      "fingerprint": "bb5a06eaff8183d8f8220432da3bc1aa"
+    },
+    {
+      "table_name": "public.calendar_revisions",
+      "row_count": 1,
+      "fingerprint": "40d33a45ed24adeabbe6bbd32d4b8b83"
+    },
+    {
+      "table_name": "public.household_invitations",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.household_members",
+      "row_count": 2,
+      "fingerprint": "a1f375c4cdaaaf66b69bf2e517124a19"
+    },
+    {
+      "table_name": "public.household_people",
+      "row_count": 5,
+      "fingerprint": "43e693d038bda8bed4cd0503ef5de854"
+    },
+    {
+      "table_name": "public.households",
+      "row_count": 2,
+      "fingerprint": "964149b5f72d5b7cff0ba952832315fa"
+    },
+    {
+      "table_name": "public.native_devices",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.profiles",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.reward_allowance_periods",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.reward_catalog",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.reward_celebrations",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.reward_goals",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.reward_occurrence_events",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.reward_person_config",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.reward_redemptions",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.reward_requests",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.reward_star_ledger",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.task_reward_occurrences",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "storage.buckets",
+      "row_count": 1,
+      "fingerprint": "58ed9021db8b215783c5dc377705504d"
+    },
+    {
+      "table_name": "storage.objects",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    }
+  ],
+  "all_original_rows_unchanged": true,
+  "live_api_checks": 43,
+  "live_fixture_cleanup": true,
+  "post_cleanup_milestone_rows": 0,
+  "advisor_new_warnings_or_errors": 0,
+  "frontend_deployed": false,
+  "commit_or_push": false,
+  "gallery": "supabase/.temp/rewards21/index.html",
+  "tests": {
+    "unit": 119,
+    "postgres": 185,
+    "edge": 13,
+    "existing_browser_numbered": 121,
+    "foundation_browser": "PASS",
+    "rewards_20_browser": 16,
+    "rewards_21_browser": 28,
+    "rewards_api_local": 43,
+    "rewards_api_live": 43,
+    "native_structure": 11,
+    "web_build": "PASS",
+    "capacitor_sync": "PASS: Android and iOS",
+    "physical_device_runtime": "NOT TESTED",
+    "secret_check": "PASS: 266 Git-visible paths"
+  },
+  "final_verification_at": "2026-09-30T09:25:14.495Z"
+}

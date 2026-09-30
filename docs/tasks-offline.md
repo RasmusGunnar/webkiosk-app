@@ -1,5 +1,7 @@
 # Opgaver, belønning og offline (Mega 3)
 
+> Historisk Mega 3-dokumentation. Ugesymboler og weekly celebration er deprecated fra Rewards 2.1. Aktuel adfærd er beskrevet i [Rewards 2.1](rewards-2.1.md); historiske data bevares, men læses og skrives ikke i den aktive reward-oplevelse.
+
 Implementeret og frigivet 28. september 2026. Live-projekt: `oyyqniwppytipdktzwsy`.
 Releasebevis: [2026-09-28-task-offline.json](releases/2026-09-28-task-offline.json).
 

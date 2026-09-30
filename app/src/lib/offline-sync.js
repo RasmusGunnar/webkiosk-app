@@ -1,6 +1,7 @@
+import {emptyRewards, optimisticReward} from './rewards-model.js'
 import { scopeKey, safeFeedMetadata, safePeopleCache } from './local-store.js'
 import { readAllRows } from './rows.js'
-const emptySnapshot=()=>({items:[],people:[],feeds:[],celebrations:[]})
+const emptySnapshot=()=>({items:[],people:[],feeds:[],rewards:emptyRewards()})
 const token=id=>'local:'+id
 export function applyBatch(rows,entry,versions=null) {
   const result=new Map(rows.map(row=>[row.id,row]))
@@ -23,18 +24,18 @@ export function coalesceToggle(previous,next) {
   return {...previous,payload:{...previous.payload,p_upserts:[...upserts.values()],p_expected:[...expected.values()]},queued_at:previous.queued_at}
 }
 export function overlaySnapshot(state) {
-  let items=state.snapshot.items
+  let items=state.snapshot.items, rewards=state.snapshot.rewards||emptyRewards()
   const blocked = new Set()
   for(const entry of state.queue) {
     if (entry.optimistic===false || entry.payload.p_expected.some(row=>blocked.has(row.updated_at))) blocked.add(token(entry.id))
-    else items=applyBatch(items,entry)
+    else {items=applyBatch(items,entry);rewards=optimisticReward(rewards,entry)}
   }
-  return {...state.snapshot,items}
+  return {...state.snapshot,items,rewards}
 }
 const isNetworkError=error=>!error?.code&&/fetch|network|offline|abort|timeout|load failed/i.test(error?.message||'')
 export class OfflineSync {
-  constructor({store,client,userId,householdId,onChange=()=>{},onCelebrations=()=>{},online=()=>navigator.onLine,lock}) {
-    Object.assign(this,{store,client,userId,householdId,onChange,onCelebrations,online})
+  constructor({store,client,userId,householdId,onChange=()=>{},online=()=>navigator.onLine,lock}) {
+    Object.assign(this,{store,client,userId,householdId,onChange,online})
     this.writeGeneration=0
     this.key=scopeKey(userId,householdId);this.alive=true;this.state=this.empty();this.running=null;this.networkFailed=false
     this.lock=lock||((callback)=>globalThis.navigator?.locks?navigator.locks.request('sync:'+this.key,callback):callback())
@@ -88,7 +89,8 @@ export class OfflineSync {
         await this.change(state=>({...state,queue:state.queue.map(row=>row.id===entry.id?{...row,status:'sending'}:row)}))
         let result
         try {
-          const request=this.client.rpc('sync_calendar_mutation',{p_mutation_id:entry.id,p_household_id:this.householdId,...entry.payload})
+          const reward=entry.payload.reward_action
+          const request=reward?this.client.rpc('reward_action',{p_request_id:entry.id,p_household_id:this.householdId,p_action:reward.action,p_payload:reward.payload}):this.client.rpc('sync_calendar_mutation',{p_mutation_id:entry.id,p_household_id:this.householdId,...entry.payload})
           result=await (typeof request.abortSignal==='function'?request.abortSignal(AbortSignal.timeout(12000)):request)
         }
         catch(error){result={error}}
@@ -105,19 +107,17 @@ export class OfflineSync {
           break
         }
         let currentServer = null
-        if (result.data.already_applied) {
+        if (result.data.already_applied || entry.payload.p_upserts.some(r=>r.data?.rewardMode)) {
           const fresh = await readAllRows(() => this.client.from('calendar_items').select('*').eq('household_id',this.householdId).order('id'))
           if (!fresh.error) currentServer = fresh.data
         }
         this.writeGeneration++
-        const versions=result.data.row_versions||{}, claims=result.data.celebrations||[]
+        const versions=result.data.row_versions||{}
         await this.change(state=>({
-          ...state,snapshot:{...state.snapshot,items:currentServer || applyBatch(state.snapshot.items,entry,versions),
-            celebrations:[...state.snapshot.celebrations,...claims.filter(c=>!state.snapshot.celebrations.some(old=>old.id===c.id))]},
+          ...state,snapshot:{...state.snapshot,rewards:result.data.rewards||state.snapshot.rewards,items:currentServer || applyBatch(state.snapshot.items,entry,versions)},
           queue:state.queue.filter(row=>row.id!==entry.id).map(row=>({...row,payload:{...row.payload,p_expected:row.payload.p_expected.map(expected=>
             expected.updated_at===token(entry.id)?{...expected,updated_at:versions[expected.id]||expected.updated_at}:expected)}})),
         }))
-        if(claims.length&&this.alive)this.onCelebrations(claims)
         await this.reload()
       }
     })

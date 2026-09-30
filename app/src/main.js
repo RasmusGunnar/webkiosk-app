@@ -1,7 +1,10 @@
+import {RewardsUI} from './lib/rewards-ui.js'
+import {emptyRewards,rewardRule,managedTask,taskComplete,actionPayload,rewardOrigin,rewardConfig,rewardToday} from './lib/rewards-model.js'
 import './style.css'
 import './product.css'
 import './desktop-kiosk.css'
 import './mobile.css'
+import './rewards.css'
 import { supabase, configurationError, cacheNamespace, clearLocalAuth } from './lib/supabase'
 import { findPerson, selectPeople, itemPeople, itemPersonIds, itemMatchesPerson, feedPerson } from './lib/people.js'
 import { avatarDisplayUrl, validateAvatar, resolveAvatarUrls, savePerson } from './lib/avatars.js'
@@ -14,8 +17,8 @@ import { materialize, displayTitle, value as calendarValue, imported, sourceLabe
 import { calendarRealtime } from './lib/calendar-realtime.js'
 import { LocalStore, DATABASE_NAME } from './lib/local-store.js'
 import { OfflineSync } from './lib/offline-sync.js'
-import { taskEmoji, taskOccurrenceKey, weeklyProgress, rewardEnabled } from './lib/task-rewards.js'
-import { CelebrationPopup } from './lib/celebration-ui.js'
+import { taskEmoji, taskOccurrenceKey, rewardEnabled } from './lib/task-rewards.js'
+import {RewardMotion} from './lib/reward-motion.js'
 import { DEVICE_KEY, readDevice, saveDevice, deviceSettings, resolveMode, densityFor, safeShortcut, makePin, checkPin, WakeScreen, DeviceClock } from './lib/device-mode.js'
 import { upcomingItems, roleLabel, invitationStatus, callbackUrl, consumeInvite } from './lib/product-model.js'
 import { platform, nativeWakeApi } from './lib/platform.js'
@@ -46,7 +49,7 @@ let syncEngine = null, syncStatus = { offline: !navigator.onLine, syncing: false
 let liveFeedMetadata = [], surfaceFrame = null, syncPanelOpen = false
 const expandedTaskDays = new Set()
 const syncPanelRoot = document.createElement('div'); document.body.append(syncPanelRoot)
-const celebrations = new CelebrationPopup({people: () => householdPeople, avatar: renderPersonAvatar})
+const rewardMotion=new RewardMotion({getPerson:id=>householdPeople.find(p=>p.id===id),claimMilestone:async(pid,month)=>{const {data,error}=await supabase.rpc('claim_reward_milestone',{p_household_id:activeHousehold?.id,p_person_id:pid,p_month_start:month});return !error&&data===true}})
 document.addEventListener('keydown', event => { if (event.key === 'Escape' && syncPanelOpen) { syncPanelOpen = false; renderSyncPanel() } })
 
 let sessionEpoch = 0
@@ -57,6 +60,7 @@ const pendingAvatarFiles = new Map()
 let session = null
 let households = []
 let activeHousehold = null
+let rewardState = emptyRewards(), rewardLoadVersion = 0
 let calendarItems = []
 let calendarLoadVersion = 0
 let peopleLoadVersion = 0
@@ -106,6 +110,7 @@ let shoppingDraft={title:'',note:''},shoppingBusy=false,shoppingOpen=false
 let foodRoute='meals'
 let productRoute='calendar',settingsTab='people',taskRange='today',newCalendarType='Aktivitet'
 let kioskUnlocked=false,pinAttempts=0,pinBlockedUntil=0,members=[],invitations=[]
+const rewardsUI=new RewardsUI({getContext:()=>({key:sessionEpoch+':'+activeHousehold?.id,items:calendarItems,people:householdPeople,state:rewardState,role:householdRole,mode:mode(),online:navigator.onLine&&!syncStatus.offline}),onAction:performRewardAction,onSelect:id=>{activePersonFilter=id;setProductRoute('tasks');activePersonFilter=id;updateCalendarSurface()},onToggle:toggleCalendarItemDone,onEdit:openEditCalendarModal,avatar:renderPersonAvatar})
 const pinRoot=document.createElement('div');document.body.append(pinRoot)
 const createRoot=document.createElement('div');document.body.append(createRoot)
 createRoot.addEventListener('dismiss-dialog',()=>{createRoot.innerHTML=''})
@@ -132,7 +137,7 @@ const clock=new DeviceClock({
  onDay:now=>{if(session&&(mode()==='kiosk'||['today','tasks'].includes(productRoute))){calendarCursorDate=now;render({preserveDialogs:true})}},
  onIdle:()=>{if(productRoute!=='today'||activePersonFilter!=='Alle')setProductRoute('today')},
  isKiosk:()=>mode()==='kiosk',
- isBusy:()=>isCalendarModalOpen||isSettingsModalOpen||planEditor.opened||Boolean(createRoot.firstChild)||Boolean(pinRoot.firstChild)||syncPanelOpen||Boolean(document.querySelector('.celebration-backdrop')),
+ isBusy:()=>rewardsUI.opened||isCalendarModalOpen||isSettingsModalOpen||planEditor.opened||Boolean(createRoot.firstChild)||Boolean(pinRoot.firstChild)||syncPanelOpen,
  timeout:()=>settingsForDevice().inactivity
 })
 function preferredHousehold(fallback) {
@@ -207,9 +212,10 @@ async function applySession(nextSession) {
   } catch (error) { message = error.message; render() }
 }
 async function activateHousehold(household) {
-  realtime.stop(); syncEngine?.stop(); celebrations.reset()
+  rewardsUI.close(true);rewardState=emptyRewards();
+  realtime.stop(); syncEngine?.stop(); rewardMotion.reset()
   syncPanelOpen = false; syncPanelRoot.innerHTML = ''
-  activeHousehold = household; householdRole = household.memberRole
+  activeHousehold = household; householdRole = household.memberRole; rewardMotion.reset(household.id)
   members=[];invitations=[];kioskUnlocked=false;pinRoot.innerHTML=''
   createRoot.innerHTML='';foodRoute='meals';planEditor.close(true);shoppingDraft={title:'',note:''};shoppingOpen=false
   const rememberedRoute=settingsForDevice().lastRoute
@@ -226,14 +232,15 @@ async function activateHousehold(household) {
       if (epoch !== sessionEpoch || activeHousehold?.id !== id) return
       const avatars = new Map(householdPeople.map(person => [person.id, person.avatar_display_url]))
       calendarItems = view.items
+      rewardState = view.rewards||emptyRewards()
       householdPeople = view.people.map(person => ({...person, role:mapPersonRoleToUi(person.role), avatar_display_url: avatars.get(person.id)}))
       calendarFeeds = view.feeds.map(feed => ({...feed, ...(navigator.onLine ? liveFeedMetadata.find(row => row.id === feed.id) : {})}))
       calendarItemsHouseholdId = householdPeopleHouseholdId = calendarFeedsHouseholdId = id
-      syncStatus = status; syncActivePersonFilter(); scheduleCalendarSurface()
+      syncStatus = status; rewardMotion.observe(syncEngine?.state.snapshot.rewards||emptyRewards()); syncActivePersonFilter(); scheduleCalendarSurface()
     },
-    onCelebrations: claims => { if (epoch === sessionEpoch && activeHousehold?.id === id) celebrations.add(claims) },
   })
   await syncEngine.init()
+  if(!navigator.onLine)rewardMotion.hydrate(syncEngine.state.snapshot.rewards)
   await rememberHouseholds()
   if(!session.offlineOnly)void devices?.attach(session.user.id,household.id)
 }
@@ -246,7 +253,7 @@ async function rememberHouseholds() {
 async function refreshHousehold() {
   if (!session || !activeHousehold || !navigator.onLine) return
   const engine = syncEngine
-  await Promise.all([loadCalendarItems(), loadHouseholdPeople(), loadCalendarFeeds(), loadRewardState()])
+  await Promise.all([loadCalendarItems(), loadHouseholdPeople(), loadCalendarFeeds(), loadRewardsV2()])
   if (engine !== syncEngine) return
   await engine?.replay()
   if (engine === syncEngine) {updateCalendarSurface();applyCalendarLink()}
@@ -263,16 +270,11 @@ async function reconnectCalendar() {
   })().finally(()=>{if(reconnectInFlight===current)reconnectInFlight=null})
   return current.promise
 }
-async function loadRewardState() {
-  if (!navigator.onLine || !syncEngine) return
-  const engine = syncEngine, id = activeHousehold.id
-  const { data, error } = await readAllRows(() => supabase.from('reward_celebrations').select('*').eq('household_id',id).order('id').abortSignal(AbortSignal.timeout(6000)))
-  if (!error && engine === syncEngine) await engine.snapshot({ celebrations: data })
-}
 
 function clearSessionState() {
+  rewardsUI.close(true);rewardState=emptyRewards();rewardLoadVersion++
   void wakeScreen.set(false);pinRoot.innerHTML='';createRoot.innerHTML='';foodRoute='meals';planEditor.close(true);shoppingDraft={title:'',note:''};shoppingOpen=false;kioskUnlocked=false;members=[];invitations=[]
-  realtime.stop(); syncEngine?.stop(); syncEngine = null; celebrations.reset()
+  realtime.stop(); syncEngine?.stop(); syncEngine = null; rewardMotion.reset()
   syncPanelOpen = false; syncPanelRoot.innerHTML = ''; liveFeedMetadata = []; expandedTaskDays.clear()
   editingCalendarSnapshot = null; editingRowsSnapshot = []
   sessionEpoch++;reconnectInFlight=null
@@ -590,7 +592,7 @@ function updateCalendarSurface() {
   document.querySelector('#sync-status').innerHTML = renderSyncStatus()
   document.querySelector('#message').textContent = message
   const notice=document.querySelector('.ux-notice');if(notice)notice.hidden=!message
-  bindCalendarSurface();bindProductSurface();restoreInlineFocus(inlineFocus)
+  bindCalendarSurface();bindProductSurface();restoreInlineFocus(inlineFocus);rewardsUI.refresh();rewardMotion.present()
   if (syncPanelOpen) renderSyncPanel()
 }
 function bindCalendarSurface() {
@@ -618,7 +620,7 @@ function renderSyncPanel() {
   const rows=syncEngine?.state.queue||[]
   syncPanelRoot.innerHTML='<div class="modal-backdrop" id="sync-panel-backdrop" role="dialog" aria-modal="true" aria-label="Synkronisering"><div class="calendar-modal"><header class="modal-header"><h2>Synkronisering</h2><button id="sync-panel-close" class="icon-button" aria-label="Luk">×</button></header>'+
     (rows.length?rows.map(row=>{
-      const title=row.payload.p_upserts.at(-1)?.title||'Sletning af aftale'
+      const title=row.payload.reward_action?.optimistic?.title||row.payload.p_upserts.at(-1)?.title||'Sletning af aftale'
       const current=syncEngine.state.snapshot.items.find(item=>item.id===row.payload.p_upserts.at(-1)?.id)
       return '<article class="sync-problem"><strong>'+escapeHtml(title)+'</strong><p>'+escapeHtml(row.error||'Venter på synkronisering')+'</p>'+
         (row.status==='conflict'?'<p>Server: '+escapeHtml(current?.title||'Aftalen er slettet eller ændret')+'</p><p>Behold min version gemmer dine felter oven på den aktuelle serverversion. Brug serverversion kasserer også efterfølgende lokale ændringer, der afhænger af denne.</p><button data-sync-choice="local" data-sync-id="'+row.id+'">Behold min version</button><button data-sync-choice="server" data-sync-id="'+row.id+'">Brug serverversion</button>':
@@ -635,7 +637,7 @@ function renderSyncPanel() {
 }
 function renderDayItems(section,items,date) {
   if(section!=='Opgave'||!(mode()==='kiosk'||mode()==='mobile'))return items.length?items.map(renderCalendarItemCard).join(''):'<p class="empty-section">Ingen</p>'
-  const open=items.filter(item=>!item.done),completed=items.filter(item=>item.done)
+  const open=items.filter(item=>!taskComplete(item,householdPeople,rewardState,activePersonFilter)),completed=items.filter(item=>taskComplete(item,householdPeople,rewardState,activePersonFilter))
   return (open.length?open.map(renderCalendarItemCard).join(''):'<p class="empty-section">Ingen åbne opgaver</p>')+
     (completed.length?'<details class="completed-tasks" data-completed-date="'+date+'" '+(expandedTaskDays.has(date)?'open':'')+'><summary>'+completed.length+' udførte opgaver</summary>'+completed.map(renderCalendarItemCard).join('')+'</details>':'')
 }
@@ -669,12 +671,10 @@ function renderCalendarView() {
 
 function renderPersonChips() {
   const people = [{id:'Alle',name:'Alle',color:'#0f172a'},...householdPeople.filter(isActiveHouseholdPerson)]
-  const progress = new Map(weeklyProgress(calendarItems,householdPeople,toDateIso(calendarCursorDate)).map(row=>[row.personId,row]))
   return '<div id="person-chipbar" class="person-chipbar" aria-label="Personfilter">' + people.map(person => {
-    const reward = progress.get(person.id)
     return '<button class="person-chip '+(activePersonFilter===person.id?'active':'')+'" type="button" data-person-filter="'+escapeHtml(person.id)+'" style="border-color:'+escapeHtml(person.color||'#64748b')+'">'+
       renderPersonAvatar(person,'person-chip-avatar')+'<span>'+escapeHtml(person.name)+'</span>'+
-      (reward?.count ? '<small class="reward-progress" data-reward-person="'+person.id+'" aria-label="'+reward.count+' udførte opgaver, uge '+reward.week+'" title="'+reward.count+' udførte opgaver · uge '+reward.week+'">'+reward.symbol+'</small>' : '')+'</button>'
+      ''+'</button>'
   }).join('')+'</div>'
 }
 
@@ -718,6 +718,7 @@ function renderDayCard(date) {
 }
 
 function renderCalendarItemCard(item) {
+  if(managedTask(item))return rewardsUI.taskCard(item,activePersonFilter)
   if(mode()==='mobile')return renderMobileAgendaItem(item)
   const id = item.id
   const type = getCalendarSection(getCalendarValue(item, 'type'))
@@ -815,7 +816,7 @@ function renderCalendarModal() {
 
   const item = getEditingCalendarItem()
   const base = item ? baseFor(editingRowsSnapshot, item) : null
-  const readOnly = imported(item) || item?.isVirtualMilestone
+  const readOnly = imported(item) || item?.isVirtualMilestone || (managedTask(item)&&!rewardsUI.adult)
   const mode = readOnly ? 'Kalenderaftale' : item ? 'Rediger aftale' : 'Ny aftale'
   const submitText = item ? 'Gem ændringer' : 'Opret aftale'
   const values = {
@@ -847,7 +848,7 @@ function renderCalendarModal() {
         </header>
 
         <form id="calendar-modal-form">
-          ${readOnly ? '<p class="source-notice">' + (item.isVirtualMilestone ? 'Automatisk mærkedag fra kalenderens traditionsliste.' : 'Importeret fra ' + sourceLabel(item) + '. Redigér aftalen i kildekalenderen; ændringer kommer med ved næste import.') + '</p>' : ''}
+          ${readOnly ? '<p class="source-notice">' + (managedTask(item)&&!rewardsUI.adult?'Belønningsopgaver redigeres af en voksen.':item.isVirtualMilestone ? 'Automatisk mærkedag fra kalenderens traditionsliste.' : 'Importeret fra ' + sourceLabel(item) + '. Redigér aftalen i kildekalenderen; ændringer kommer med ved næste import.') + '</p>' : ''}
           ${item?.isYearlyOccurrence ? '<p class="source-notice">Ændringer gælder fødselsdagen i alle år. Datoen her er den oprindelige dato.</p>' : ''}
           <fieldset class="calendar-fields" ${readOnly ? 'disabled' : ''}>
           <div class="form-grid">
@@ -999,7 +1000,7 @@ function renderSettingsModal() {
               </div>
               <span class="person-settings-swatch" style="background:#64748b" data-person-color-swatch="new"></span>
             </div>
-            <label class="reward-setting"><input id="person-reward-enabled" name="reward_enabled" type="checkbox" checked />Med i ugentlig opgavebelønning</label>
+            <label class="reward-setting"><input id="person-reward-enabled" name="reward_enabled" type="checkbox" checked />Deltager i belønningssystemet</label>
             <p class="hint">Avatar kan tilføjes senere.</p>
             <footer class="modal-actions">
               <button type="submit" ${isCreatingPerson ? 'disabled' : ''}>${isCreatingPerson ? 'Gemmer...' : 'Gem personer'}</button>
@@ -1440,7 +1441,7 @@ function renderPersonSettingsRow(person, { isNew = false } = {}) {
         <label for="${prefix}-color">Farve</label>
         <input id="${prefix}-color" name="${prefix}-color" type="color" value="${escapeHtml(color)}" data-person-color-input="${escapeHtml(rowId)}" />
       </div>
-      <label class="reward-setting"><input type="checkbox" id="${prefix}-reward-enabled" ${rewardEnabled(person) ? 'checked' : ''} />Med i ugentlig opgavebelønning</label>
+      <label class="reward-setting"><input type="checkbox" id="${prefix}-reward-enabled" ${rewardEnabled(person) ? 'checked' : ''} />Deltager i belønningssystemet</label>
       <span class="person-settings-swatch" style="background:${escapeHtml(color)}" data-person-color-swatch="${escapeHtml(rowId)}"></span>
       ${isNew ? '' : `<div class="person-row-actions"><button class="btn small" type="button" data-save-person="${escapeHtml(rowId)}">Gem</button><button type="button" data-archive-person="${escapeHtml(rowId)}">${person.is_active===false?'Gendan':'Arkivér'}</button></div>`}
     </fieldset>
@@ -1531,7 +1532,7 @@ async function handleLogout() {
   const userId = session?.user.id
   const pending = syncEngine?.state.queue.length || 0
   if (pending && !window.confirm(pending + ' ændringer er ikke synkroniseret. Log ud rydder dem fra denne enhed. Fortsæt?')) return
-  syncEngine?.stop(); realtime.stop(); celebrations.reset()
+  syncEngine?.stop(); realtime.stop(); rewardMotion.reset()
   await devices?.detach().catch(()=>{})
   await clearNativeExports({all:true}).catch(()=>{})
   if (userId) await localStore.clearUser(userId)
@@ -1666,6 +1667,12 @@ async function handleSaveCalendarItem(event) {
     weekdays: !editingItem && !['Fødselsdag','Mærkedag'].includes(type) && formData.has('weekdays'),
     repeatYearly: type === 'Fødselsdag', birthYear: type === 'Fødselsdag' ? String(formData.get('birthYear') || '') : '',
   }
+  if(type==='Opgave'){
+    const fields=document.querySelector('#task-reward-fields')
+    if(fields&&!fields.disabled){itemData.rewardMode=formData.get('rewardMode')||'none';itemData.starValue=itemData.rewardMode==='stars'?Number(formData.get('starValue')):0;itemData.requiresApproval=formData.has('requiresApproval');itemData.bonusPool=itemData.rewardMode==='stars'&&formData.has('bonusPool')}
+    else if(editingItem)Object.assign(itemData,{rewardMode:calendarValue(editingItem,'rewardMode')||'none',starValue:calendarValue(editingItem,'starValue')||0,requiresApproval:!!calendarValue(editingItem,'requiresApproval'),bonusPool:!!calendarValue(editingItem,'bonusPool')})
+    if((itemData.rewardMode&&itemData.rewardMode!=='none')||itemData.requiresApproval)itemData.done=Boolean(editingItem?.done)
+  }
   if (!itemData.title || !itemData.date) return
   isCreatingCalendarItem = true
   const button = form.querySelector('button[type=submit]'); button.disabled = true
@@ -1697,6 +1704,7 @@ async function runCalendarMutation(makePlan, options = {}) {
 async function toggleCalendarItemDone(itemId, done) {
   const item = findRenderableCalendarItem(itemId)
   if (!item || imported(item)) return
+  rewardMotion.taskCheck(item.id,done?'completed':'open')
   const { error } = await runCalendarMutation(() => planEdit(calendarItems,item,{...itemValues(item),done},'one'),
     {action:'toggle_done',entityId:taskOccurrenceKey(item)})
   if (error) message = 'Kunne ikke gemme udført-status: ' + error.message
@@ -2237,6 +2245,7 @@ function handleCalendarPersonChoice(event) {
     allChoice.checked = true
   }
 
+  const approval=document.querySelector('[name=requiresApproval]');if(approval&&!getEditingCalendarItem()&&!approval.dataset.manual)approval.checked=choices.filter(c=>c.checked).some(c=>c.value==='Alle'?householdPeople.some(p=>rewardConfig(rewardState,p.id).default_requires_approval):rewardConfig(rewardState,c.value).default_requires_approval)
   choices.forEach((choice) => {
     choice.closest('.calendar-person-pill')?.classList.toggle('selected', choice.checked)
   })
@@ -2292,7 +2301,7 @@ function updateModalTypeFields() {
   const doneOption = document.querySelector('#done-option')
   const canUseWeekdays = !getEditingCalendarItem() && !isBirthday && !isMilestone
 
-  const readOnly = imported(getEditingCalendarItem()) || getEditingCalendarItem()?.isVirtualMilestone
+  const readOnly = imported(getEditingCalendarItem()) || getEditingCalendarItem()?.isVirtualMilestone || (managedTask(getEditingCalendarItem())&&!rewardsUI.adult)
   if (readOnly) return
   const titleInput = document.querySelector('#calendar-title')
   if (isTask) titleInput?.setAttribute('list', 'task-suggestions'); else titleInput?.removeAttribute('list')
@@ -2302,6 +2311,7 @@ function updateModalTypeFields() {
   setCheckboxOptionEnabled(weekdaysOption, canUseWeekdays)
   setCheckboxOptionEnabled(doneOption, isTask)
   updateModalScopeFields()
+  setupTaskEditor(isTask)
 }
 
 function updateModalScopeFields() {
@@ -2590,7 +2600,7 @@ function renderHome() {
  const now=new Date(),today=toDateIso(now),upcoming=upcomingItems(calendarItems,householdPeople,activePersonFilter)
  const next=upcoming[0],later=upcoming.filter(item=>item.date>today).slice(0,4),kiosk=mode()==='kiosk'
  const daily=materialize(calendarOnly(calendarItems),[today]).filter(doesItemMatchPersonFilter)
- const tasks=daily.filter(item=>item.type==='Opgave'),completed=tasks.filter(item=>item.done).length,meals=mealsOn(calendarItems,today),shopping=shoppingItems(calendarItems).filter(item=>!item.done)
+ const tasks=daily.filter(item=>item.type==='Opgave'),completed=tasks.filter(item=>taskComplete(item,householdPeople,rewardState,activePersonFilter)).length,meals=mealsOn(calendarItems,today),shopping=shoppingItems(calendarItems).filter(item=>!item.done)
  const eventButton=item=>'<button class="upcoming-event" data-upcoming="'+escapeHtml(item.id)+'" style="border-left-color:'+escapeHtml(getCalendarItemColor(item))+'"><span class="upcoming-date">'+escapeHtml(formatShortDate(parseDateIso(item.date)))+' · '+escapeHtml(item.time||'Heldag')+'</span><strong>'+escapeHtml(getCalendarItemTitle(item))+'</strong><span>'+escapeHtml(getCalendarItemPeople(item).join(', '))+'</span></button>'
  const mealCard='<section class="ux-dinner"><div class="ux-dinner-top"><span>'+icon('meals')+'</span><p class="eyebrow">På menuen i aften</p></div>'+(meals.length?meals.map(meal=>'<button data-plan-edit="'+meal.id+'" class="ux-dinner-name"><strong>'+escapeHtml(meal.title)+'</strong>'+(meal.time||!kiosk?'<small>'+escapeHtml(meal.time||'God appetit, allesammen')+'</small>':'')+'</button>').join(''):'<h3>Hvad har I lyst til?</h3><p>'+(kiosk?'Planlæg aftensmaden fra familiens mobil.':'En lille plan gør eftermiddagen lettere.')+'</p>')+(!kiosk?'<button class="ux-link" data-go-route="meals">'+(meals.length?'Se ugens madplan':'Planlæg aftensmad')+' '+icon('arrow')+'</button>':'')+'</section>'
  const greeting=now.getHours()<10?'Godmorgen':now.getHours()<17?'Hej med jer':'God aften'
@@ -2599,13 +2609,10 @@ function renderHome() {
  '<div class="home-layout"><div class="day-view">'+renderDayCard(calendarCursorDate)+'</div><aside class="home-aside">'+mealCard+(kiosk?renderKioskProgress(tasks,completed,today):'')+'<section class="panel next-panel"><p class="eyebrow">Næste aftale</p>'+(next?eventButton(next):'<div class="ux-quiet-empty">'+icon('sun')+'<p>Der er ro på kalenderen.</p></div>')+'</section>'+
  (kiosk?(later.filter(item=>item.id!==next?.id).length?'<section class="panel upcoming-panel"><h3>De kommende dage</h3>'+later.filter(item=>item.id!==next?.id).slice(0,2).map(eventButton).join('')+'</section>':'')+renderShortcuts():'')+'</aside></div>'
 }
-function renderKioskProgress(tasks,completed,today){
- const rewards=weeklyProgress(calendarItems,householdPeople.filter(isActiveHouseholdPerson),today).filter(row=>row.count)
- return '<section class="kiosk-progress"><button data-go-route="tasks"><span>'+icon('tasks')+' Dagens opgaver</span><strong>'+completed+' / '+tasks.length+' klaret</strong></button>'+(rewards.length?'<div class="kiosk-rewards" aria-label="Ugens belønningsprogression">'+rewards.map(row=>{const person=householdPeople.find(person=>person.id===row.personId);return '<span>'+escapeHtml(person?.name||'')+' · '+row.count+' '+row.symbol+'</span>'}).join('')+'</div>':'')+'</section>'
-}
+function renderKioskProgress(tasks,completed,today){return '<section class="kiosk-progress"><button data-go-route="tasks"><span>'+icon('tasks')+' Dagens opgaver</span><strong>'+completed+' / '+tasks.length+' klaret</strong></button>'+rewardsUI.summary(true)+'</section>'}
 function renderFamilyHome(){
  const people=householdPeople.filter(isActiveHouseholdPerson)
- return '<div class="family-view"><section class="ux-family-intro"><div><p class="eyebrow">Sammen om hverdagen</p><h3>'+escapeHtml(getHouseholdName(activeHousehold))+'</h3><p>'+people.length+' familieprofiler · din rolle er '+escapeHtml(roleLabel(householdRole)).toLocaleLowerCase('da')+'</p></div>'+icon('family')+'</section><div class="ux-family-grid">'+people.map(person=>'<article class="ux-family-person" style="--person-color:'+escapeHtml(person.color||'#64748b')+'">'+renderPersonAvatar(person,'ux-family-avatar')+'<h4>'+escapeHtml(person.name)+'</h4><p>'+escapeHtml({barn:'Barn',voksen:'Voksen',andet:'Familie',child:'Barn',adult:'Voksen'}[person.role]||'Familie')+'</p><button data-open-settings="people">Se profil '+icon('arrow')+'</button></article>').join('')+'<button class="ux-add-person" data-open-settings="people">'+icon('plus')+'<strong>Tilføj en person</strong><span>Også børn uden eget login</span></button></div><div class="ux-family-tools">'+[['family','Medlemmer og invitationer','Giv andre adgang til familien.','family'],['feeds','Kalender-import','Saml Aula, Google og andre kalendere.','calendar'],['device','Vægskærm og enhed','Indret denne skærm til jeres hjem.','today'],['appearance','Udseende','Farver og tæthed på denne enhed.','sun'],['account','Din konto','Log ud, eksport og privatliv.','settings']].map(([tab,title,description,i])=>'<button data-open-settings="'+tab+'">'+icon(i)+'<span><strong>'+title+'</strong><small>'+description+'</small></span>'+icon('arrow')+'</button>').join('')+'</div></div>'
+ return '<div class="family-view"><section class="ux-family-intro"><div><p class="eyebrow">Sammen om hverdagen</p><h3>'+escapeHtml(getHouseholdName(activeHousehold))+'</h3><p>'+people.length+' familieprofiler · din rolle er '+escapeHtml(roleLabel(householdRole)).toLocaleLowerCase('da')+'</p></div>'+icon('family')+'</section><div class="ux-family-grid">'+people.map(person=>'<article class="ux-family-person" style="--person-color:'+escapeHtml(person.color||'#64748b')+'">'+renderPersonAvatar(person,'ux-family-avatar')+'<h4>'+escapeHtml(person.name)+'</h4><p>'+escapeHtml({barn:'Barn',voksen:'Voksen',andet:'Familie',child:'Barn',adult:'Voksen'}[person.role]||'Familie')+'</p>'+(rewardEnabled(person)?'<button data-child-day="'+person.id+'">Min dag</button>':'')+(rewardsUI.adult?'<button data-reward-config="'+person.id+'">Opgaver & belønning</button>':'')+'<button data-open-settings="people">Se profil '+icon('arrow')+'</button></article>').join('')+'<button class="ux-add-person" data-open-settings="people">'+icon('plus')+'<strong>Tilføj en person</strong><span>Også børn uden eget login</span></button></div><div class="ux-family-tools">'+[['family','Medlemmer og invitationer','Giv andre adgang til familien.','family'],['feeds','Kalender-import','Saml Aula, Google og andre kalendere.','calendar'],['device','Vægskærm og enhed','Indret denne skærm til jeres hjem.','today'],['appearance','Udseende','Farver og tæthed på denne enhed.','sun'],['account','Din konto','Log ud, eksport og privatliv.','settings']].map(([tab,title,description,i])=>'<button data-open-settings="'+tab+'">'+icon(i)+'<span><strong>'+title+'</strong><small>'+description+'</small></span>'+icon('arrow')+'</button>').join('')+'</div></div>'
 }
 function renderShortcuts() {
   const config=settingsForDevice().shortcuts,links=[['Homey',config.homey],['Sonos',config.sonos],[config.label||'Genvej',config.custom]]
@@ -2616,17 +2623,19 @@ function renderShortcuts() {
 function renderTaskView() {
   if(mode()==='kiosk'&&taskRange==='month')taskRange='week'
   const dates=taskDates()
-  const tasks=materialize(calendarItems,dates,{milestones:false}).filter(item=>item.type==='Opgave'&&doesItemMatchPersonFilter(item))
-  const open=tasks.filter(item=>!item.done),done=tasks.filter(item=>item.done)
+  const tasks=materialize(calendarItems,dates,{milestones:false}).filter(item=>item.type==='Opgave'&&!rewardRule(item).pool&&doesItemMatchPersonFilter(item))
+  const open=tasks.filter(item=>!taskComplete(item,householdPeople,rewardState,activePersonFilter)),done=tasks.filter(item=>taskComplete(item,householdPeople,rewardState,activePersonFilter))
   const group=items=>dates.map(date=>{
     const daily=items.filter(item=>item.date===date)
     return daily.length?'<section class="task-date-group"><h3>'+escapeHtml(formatDayHeaderDate(parseDateIso(date)))+'</h3>'+daily.map(renderCalendarItemCard).join('')+'</section>':''
   }).join('')
-  return '<div class="task-view">'+renderTaskCapture(tasks,done)+'<div class="segmented-control"><button data-task-range="today" aria-pressed="'+(taskRange==='today')+'">I dag</button><button data-task-range="week" aria-pressed="'+(taskRange==='week')+'">Denne uge</button>'+(mode()!=='kiosk'?'<button data-task-range="month" aria-pressed="'+(taskRange==='month')+'">Måned</button>':'')+'</div>'+
+  return '<div class="task-view rewards-task-view"><p id="reward-message" role="status"></p>'+(activePersonFilter==='Alle'?rewardsUI.summary():rewardsUI.dashboard(activePersonFilter))+rewardsUI.approvals()+(activePersonFilter==='Alle'?renderTaskCapture(tasks,done):'')+'<div class="segmented-control"><button data-task-range="today" aria-pressed="'+(taskRange==='today')+'">I dag</button><button data-task-range="week" aria-pressed="'+(taskRange==='week')+'">Denne uge</button>'+(mode()!=='kiosk'?'<button data-task-range="month" aria-pressed="'+(taskRange==='month')+'">Måned</button><button data-task-range="rewards" aria-pressed="'+(taskRange==='rewards')+'">Belønninger</button>':'')+'</div>'+
+    (taskRange==='rewards'?rewardsUI.shop(activePersonFilter):
     (open.length?group(open):'<div class="panel empty-state">Ingen åbne opgaver. Godt gået.</div>')+
-    (done.length?'<details class="completed-tasks" data-completed-date="task-view" '+(expandedTaskDays.has('task-view')?'open':'')+'><summary>'+done.length+' udførte opgaver</summary>'+group(done)+'</details>':'')+'</div>'
+    (done.length?'<details class="completed-tasks" data-completed-date="task-view" '+(expandedTaskDays.has('task-view')?'open':'')+'><summary>'+done.length+' udførte opgaver</summary>'+group(done)+'</details>':'')+rewardsUI.bonus(activePersonFilter)+rewardsUI.history(activePersonFilter))+'</div>'
 }
 function bindProductSurface() {
+  rewardsUI.bind()
   document.querySelectorAll('[data-upcoming]').forEach(button=>button.onclick=()=>openEditCalendarModal(button.dataset.upcoming))
   document.querySelectorAll('[data-task-range]').forEach(button=>button.onclick=()=>{taskRange=button.dataset.taskRange;updateCalendarSurface()})
   document.querySelectorAll('[data-quick-type]').forEach(button=>button.onclick=()=>{openCreateCalendarModal(toDateIso(new Date()),button.dataset.quickType)})
@@ -2766,7 +2775,6 @@ function installProductRuntime() {
    else if(id==='settings-modal')closeSettingsModal()
    else if(id==='sync-panel-backdrop'){syncPanelOpen=false;renderSyncPanel()}
    else if(id==='pin-modal')pinRoot.innerHTML=''
-   else if(event.target.classList.contains('celebration-backdrop'))celebrations.close()
  })
  const interact=()=>{clock.touch();if(mode()==='kiosk')void wakeScreen.request()}
  document.addEventListener('pointerdown',interact,{passive:true});document.addEventListener('keydown',interact)
@@ -2774,7 +2782,7 @@ function installProductRuntime() {
  let resizeTimer
  window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{applyDeviceAppearance();if(session&&!isCalendarModalOpen&&!isSettingsModalOpen)render({preserveDialogs:true})},100)})
  clock.start()
- if(import.meta.hot)import.meta.hot.dispose(()=>{clock.stop();disposeA11y();void wakeScreen.set(false)})
+ if(import.meta.hot)import.meta.hot.dispose(()=>{clock.stop();disposeA11y();void wakeScreen.set(false);rewardMotion.dispose()})
 }
 
 function handleNativeBack(){
@@ -2936,6 +2944,7 @@ function openCreateSheet(){
  })
 }
 function renderMobileAgendaItem(item){
+ if(managedTask(item))return rewardsUI.taskCard(item,activePersonFilter)
  const title=getCalendarItemTitle(item),type=getCalendarValue(item,'type'),task=type==='Opgave',done=Boolean(getCalendarValue(item,'done')),time=getCalendarValue(item,'time'),location=getCalendarValue(item,'location')
  const badge=renderCalendarItemIcon(item)||icon(type==='Fritidsinteresse'?'sun':'calendar')
  return '<article class="calendar-item mobile-agenda-item '+(done?'is-done':'')+'" data-calendar-item="'+escapeHtml(item.id)+'" tabindex="0" role="button" aria-label="'+escapeHtml(title)+'" style="--agenda-color:'+escapeHtml(getCalendarItemColor(item))+'"><span class="agenda-time'+(task?' is-task':'')+'">'+(task?badge:escapeHtml(time||'Heldag'))+'</span><div class="agenda-content"><strong>'+escapeHtml(title)+'</strong><p class="agenda-meta">'+(!task?'<span class="agenda-type" title="'+escapeHtml(type)+'" aria-label="'+escapeHtml(type)+'">'+badge+'</span>':'')+escapeHtml(getCalendarItemPeople(item).join(', ')||'Alle')+(task&&time?' · '+escapeHtml(time):'')+(location?' · '+escapeHtml(location):'')+'</p>'+renderCalendarRepeatMeta(item)+(sourceLabel(item)?'<span class="calendar-source-badge">'+escapeHtml(sourceLabel(item))+'</span>':'')+'</div>'+(task&&!imported(item)?'<label class="done-toggle"><input type="checkbox" data-calendar-toggle="'+escapeHtml(item.id)+'" '+(done?'checked':'')+' aria-label="'+escapeHtml((done?'Fortryd udført: ':'Markér udført: ')+title)+'"><span class="sr-only">'+(done?'Udført':'Markér udført')+'</span></label>':'')+'</article>'
@@ -2952,3 +2961,57 @@ function renderMobileDay(date,{heading=true}={}){
 }
 
 init()
+
+async function loadRewardsV2(){
+ if(!navigator.onLine||!syncEngine)return
+ const engine=syncEngine,generation=engine.writeGeneration,version=++rewardLoadVersion,id=activeHousehold.id
+ const {data,error}=await supabase.rpc('get_reward_state',{p_household_id:id}).abortSignal(AbortSignal.timeout(12000))
+ if(!error&&engine===syncEngine&&generation===engine.writeGeneration&&version===rewardLoadVersion){rewardMotion.hydrate(data);await engine.snapshot({rewards:data})}
+}
+async function performRewardAction(action,payload){
+ const engine=syncEngine;if(!engine)return {error:new Error('Familien er endnu ikke klar.')}
+ if(['complete','undo'].includes(action)){
+  const item=materialize(calendarItems,[payload.due_date],{milestones:false}).find(t=>(t.isRepeatOccurrence?t.baseId:t.id)===payload.item_id&&actionPayload(t,payload.person_id).occurrence_date===payload.occurrence_date)
+  if(!item)return {error:new Error('Opgaven findes ikke længere.')}
+  const rule=rewardRule(item)
+  rewardMotion.taskCheck(payload.item_id,action==='undo'?'open':rule.approval?'pending':'completed',payload.person_id)
+  return engine.enqueue({p_upserts:[],p_delete_ids:[],p_expected:[],reward_action:{action,payload,optimistic:{origin_id:rewardOrigin(item),task_id:payload.item_id,title:item.title,reward_mode:rule.mode,star_value:rule.stars,requires_approval:rule.approval}}},{action:'reward_'+action,entityId:rewardOrigin(item)+'|'+payload.occurrence_date+'|'+payload.person_id})
+ }
+ if(!navigator.onLine||syncStatus.offline)return {error:new Error(action==='redeem'?'Du skal være online for at indløse en belønning.':'Denne handling kræver forbindelse.')}
+ if(engine.state.queue.length){await engine.replay();if(engine.state.queue.length)return {error:new Error('Synkronisér de ventende opgaver først.')};}
+ engine.writeGeneration++
+ const result=await supabase.rpc('reward_action',{p_request_id:crypto.randomUUID(),p_household_id:activeHousehold.id,p_action:action,p_payload:payload})
+ if(engine!==syncEngine)return {error:new Error('Familien er skiftet.')}
+ if(!result.error){engine.writeGeneration++;await engine.snapshot({rewards:result.data.rewards});if(action==='config')await loadHouseholdPeople();updateCalendarSurface()}
+ return result
+}
+function setupTaskEditor(isTask){
+ const form=document.querySelector('#calendar-modal-form');if(!form)return
+ let rewardFields=form.querySelector('#task-reward-fields'),quick=form.querySelector('.task-quick-fields'),advanced=form.querySelector('.task-advanced')
+ if(!rewardFields&&isTask){
+  const item=getEditingCalendarItem(),grid=form.querySelector('.form-grid'),date=form.querySelector('#calendar-date').parentElement,people=form.querySelector('.calendar-person-pills').parentElement
+  form.closest('.calendar-modal').classList.add('task-editor')
+  advanced=document.createElement('details');advanced.className='task-advanced full';advanced.innerHTML='<summary>Avanceret</summary><div class="form-grid"></div>'
+  for(const id of ['calendar-time','calendar-type','calendar-duration','calendar-location','calendar-note','calendar-birth-year'])advanced.lastElementChild.append(form.querySelector('#'+id).parentElement)
+  grid.prepend(people);grid.prepend(form.querySelector('#calendar-title').parentElement)
+  people.after(date)
+  quick=document.createElement('div');quick.className='task-quick-fields full';quick.innerHTML='<div class="task-quick-dates" aria-label="Hvornår"><button type="button" data-task-day="0">I dag</button><button type="button" data-task-day="1">I morgen</button><button type="button" data-task-day="date">Vælg dato</button></div><label for="task-repeat">Gentagelse</label><select id="task-repeat"><option value="none">Ingen</option><option value="weekly">Hver uge</option><option value="weekdays">Hverdage</option></select>'
+  date.append(quick)
+  const repeat=form.querySelector('#task-repeat'),weekly=form.querySelector('[name=repeatWeekly]'),weekdays=form.querySelector('[name=weekdays]')
+  repeat.value=weekdays.checked?'weekdays':weekly.checked?'weekly':'none';repeat.disabled=weekly.disabled;repeat.querySelector('[value=weekdays]').disabled=!!item
+  repeat.onchange=()=>{weekly.checked=repeat.value!=='none';weekdays.checked=repeat.value==='weekdays'}
+  // Original controls stay in the form so existing recurrence semantics and keyboard flows remain available.
+  advanced.lastElementChild.append(form.querySelector('#calendar-options'));grid.append(advanced)
+  rewardFields=document.createElement('fieldset');rewardFields.id='task-reward-fields';rewardFields.className='full';rewardFields.disabled=!rewardsUI.adult
+  const configured=calendarValue(item,'rewardMode')||'none',requires=item?!!calendarValue(item,'requiresApproval'):householdPeople.some(p=>rewardConfig(rewardState,p.id).default_requires_approval)
+  rewardFields.innerHTML='<details class="task-reward-details"><summary>Belønning <small>valgfrit</small></summary><div class="stack-form"><label for="task-reward-mode">Denne opgave</label><select id="task-reward-mode" name="rewardMode"><option value="none">Ingen belønning</option><option value="allowance">Tæller til lommepenge</option><option value="stars">Bonus ⭐</option></select><div id="task-stars-fields"><label for="task-star-value">Bonusstjerner</label><input id="task-star-value" type="number" name="starValue" min="1" max="100000" step="1" value="'+(Number(calendarValue(item,'starValue'))||10)+'"><label><input type="checkbox" name="bonusPool" '+(calendarValue(item,'bonusPool')?'checked':'')+'> Frivillig bonusopgave — én person kan tage den</label></div><label><input name="requiresApproval" type="checkbox" '+(requires?'checked':'')+'> Kræver voksengodkendelse</label><p class="hint">Nye belønningsregler gælder fra nu og frem. Afsluttede belønninger bevares.</p></div></details>'
+  advanced.before(rewardFields);form.querySelector('[name=rewardMode]').value=configured
+  const refresh=()=>{const mode=form.querySelector('[name=rewardMode]').value;form.querySelector('#task-stars-fields').hidden=mode!=='stars';form.querySelector('[name=starValue]').required=mode==='stars';const managed=mode!=='none'||form.querySelector('[name=requiresApproval]').checked;setCheckboxOptionEnabled(form.querySelector('#done-option'),!managed)}
+  form.querySelector('[name=rewardMode]').onchange=refresh;form.querySelector('[name=requiresApproval]').onchange=ev=>{ev.target.dataset.manual='true';refresh()};refresh()
+  quick.querySelectorAll('[data-task-day]').forEach(b=>b.onclick=()=>{const input=form.querySelector('#calendar-date');if(b.dataset.taskDay==='date'){input.focus();input.showPicker?.()}else input.value=addDays(rewardToday(),Number(b.dataset.taskDay))})
+ }
+ if(rewardFields)rewardFields.hidden=!isTask
+ if(quick)quick.hidden=!isTask
+ if(advanced&&!isTask)advanced.open=true
+ if(isTask){form.querySelector('#task-repeat').disabled=form.querySelector('[name=repeatWeekly]').disabled;document.querySelector('#calendar-modal-title').textContent=getEditingCalendarItem()?'Rediger opgave':'Ny opgave';form.querySelector('button[type=submit]').textContent=getEditingCalendarItem()?'Gem ændringer':'Opret opgave'}
+}

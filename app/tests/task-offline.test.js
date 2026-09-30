@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { taskEmoji, rewardSymbol, rewardEnabled, weeklyProgress } from '../src/lib/task-rewards.js'
+import { taskEmoji, rewardEnabled, weeklyProgress } from '../src/lib/task-rewards.js'
 import { safeFeedMetadata, safePeopleCache, scopeKey } from '../src/lib/local-store.js'
 import { OfflineSync } from '../src/lib/offline-sync.js'
 const people=[{id:'ida',name:'Ida',role:'child'},{id:'carl',name:'Carl',role:'child'},{id:'adult',name:'Mor',role:'adult'},{id:'enabled',name:'Far',role:'adult',reward_enabled:true}]
@@ -8,8 +8,8 @@ const task=(id,extra={})=>({id,title:'Lektier',date:'2026-09-28',type:'Opgave',d
 test('task emoji preserves all legacy mappings and free-text fallback',()=>{
  for(const [title,emoji] of [['Skole','🎒'],['Lektier','🎒'],['Tøm tasker','🎒'],['Opvask','🍽️'],['Dæk bordet','🍽️'],['Rydde op på værelset','🧹'],['Skrald','🗑️'],['Affald','🗑️'],['Madpakke','🥪'],['Custom','✅']])assert.equal(taskEmoji(title),emoji)
 })
-test('all eight reward symbols and role defaults with explicit override',()=>{
- assert.deepEqual(Array.from({length:9},(_,i)=>rewardSymbol(i)),['','🪙','🪙🪙','🟨','🟨🟨','💎','💎💎','👑','👑'])
+test('participation defaults with explicit override; no weekly reward tier',()=>{
+ assert.equal('symbol' in weeklyProgress([task('one')],people,'2026-09-29','2026-09-29')[0],false)
  assert.deepEqual(people.map(rewardEnabled),[true,true,false,true])
  assert.equal(rewardEnabled({role:'child',reward_enabled:false}),false)
 })

@@ -1,3 +1,4 @@
+import {expandTaskAdvanced} from './browser-actions.mjs'
 import {openCreate,openSettings,logout,toggleView,routeTo,switchHousehold} from './browser-actions.mjs'
 import { chromium, expect } from '@playwright/test'
 import { createClient } from '@supabase/supabase-js'
@@ -42,7 +43,7 @@ async function save(page) {await page.locator('#calendar-modal-form button[type=
 async function create(page,title,{person,done=false,weekly=false}={}) {
  await openCreate(page)
  await page.locator('#calendar-title').fill(title);await page.locator('#calendar-date').fill(today)
- await page.locator('#calendar-type').selectOption('Opgave')
+ await page.locator('#calendar-type').selectOption('Opgave');await expandTaskAdvanced(page)
  if(person)await page.locator('[data-calendar-person-choice][value="'+person+'"]').check()
  if(done)await page.locator('#calendar-modal-form [name=done]').check()
  if(weekly)await page.locator('[name=repeatWeekly]').check()
@@ -51,7 +52,6 @@ async function create(page,title,{person,done=false,weekly=false}={}) {
 }
 async function edit(page,title,next) {await card(page,title).click();await page.locator('#calendar-title').fill(next);await save(page)}
 async function online(page) {await page.context().setOffline(false);await expect.poll(()=>countQueue(page),{timeout:20000}).toBe(0)}
-async function closeCelebration(page) {await page.locator('#celebration-close').click();await expect(page.locator('#celebration-title')).toHaveCount(0)}
 try {
  uid=(await must(admin.auth.admin.createUser({email,password,email_confirm:true}))).user.id
  hid=(await must(admin.from('households').insert({name:'Mega 3 A',created_by:uid}).select('id').single())).id
@@ -67,9 +67,9 @@ try {
  await must(admin.from('calendar_items').insert([...baseline,editable,deletable,toggle,conflict,seed('Only B',{household_id:hid2})]))
  await must(admin.from('calendar_feeds').insert({household_id:hid,source:'ics',name:'Private metadata fixture',feed_url:'https://example.invalid/calendar/private-fixture.ics',is_active:true}))
  wall=await newPage(1800);phone=await newPage(390)
- await expect(phone.locator('[data-reward-person="'+ida.id+'"]')).toHaveAttribute('aria-label',/6 udførte/)
+ await expect(phone.locator('[data-reward-person]')).toHaveCount(0)
  await expect(phone.locator('#celebration-title')).toHaveCount(0)
- pass('Initial completed history counts without popup; mobile day counts whole week')
+ pass('Initial completed history loads without weekly rewards or popup')
  await expect.poll(async()=>JSON.stringify((await state(phone))?.snapshot.feeds)).toContain('Private metadata fixture')
  const cached=await state(phone)
  if(JSON.stringify(cached).includes('private-fixture.ics'))throw Error('Private feed URL cached')
@@ -85,7 +85,7 @@ try {
  await expect.poll(async()=>(await must(admin.from('household_people').select('reward_enabled').eq('id',adult.id).single())).reward_enabled).toBe(false)
  await phone.locator('#settings-modal-close').click();await routeTo(phone,'calendar')
  pass('Child/adult defaults and explicit persisted reward setting')
- await openCreate(phone);await phone.locator('#calendar-type').selectOption('Opgave')
+ await openCreate(phone);await phone.locator('#calendar-type').selectOption('Opgave');await expandTaskAdvanced(phone)
  await expect(phone.locator('#task-suggestions option')).toHaveCount(17) // seven standard + ten distinct historic/current titles
  await phone.locator('#calendar-modal-close').click()
  pass('Seven standard suggestions plus prior household titles; free text remains available')
@@ -93,11 +93,11 @@ try {
  await expect(card(phone,'Tøm tasker').locator('.task-emoji')).toHaveText('🎒')
  await card(phone,'Tøm tasker').locator('[data-calendar-toggle]').check()
  await expect(phone.locator('#calendar-modal')).toHaveCount(0)
- await expect(phone.locator('#celebration-title')).toHaveText('Superstjerne')
- await expect(phone.locator('.celebration-card li')).toHaveCount(6)
+ await expect(phone.locator('#celebration-title')).toHaveCount(0)
+ await expect(phone.locator('.celebration-card')).toHaveCount(0)
  await expect(wall.locator('#celebration-title')).toHaveCount(0)
- await expect.poll(async()=>(await state(wall))?.snapshot.celebrations.length,{timeout:15000}).toBe(1)
- pass('Quick checkbox stays out of editor; threshold 7 popup and cross-device persisted claim')
+ await expect.poll(async()=>(await must(admin.from('reward_celebrations').select('id').eq('household_id',hid))).length).toBe(0)
+ pass('Quick checkbox stays out of editor; seventh completion creates no legacy celebration')
  mkdirSync('supabase/.temp/mega3',{recursive:true})
  await phone.screenshot({path:'supabase/.temp/mega3/celebration-mobile.png',fullPage:true})
  await phone.keyboard.press('Escape');await expect(phone.locator('#celebration-title')).toHaveCount(0)
@@ -106,7 +106,7 @@ try {
  await card(phone,'Tøm tasker').locator('[data-calendar-toggle]').check()
  await expect.poll(()=>countQueue(phone)).toBe(0)
  await expect(phone.locator('#celebration-title')).toHaveCount(0)
- pass('Undo/redo never celebrates same threshold twice; Escape closes popup')
+ pass('Undo/redo retains occurrence state without weekly popups')
  await phone.locator('#calendar-next-button').click()
  // Weekly task exists only on its weekday next week, navigate directly via week mode.
  await toggleView(phone);await phone.locator('#calendar-next-button').click()
@@ -115,17 +115,15 @@ try {
  pass('Repeated completion stays on concrete occurrence; next week remains incomplete')
  await create(phone,'Task eight',{person:ida.id,done:true})
  await create(phone,'Task nine',{person:ida.id,done:true})
- await expect(phone.locator('#celebration-title')).toHaveText('Hverdagshelt')
- await closeCelebration(phone)
- await create(phone,'Task ten',{person:ida.id,done:true});await create(phone,'Task eleven',{person:ida.id,done:true});await create(phone,'Task twelve',{person:ida.id,done:true})
- await expect(phone.locator('#celebration-title')).toHaveText('Legende')
- await phone.locator('.celebration-backdrop').click({position:{x:4,y:4}})
  await expect(phone.locator('#celebration-title')).toHaveCount(0)
- pass('Thresholds 9 and 12 independently celebrate with close/backdrop controls')
- await expect(phone.locator('[data-reward-person="'+ida.id+'"]')).toHaveText('👑')
+ await create(phone,'Task ten',{person:ida.id,done:true});await create(phone,'Task eleven',{person:ida.id,done:true});await create(phone,'Task twelve',{person:ida.id,done:true})
+ await expect(phone.locator('#celebration-title')).toHaveCount(0)
+ await expect(phone.locator('#celebration-title')).toHaveCount(0)
+ pass('Ninth and twelfth completion never produce legacy popups')
+ await expect(phone.locator('[data-reward-person]')).toHaveCount(0)
  await phone.screenshot({path:'supabase/.temp/mega3/tasks-mobile.png',fullPage:true})
  await wall.screenshot({path:'supabase/.temp/mega3/tasks-desktop.png',fullPage:true})
- pass('Discrete chip reward and completed task folding on mobile')
+ pass('Person chips contain no weekly symbols; completed tasks remain folded')
  await phone.context().setOffline(true)
  await phone.evaluate(()=>{for(const key of Object.keys(localStorage))if(key.endsWith('-auth-token')){const value=JSON.parse(localStorage.getItem(key));value.expires_at=1;localStorage.setItem(key,JSON.stringify(value))}})
  await phone.reload()
@@ -185,7 +183,7 @@ try {
  await expect.poll(()=>countQueue(phone)).toBe(0);await phone.locator('#sync-panel-close').click()
  pass('Server failure rolls back checkbox, retains queue and can retry successfully')
  // Realtime changes cache without replacing editor or dashboard header.
- await card(phone,'Changed offline').click();await phone.locator('#calendar-note').fill('Unsaved draft')
+ await card(phone,'Changed offline').click();await expandTaskAdvanced(phone);await phone.locator('#calendar-note').fill('Unsaved draft')
  await phone.evaluate(()=>{window.testEditor=document.querySelector('#calendar-modal');window.testHeader=document.querySelector('.dashboard-header')})
  await must(admin.from('calendar_items').update({title:'Realtime cache value'}).eq('id',editable.id))
  await expect.poll(async()=>(await state(phone))?.snapshot.items.find(row=>row.id===editable.id)?.title,{timeout:15000}).toBe('Realtime cache value')

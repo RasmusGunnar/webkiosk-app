@@ -1,3 +1,4 @@
+import {expandTaskAdvanced} from './browser-actions.mjs'
 import {openCreate,openSettings,logout,toggleView,routeTo,switchHousehold} from './browser-actions.mjs'
 
 import { chromium, expect } from '@playwright/test'
@@ -39,7 +40,7 @@ async function save(page) {
 async function create(page,title,{date=today,type='Aktivitet',weekly=false,weekdays=false}={}) {
   await openCreate(page)
   await page.locator('#calendar-title').fill(title);await page.locator('#calendar-date').fill(date)
-  await page.locator('#calendar-type').selectOption(type)
+  await page.locator('#calendar-type').selectOption(type);await expandTaskAdvanced(page)
   if(weekly)await page.locator('[name=repeatWeekly]').check()
   if(weekdays)await page.locator('[name=weekdays]').check()
   await save(page)
@@ -217,7 +218,7 @@ try {
   pass('Realtime preserves unsaved modal DOM, rejects stale edits and propagates delete')
   await create(phone,'Long '+('aftale '.repeat(30)))
   await openCreate(phone)
-  await phone.locator('#calendar-type').selectOption('Opgave')
+  await phone.locator('#calendar-type').selectOption('Opgave');await expandTaskAdvanced(phone)
   await expect(phone.locator('#calendar-title')).toHaveAttribute('list','task-suggestions')
   await expect(phone.locator('#calendar-duration')).toBeVisible()
   expect(await phone.locator('.calendar-modal').evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true)

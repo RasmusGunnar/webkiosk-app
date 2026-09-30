@@ -82,6 +82,7 @@ export function planEdit(rows,item,values,scope='one',uuid=()=>crypto.randomUUID
   if (!base) throw new Error('Aftalen findes ikke længere. Luk og åbn kalenderen igen.')
   if (!repeatContext(item)) {
     // A yearly virtual occurrence edits its base, retaining Feb 29 and the original year by default.
+    if(value(base,'rewardOriginId')&&value(base,'type')==='Opgave'&&values.date!==base.date)values={...values,originalDate:value(base,'originalDate')||base.date}
     p.put(base.id,values); return p.finish()
   }
   const original=occurrenceDate(item), related=seriesRows(rows,base)

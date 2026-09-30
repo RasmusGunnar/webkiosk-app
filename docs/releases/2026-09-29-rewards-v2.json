@@ -1,0 +1,272 @@
+{
+  "project": "oyyqniwppytipdktzwsy",
+  "rollback_baseline": "12f28ffad074b2ed5da2306a0cd7b00b1bc4f3fa",
+  "migrations": [
+    "20260929182455_task_rewards_v2",
+    "20260929182754_task_reward_indexes"
+  ],
+  "backup": {
+    "id": 1814861545,
+    "status": "COMPLETED",
+    "inserted_at": "2026-09-29T03:34:48.491Z",
+    "restore_performed": false
+  },
+  "preflight_schema_matches_prior_snapshot": true,
+  "before": [
+    {
+      "table_name": "auth.users",
+      "row_count": 1,
+      "fingerprint": "fca56251cb1959a6518039aca8bdc41e"
+    },
+    {
+      "table_name": "public.account_deletion_jobs",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.calendar_feeds",
+      "row_count": 4,
+      "fingerprint": "64be5fcf53db37cf13fc0c6f32f80f17"
+    },
+    {
+      "table_name": "public.calendar_items",
+      "row_count": 486,
+      "fingerprint": "d74fabcbeb9266d132c4388ecbfd8c81"
+    },
+    {
+      "table_name": "public.calendar_mutation_receipts",
+      "row_count": 9,
+      "fingerprint": "fd5a5ded739dd2a0b3d937ef2e7bce0e"
+    },
+    {
+      "table_name": "public.calendar_revisions",
+      "row_count": 1,
+      "fingerprint": "40d33a45ed24adeabbe6bbd32d4b8b83"
+    },
+    {
+      "table_name": "public.household_invitations",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.household_members",
+      "row_count": 2,
+      "fingerprint": "e034c40fc605279ea2df0624fccd5859"
+    },
+    {
+      "table_name": "public.household_people",
+      "row_count": 5,
+      "fingerprint": "1f81a851fb908ec7f461778607facd99"
+    },
+    {
+      "table_name": "public.households",
+      "row_count": 2,
+      "fingerprint": "8b9b24887769f345bec9b73b9dd1585d"
+    },
+    {
+      "table_name": "public.native_devices",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.profiles",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.reward_celebrations",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "storage.buckets",
+      "row_count": 1,
+      "fingerprint": "58ed9021db8b215783c5dc377705504d"
+    },
+    {
+      "table_name": "storage.objects",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    }
+  ],
+  "after_migration": [
+    {
+      "table_name": "auth.users",
+      "row_count": 1,
+      "fingerprint": "fca56251cb1959a6518039aca8bdc41e"
+    },
+    {
+      "table_name": "public.account_deletion_jobs",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.calendar_feeds",
+      "row_count": 4,
+      "fingerprint": "64be5fcf53db37cf13fc0c6f32f80f17"
+    },
+    {
+      "table_name": "public.calendar_items",
+      "row_count": 486,
+      "fingerprint": "d74fabcbeb9266d132c4388ecbfd8c81"
+    },
+    {
+      "table_name": "public.calendar_mutation_receipts",
+      "row_count": 9,
+      "fingerprint": "fd5a5ded739dd2a0b3d937ef2e7bce0e"
+    },
+    {
+      "table_name": "public.calendar_revisions",
+      "row_count": 1,
+      "fingerprint": "40d33a45ed24adeabbe6bbd32d4b8b83"
+    },
+    {
+      "table_name": "public.household_invitations",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.household_members",
+      "row_count": 2,
+      "fingerprint": "e034c40fc605279ea2df0624fccd5859"
+    },
+    {
+      "table_name": "public.household_people",
+      "row_count": 5,
+      "fingerprint": "1f81a851fb908ec7f461778607facd99"
+    },
+    {
+      "table_name": "public.households",
+      "row_count": 2,
+      "fingerprint": "8b9b24887769f345bec9b73b9dd1585d"
+    },
+    {
+      "table_name": "public.native_devices",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.profiles",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.reward_celebrations",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "storage.buckets",
+      "row_count": 1,
+      "fingerprint": "58ed9021db8b215783c5dc377705504d"
+    },
+    {
+      "table_name": "storage.objects",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    }
+  ],
+  "after_smoke": [
+    {
+      "table_name": "auth.users",
+      "row_count": 1,
+      "fingerprint": "fca56251cb1959a6518039aca8bdc41e"
+    },
+    {
+      "table_name": "public.account_deletion_jobs",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.calendar_feeds",
+      "row_count": 4,
+      "fingerprint": "64be5fcf53db37cf13fc0c6f32f80f17"
+    },
+    {
+      "table_name": "public.calendar_items",
+      "row_count": 486,
+      "fingerprint": "d74fabcbeb9266d132c4388ecbfd8c81"
+    },
+    {
+      "table_name": "public.calendar_mutation_receipts",
+      "row_count": 9,
+      "fingerprint": "fd5a5ded739dd2a0b3d937ef2e7bce0e"
+    },
+    {
+      "table_name": "public.calendar_revisions",
+      "row_count": 1,
+      "fingerprint": "40d33a45ed24adeabbe6bbd32d4b8b83"
+    },
+    {
+      "table_name": "public.household_invitations",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.household_members",
+      "row_count": 2,
+      "fingerprint": "e034c40fc605279ea2df0624fccd5859"
+    },
+    {
+      "table_name": "public.household_people",
+      "row_count": 5,
+      "fingerprint": "1f81a851fb908ec7f461778607facd99"
+    },
+    {
+      "table_name": "public.households",
+      "row_count": 2,
+      "fingerprint": "8b9b24887769f345bec9b73b9dd1585d"
+    },
+    {
+      "table_name": "public.native_devices",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.profiles",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "public.reward_celebrations",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table_name": "storage.buckets",
+      "row_count": 1,
+      "fingerprint": "58ed9021db8b215783c5dc377705504d"
+    },
+    {
+      "table_name": "storage.objects",
+      "row_count": 0,
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    }
+  ],
+  "all_original_rows_unchanged": true,
+  "tests": {
+    "node": 101,
+    "postgres": 170,
+    "edge": 13,
+    "old_browser_numbered": 121,
+    "foundation_browser": "PASS",
+    "new_api_local": 39,
+    "new_api_live": 39,
+    "new_browser": 16,
+    "native_structure": 11,
+    "web_build": "PASS",
+    "capacitor_sync": "PASS: Android and iOS",
+    "secret_check": "PASS: 257 Git-visible paths",
+    "physical_native_runtime": "NOT TESTED"
+  },
+  "live_fixture_cleanup": true,
+  "new_advisor_errors_or_warnings": 0,
+  "unindexed_foreign_keys": 0,
+  "security_info": "Existing account_deletion_jobs has intentional backend-only RLS without client policies",
+  "security_info_reference": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy",
+  "performance_info": "Unused indexes and pre-existing absolute Auth connection allocation",
+  "frontend_deployed": false,
+  "commit_or_push": false,
+  "gallery": "supabase/.temp/rewards2/index.html",
+  "final_verification_at": "2026-09-29T18:44:19.766Z"
+}

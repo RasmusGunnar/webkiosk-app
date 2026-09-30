@@ -11,10 +11,11 @@ export async function routeTo(page,route){
  }else await page.locator('.product-nav [data-product-route='+route+']').click()
  await expect(page.locator('body')).toHaveAttribute('data-route',route)
 }
-export async function openCreate(page,kind='Aktivitet'){
+export async function openCreate(page,kind='Aktivitet',{compact=false}={}){
  await settledMode(page)
  await page.locator('#new-calendar-button').click()
  await page.locator('[data-create-kind="'+kind+'"]').click()
+ if(!compact)await expandTaskAdvanced(page)
 }
 export async function openSettings(page,tab='people'){
  if(await settledMode(page)!=='kiosk'){await routeTo(page,'family');await page.locator('[data-open-settings='+tab+']').first().click()}
@@ -34,3 +35,5 @@ export async function switchHousehold(page,id,returnRoute='calendar'){
  await page.locator('#household-switch').selectOption(id)
  await routeTo(page,returnRoute)
 }
+
+export async function expandTaskAdvanced(page){const details=page.locator('.task-advanced');if(await details.count()&&(await details.getAttribute('open'))===null)await details.locator(':scope > summary').click()}

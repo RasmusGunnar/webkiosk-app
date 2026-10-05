@@ -117,3 +117,13 @@ Deno.test("Failure persistence accepts the actual SDK thenable contract without 
   const response=await mock.handler(mock.request());
   equal((await response.json()).error,"FETCH_FAILED");equal(mock.failures.length,1);
 });
+
+Deno.test('External identity survives source corrections and moved recurrence; feeds and same-day occurrences stay distinct',()=>{
+ const feed={id:'feed',household_id:'household',source:'google',feed_url:''};
+ const base=parseIcsEvents(simple,range)[0],key=(event:any,source=feed)=>eventsToCalendarRows([event],source,'user')[0].externalKey;
+ equal(key(base),key({...base,summary:'Renamed',location:'Elsewhere',start:'2026-09-08T12:00:00Z',end:'2026-09-08T14:00:00Z'}));
+ assert(key(base)!==key({...base,uid:'another'}));assert(key(base)!==key(base,{...feed,id:'other-feed'}));
+ const recurring={...base,recurrenceId:'2026-09-07T08:00:00.000Z'};
+ equal(key(recurring),key({...recurring,start:'2026-09-09T11:00:00Z'}));
+ assert(key(recurring)!==key({...recurring,recurrenceId:'2026-09-07T09:00:00.000Z'}));
+});

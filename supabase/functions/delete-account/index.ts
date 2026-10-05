@@ -31,12 +31,15 @@ Deno.serve(async(req:Request)=>{
   for(let batch=0;batch<100;batch++){
    const objects=await service.rpc('account_deletion_objects',{p_user_id:user.id})
    if(objects.error)throw Error('Storage lookup failed')
-   if(!objects.data?.length){
+   const recipeObjects=await service.rpc('recipe_deletion_objects',{p_user_id:user.id})
+   if(recipeObjects.error)throw Error('Recipe storage lookup failed')
+   if(recipeObjects.data?.length){const cleaned=await service.storage.from('recipe-images').remove(recipeObjects.data.map((row:{name:string})=>row.name));if(cleaned.error)throw Error('Recipe storage cleanup failed')}
+   if(!objects.data?.length&&!recipeObjects.data?.length){
     const deleted=await service.auth.admin.deleteUser(user.id)
     if(deleted.error)throw Error('Auth deletion failed')
     return response(200,{deleted:true})
    }
-   const removed=await service.storage.from('household-avatars').remove(objects.data.map((row:{name:string})=>row.name))
+   const removed=objects.data?.length?await service.storage.from('household-avatars').remove(objects.data.map((row:{name:string})=>row.name)):{error:null}
    if(removed.error)throw Error('Storage cleanup failed')
   }
   throw Error('Cleanup continuation required')

@@ -5,6 +5,13 @@ import './product.css'
 import './desktop-kiosk.css'
 import './mobile.css'
 import './rewards.css'
+import './polish.css'
+import './recipes.css'
+import {RecipeService} from './lib/recipe-service.js'
+import {RecipeUI} from './lib/recipe-ui.js'
+import {recipeId} from './lib/recipe-model.js'
+import {compactDay,compactTask,compactMeals,filterRoutes} from './lib/calendar-layout.js'
+import {ImportedEditor,visibleImports} from './lib/imported-editor.js'
 import { supabase, configurationError, cacheNamespace, clearLocalAuth } from './lib/supabase'
 import { findPerson, selectPeople, itemPeople, itemPersonIds, itemMatchesPerson, feedPerson } from './lib/people.js'
 import { avatarDisplayUrl, validateAvatar, resolveAvatarUrls, savePerson } from './lib/avatars.js'
@@ -61,6 +68,7 @@ let session = null
 let households = []
 let activeHousehold = null
 let rewardState = emptyRewards(), rewardLoadVersion = 0
+let libraryRecipes=[],recipeImages=new Map(),recipeLoadVersion=0,recipeLoadError=''
 let calendarItems = []
 let calendarLoadVersion = 0
 let peopleLoadVersion = 0
@@ -115,7 +123,20 @@ const pinRoot=document.createElement('div');document.body.append(pinRoot)
 const createRoot=document.createElement('div');document.body.append(createRoot)
 createRoot.addEventListener('dismiss-dialog',()=>{createRoot.innerHTML=''})
 const planRoot=document.createElement('div');document.body.append(planRoot)
-const planEditor=new PlanEditor({root:planRoot,getRows:()=>calendarItems,getContext:()=>sessionEpoch+':'+activeHousehold?.id,
+const detailRoot=document.createElement('div');document.body.append(detailRoot)
+detailRoot.addEventListener('dismiss-dialog',()=>{detailRoot.innerHTML=''})
+const importedRoot=document.createElement('div');document.body.append(importedRoot)
+const importedEditor=new ImportedEditor({root:importedRoot,getContext:()=>sessionEpoch+':'+activeHousehold?.id,getPeople:()=>householdPeople.filter(isActiveHouseholdPerson),
+ save:async(item,patch,scope)=>{if(!navigator.onLine||syncStatus.offline)throw Error('Forbind til internettet for at gemme ændringer i importerede aftaler.');const engine=syncEngine;engine.writeGeneration++;const {error}=await supabase.rpc('edit_imported_calendar_item',{p_id:item.id,p_expected:item.updated_at,p_patch:patch,p_hide_scope:scope});if(error)throw error;if(engine===syncEngine){engine.writeGeneration++;await refreshHousehold()}},onSaved:()=>updateCalendarSurface()})
+const recipeRoot=document.createElement('div');document.body.append(recipeRoot)
+const recipeContext=()=>({key:sessionEpoch+':'+activeHousehold?.id,householdId:activeHousehold?.id,recipes:libraryRecipes,people:householdPeople,items:calendarItems,mode:mode(),error:recipeLoadError})
+const recipeService=new RecipeService({client:supabase,getContext:recipeContext})
+const recipeUI=new RecipeUI({root:recipeRoot,getContext:recipeContext,service:recipeService,refresh:loadRecipes,avatar:p=>renderPersonAvatar(p,'person-avatar recipe-avatar'),onChange:()=>updateCalendarSurface(),notice:text=>{message=text;updateCalendarSurface()},newMeal:date=>planEditor.open('meal',{date}),editMeal:row=>planEditor.open('meal',{id:row.id}),
+ planRecipe:async(recipe,fields)=>{const values={...planValues('meal',{title:recipe.title,date:fields.date,note:fields.note}),recipe_id:recipe.id,servings_override:fields.servings_override?Number(fields.servings_override):null};const result=await runCalendarMutation(()=>planCreate(values));if(result.error)throw result.error},
+ addShopping:async(recipe,ingredients,{meal,actionId})=>{const rows=ingredients.filter(i=>!calendarItems.some(row=>row.data?.recipe_action_id===actionId&&row.data?.ingredient_id===i.id)).map(i=>({id:crypto.randomUUID(),values:{...planValues('shopping',{title:i.raw_text.slice(0,160),note:i.raw_text.length>160?i.raw_text:'',location:shoppingCategory(i.raw_text)}),recipe_id:recipe.id,meal_id:meal?.id||null,ingredient_id:i.id,ingredient_raw_text:i.raw_text,recipe_action_id:actionId}}));if(!rows.length)return;const result=await runCalendarMutation(()=>({upserts:rows,deleteIds:[],expected:[]}));if(result.error)throw result.error}
+})
+const planEditor=new PlanEditor({getRecipes:()=>libraryRecipes,chooseRecipe:date=>{planEditor.close();recipeUI.choose(date)},openRecipe:id=>{planEditor.close();recipeUI.detail(id)},root:planRoot,getRows:()=>calendarItems,getContext:()=>sessionEpoch+':'+activeHousehold?.id,
+ fetchRecipe:async url=>{if(!navigator.onLine)throw Error('Offline');const {data,error}=await supabase.functions.invoke('recipe-preview',{body:{url},timeout:15000});if(error||!data?.recipe)throw Error('Kunne ikke hente opskrift');return data.recipe},
  save:(values,existing)=>runCalendarMutation(()=>existing?planEdit([existing],existing,values):planCreate(values)),
  remove:existing=>runCalendarMutation(()=>({upserts:[],deleteIds:[existing.id],expected:[{id:existing.id,updated_at:existing.updated_at}]})),
  onSaved:()=>{message='Gemt til familien.';updateCalendarSurface()}
@@ -137,7 +158,7 @@ const clock=new DeviceClock({
  onDay:now=>{if(session&&(mode()==='kiosk'||['today','tasks'].includes(productRoute))){calendarCursorDate=now;render({preserveDialogs:true})}},
  onIdle:()=>{if(productRoute!=='today'||activePersonFilter!=='Alle')setProductRoute('today')},
  isKiosk:()=>mode()==='kiosk',
- isBusy:()=>rewardsUI.opened||isCalendarModalOpen||isSettingsModalOpen||planEditor.opened||Boolean(createRoot.firstChild)||Boolean(pinRoot.firstChild)||syncPanelOpen,
+ isBusy:()=>recipeUI.opened||rewardsUI.opened||isCalendarModalOpen||isSettingsModalOpen||planEditor.opened||importedEditor.opened||!!detailRoot.firstChild||Boolean(createRoot.firstChild)||Boolean(pinRoot.firstChild)||syncPanelOpen,
  timeout:()=>settingsForDevice().inactivity
 })
 function preferredHousehold(fallback) {
@@ -217,10 +238,10 @@ async function activateHousehold(household) {
   syncPanelOpen = false; syncPanelRoot.innerHTML = ''
   activeHousehold = household; householdRole = household.memberRole; rewardMotion.reset(household.id)
   members=[];invitations=[];kioskUnlocked=false;pinRoot.innerHTML=''
-  createRoot.innerHTML='';foodRoute='meals';planEditor.close(true);shoppingDraft={title:'',note:''};shoppingOpen=false
+  createRoot.innerHTML='';foodRoute='meals';planEditor.close(true);importedEditor.close(true);recipeUI.close(true);libraryRecipes=[];recipeImages.clear();recipeLoadVersion++;recipeLoadError='';detailRoot.innerHTML='';shoppingDraft={title:'',note:''};shoppingOpen=false
   const rememberedRoute=settingsForDevice().lastRoute
   productRoute=mode()!=='kiosk'&&routeLabels[rememberedRoute]?rememberedRoute:'today'
-  if(['meals','shopping'].includes(productRoute))foodRoute=productRoute
+  if(['meals','shopping','recipes'].includes(productRoute))foodRoute=productRoute
   calendarViewMode=productRoute==='today'?'day':getDefaultCalendarViewMode()
   void wakeScreen.set(mode()==='kiosk'&&settingsForDevice().wake)
   calendarItems = []; householdPeople = []; calendarFeeds = []; liveFeedMetadata = []
@@ -231,8 +252,9 @@ async function activateHousehold(household) {
     onChange: (view, queue, status) => {
       if (epoch !== sessionEpoch || activeHousehold?.id !== id) return
       const avatars = new Map(householdPeople.map(person => [person.id, person.avatar_display_url]))
-      calendarItems = view.items
+      calendarItems = visibleImports(view.items).map(row=>{const master=(view.recipes||[]).find(r=>r.id===recipeId(row));return row.type===PLAN_TYPES.meal&&master?{...row,title:master.title,data:{...row.data,title:master.title}}:row})
       rewardState = view.rewards||emptyRewards()
+      libraryRecipes=(view.recipes||[]).map(r=>({...r,image_display_url:recipeImages.get(r.image_path)||''}))
       householdPeople = view.people.map(person => ({...person, role:mapPersonRoleToUi(person.role), avatar_display_url: avatars.get(person.id)}))
       calendarFeeds = view.feeds.map(feed => ({...feed, ...(navigator.onLine ? liveFeedMetadata.find(row => row.id === feed.id) : {})}))
       calendarItemsHouseholdId = householdPeopleHouseholdId = calendarFeedsHouseholdId = id
@@ -253,7 +275,7 @@ async function rememberHouseholds() {
 async function refreshHousehold() {
   if (!session || !activeHousehold || !navigator.onLine) return
   const engine = syncEngine
-  await Promise.all([loadCalendarItems(), loadHouseholdPeople(), loadCalendarFeeds(), loadRewardsV2()])
+  await Promise.all([loadCalendarItems(), loadHouseholdPeople(), loadCalendarFeeds(), loadRewardsV2(), loadRecipes()])
   if (engine !== syncEngine) return
   await engine?.replay()
   if (engine === syncEngine) {updateCalendarSurface();applyCalendarLink()}
@@ -273,7 +295,7 @@ async function reconnectCalendar() {
 
 function clearSessionState() {
   rewardsUI.close(true);rewardState=emptyRewards();rewardLoadVersion++
-  void wakeScreen.set(false);pinRoot.innerHTML='';createRoot.innerHTML='';foodRoute='meals';planEditor.close(true);shoppingDraft={title:'',note:''};shoppingOpen=false;kioskUnlocked=false;members=[];invitations=[]
+  void wakeScreen.set(false);pinRoot.innerHTML='';createRoot.innerHTML='';foodRoute='meals';planEditor.close(true);importedEditor.close(true);recipeUI.close(true);libraryRecipes=[];recipeImages.clear();recipeLoadVersion++;recipeLoadError='';detailRoot.innerHTML='';shoppingDraft={title:'',note:''};shoppingOpen=false;kioskUnlocked=false;members=[];invitations=[]
   realtime.stop(); syncEngine?.stop(); syncEngine = null; rewardMotion.reset()
   syncPanelOpen = false; syncPanelRoot.innerHTML = ''; liveFeedMetadata = []; expandedTaskDays.clear()
   editingCalendarSnapshot = null; editingRowsSnapshot = []
@@ -439,12 +461,12 @@ ${renderProductHeader()}
       ${(mode()!=='kiosk'&&productRoute==='family') && households.length > 1 ? '<label class="household-switch">Familie <select id="household-switch">' + households.map(h => '<option value="' + h.id + '" ' + (h.id === activeHousehold.id ? 'selected' : '') + '>' + escapeHtml(h.name) + '</option>').join('') + '</select></label>' : ''}
       ${renderProductNav()}
       ${renderInvitation()}
-      ${(mode()==='mobile'?['calendar','tasks']:['today','calendar','tasks']).includes(productRoute)?renderPersonChips():''}
+      ${filterRoutes.includes(productRoute)?renderPersonChips():''}
 
       <section class="calendar-section">
         <div class="section-heading calendar-heading">
           <div>
-            <h2>${['meals','shopping'].includes(productRoute)?'Mad & indkøb':routeLabels[productRoute]||'Kalender'}</h2>
+            <h2>${['meals','shopping','recipes'].includes(productRoute)?'Mad & indkøb':routeLabels[productRoute]||'Kalender'}</h2>
             <p id="calendar-heading-label">${escapeHtml(['today','calendar','tasks'].includes(productRoute)?getCalendarHeaderLabel():({meals:'Planlæg ugens aftensmad',shopping:'Én fælles liste, uanset hvem der handler',family:'Menneskerne bag alle planerne'}[productRoute]||''))}</p>
             <small id="calendar-sync-status" role="status"></small>
           </div>
@@ -596,6 +618,8 @@ function updateCalendarSurface() {
   if (syncPanelOpen) renderSyncPanel()
 }
 function bindCalendarSurface() {
+  document.querySelectorAll('[data-task-detail]').forEach(b=>b.onclick=()=>{const item=findRenderableCalendarItem(b.dataset.taskDetail);if(item){detailRoot.innerHTML='';rewardsUI.taskDetail(item,activePersonFilter)}})
+
   const chips=document.querySelector('#person-chipbar')
   if(chips){const updateEdge=()=>chips.classList.toggle('has-more',chips.scrollWidth-chips.clientWidth-chips.scrollLeft>2);chips.onscroll=updateEdge;updateEdge()}
   document.querySelectorAll('[data-calendar-toggle]').forEach(checkbox => checkbox.onchange = () => toggleCalendarItemDone(checkbox.dataset.calendarToggle,checkbox.checked))
@@ -645,7 +669,8 @@ function renderDayItems(section,items,date) {
 function renderCalendarView() {
   if(productRoute==='today')return renderHome()
   if(productRoute==='tasks')return renderTaskView()
-  if(productRoute==='meals')return renderFoodTabs()+renderMeals(calendarItems,calendarCursorDate,mode()==='kiosk',true)
+  if(productRoute==='recipes')return renderFoodTabs()+recipeUI.renderLibrary()
+  if(productRoute==='meals')return renderFoodTabs()+renderMeals(calendarItems,calendarCursorDate,mode()==='kiosk',true,libraryRecipes)+recipeUI.renderLibrary({compact:true})
   if(productRoute==='shopping')return renderFoodTabs()+renderShopping(calendarItems,shoppingDraft,mode()==='mobile',mode()==='kiosk')
   if(productRoute==='family')return renderFamilyHome()
   if (isLoadingCalendar) {
@@ -678,11 +703,16 @@ function renderPersonChips() {
   }).join('')+'</div>'
 }
 
-function renderDayCard(date) {
-  if(mode()==='mobile')return renderMobileDay(date)
+function renderDayCard(date,full=false) {
+  if(mode()==='mobile'&&!full)return renderMobileDay(date)
   const dateIso = toDateIso(date)
   const dayItems = getRenderableCalendarItems()
     .filter((item) => getCalendarValue(item, 'date') === dateIso && doesItemMatchPersonFilter(item))
+  const compact=!full&&productRoute==='calendar'&&calendarViewMode==='week'
+  const budget=mode()==='kiosk'?(innerHeight<700?2:4):6
+  const visible=compact?compactDay(dayItems,budget):{items:dayItems,hidden:0}
+  const meals=productRoute==='today'?[]:mealsOn(calendarItems,dateIso),shownMeals=compact?meals.slice(0,1):meals
+  const hidden=visible.hidden+meals.length-shownMeals.length
   const sections = [
     { key: 'Aktivitet', label: 'Aktiviteter' },
     { key: 'Fritidsinteresse', label: mode()==='kiosk'?'Fritid':'Fritidsinteresser' },
@@ -700,23 +730,28 @@ function renderDayCard(date) {
 
       <div class="day-sections">
         ${sections.map((section) => {
-          const items = dayItems.filter((item) => getCalendarSection(getCalendarValue(item, 'type')) === section.key)
+          const items = visible.items.filter((item) => getCalendarSection(getCalendarValue(item, 'type')) === section.key)
           if (!items.length) return ''
 
           return `
             <section class="calendar-day-section">
               <h3>${section.label}</h3>
               <div class="calendar-items">
-                ${renderDayItems(section.key, items, dateIso)}
+                ${section.key==='Opgave'?items.map(renderCompactTask).join(''):items.map(compact?renderWeekItem:renderCalendarItemCard).join('')}
               </div>
             </section>
           `
-        }).join('') || '<p class="empty-section empty-day">Ingen planer</p>'}
+        }).join('') || (meals.length?'':'<p class="empty-section empty-day">Ingen planer</p>')}
+        ${hidden?'<button class="day-overflow" data-day-detail="'+dateIso+'">+ '+hidden+' flere</button>':''}
+        ${compactMeals(shownMeals)}
       </div>
     </article>
   `
 }
 
+function renderWeekItem(item){return '<button class="compact-activity" data-calendar-item="'+escapeHtml(item.id)+'" style="--item-color:'+escapeHtml(getCalendarItemColor(item))+'"><strong>'+renderCalendarItemIcon(item)+escapeHtml(getCalendarItemTitle(item))+'</strong><span class="compact-activity-meta"><time>'+escapeHtml(item.time||'Heldag')+'</time><span>'+escapeHtml(getCalendarItemPeople(item).join(', '))+'</span>'+(sourceLabel(item)?'<small>'+escapeHtml(sourceLabel(item))+'</small>':'')+'</span></button>'}
+function renderCompactTask(item){return compactTask(item,{people:getCalendarItemPeople(item).join(', '),done:taskComplete(item,householdPeople,rewardState,activePersonFilter),reward:rewardRule(item)})}
+function openDayDetail(date){detailRoot.innerHTML='<div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="day-detail-title"><section class="calendar-modal full-day-detail"><header class="modal-header"><h2 id="day-detail-title">'+escapeHtml(formatDayHeaderDate(parseDateIso(date)))+'</h2><button data-day-close aria-label="Luk">×</button></header>'+renderDayCard(parseDateIso(date),true)+'</section></div>';detailRoot.querySelector('[data-day-close]').onclick=()=>{detailRoot.innerHTML=''};bindCalendarSurface();bindPlanningSurface()}
 function renderCalendarItemCard(item) {
   if(managedTask(item))return rewardsUI.taskCard(item,activePersonFilter)
   if(mode()==='mobile')return renderMobileAgendaItem(item)
@@ -1893,9 +1928,13 @@ function openCreateCalendarModal(date = null,type='Aktivitet') {
 }
 
 function openEditCalendarModal(itemId) {
-  if(mode()==='kiosk'){const item=findRenderableCalendarItem(itemId);if(item)planEditor.view({title:getCalendarItemTitle(item),date:formatDayHeaderDate(parseDateIso(item.date)),time:item.time,note:getCalendarValue(item,'note'),people:getCalendarItemPeople(item).join(', '),source:sourceLabel(item)});return}
+  detailRoot.innerHTML=''
+  rewardsUI.close()
+
+  if(mode()==='kiosk'){const item=findRenderableCalendarItem(itemId);if(item)planEditor.view({title:getCalendarItemTitle(item),date:formatDayHeaderDate(parseDateIso(item.date)),time:item.time,note:getCalendarValue(item,'note'),location:getCalendarValue(item,'location'),people:getCalendarItemPeople(item).join(', '),source:sourceLabel(item)});return}
   const item = findRenderableCalendarItem(itemId)
   if (!item) return
+  if(imported(item)&&item.calendar_id&&item.data?.uid){importedEditor.open(item);return}
   editingCalendarItemId = itemId
   editingCalendarSnapshot = structuredClone(item)
   editingRowsSnapshot = structuredClone(calendarItems)
@@ -2579,7 +2618,7 @@ function applyDeviceAppearance() {
 }
 function setProductRoute(route) {
   if(route==='food')route=foodRoute
-  if(['meals','shopping'].includes(route))foodRoute=route
+  if(['meals','shopping','recipes'].includes(route))foodRoute=route
   if(!routeLabels[route]||mode()==='kiosk'&&!['today','calendar','meals','shopping','tasks'].includes(route))return
   productRoute=route;calendarCursorDate=new Date();activePersonFilter='Alle';message=''
   if(route==='today')calendarViewMode='day'
@@ -2591,9 +2630,9 @@ function setProductRoute(route) {
 }
 function renderProductNav() { return renderNavigation(productRoute,mode()==='kiosk',mode()==='mobile') }
 function renderProductHeader() {
- if(mode()==='mobile')return '<div class="mobile-brand"><span class="mobile-brand-icon" aria-label="Familiekalender">'+icon('calendar')+'</span><h1>'+escapeHtml(['meals','shopping'].includes(productRoute)?'Mad & indkøb':routeLabels[productRoute])+'</h1></div>'
+ if(mode()==='mobile')return '<div class="mobile-brand"><span class="mobile-brand-icon" aria-label="Familiekalender">'+icon('calendar')+'</span><h1>'+escapeHtml(['meals','shopping','recipes'].includes(productRoute)?'Mad & indkøb':routeLabels[productRoute])+'</h1></div>'
  if(mode()==='kiosk')return '<div class="kiosk-heading"><div><p class="eyebrow">'+escapeHtml(getHouseholdName(activeHousehold))+'</p><time id="device-clock"></time><p id="device-date"></p></div><div class="kiosk-label"><span class="ux-live-dot"></span> Et hjem. Alle vores planer.</div></div>'
- return '<div class="ux-brand"><span class="ux-brand-icon">'+icon('calendar')+'</span><div><p class="eyebrow">Familiekalender</p><h1>'+escapeHtml(getHouseholdName(activeHousehold))+'</h1></div></div><button id="logout-button" class="logout-button" type="button">Log ud</button>'
+ return '<div class="ux-brand"><span class="ux-brand-icon">'+icon('calendar')+'</span><div><p class="eyebrow">Familiekalender</p><h1>'+escapeHtml(getHouseholdName(activeHousehold))+'</h1></div></div>'
 }
 function renderHome() {
  if(mode()==='mobile'){const now=new Date(),greeting=now.getHours()<10?'Godmorgen':now.getHours()<17?'Goddag':'God aften';return '<div class="mobile-today"><header class="mobile-today-heading"><h2>'+escapeHtml(new Intl.DateTimeFormat('da-DK',{weekday:'long',day:'numeric',month:'long'}).format(now))+'</h2><p>'+greeting+', familien</p></header>'+renderMobileDay(now,{heading:false})+'</div>'}
@@ -2635,6 +2674,8 @@ function renderTaskView() {
     (done.length?'<details class="completed-tasks" data-completed-date="task-view" '+(expandedTaskDays.has('task-view')?'open':'')+'><summary>'+done.length+' udførte opgaver</summary>'+group(done)+'</details>':'')+rewardsUI.bonus(activePersonFilter)+rewardsUI.history(activePersonFilter))+'</div>'
 }
 function bindProductSurface() {
+  document.querySelectorAll('[data-day-detail]').forEach(b=>b.onclick=()=>openDayDetail(b.dataset.dayDetail))
+
   rewardsUI.bind()
   document.querySelectorAll('[data-upcoming]').forEach(button=>button.onclick=()=>openEditCalendarModal(button.dataset.upcoming))
   document.querySelectorAll('[data-task-range]').forEach(button=>button.onclick=()=>{taskRange=button.dataset.taskRange;updateCalendarSurface()})
@@ -2839,7 +2880,7 @@ async function loadAccountDeletion(){
  if(error){target.textContent='Kunne ikke hente sletteoversigten. Log ind igen og prøv igen.';return}
  target.innerHTML='<form id="delete-account-form" class="stack-form"><h4>Dette kan ikke fortrydes</h4><p>Dit login, din profil, dine medlemskaber og enhedsregistreringer slettes. Forfatterreferencer anonymiseres. Andre ejeres familiedata og børneprofiler bevares. Lokale, usynkroniserede ændringer går tabt.</p>'+
  (plan.pending?'<p>Sletningen er allerede startet. Bekræft din adgangskode igen for at færdiggøre oprydningen.</p>':'')+
- plan.households.map(h=>h.requires_deletion?'<label class="checkbox-label"><input type="checkbox" name="delete-household" value="'+h.id+'" required>Jeg sletter også hele familien '+escapeHtml(h.name)+' ('+h.members+' loginmedlemmer), inklusive kalender, opgaver, personer, feeds og avatarer.</label>':'<p>Familien '+escapeHtml(h.name)+' bevares. Dit medlemskab fjernes.</p>').join('')+
+ plan.households.map(h=>h.requires_deletion?'<label class="checkbox-label"><input type="checkbox" name="delete-household" value="'+h.id+'" required>Jeg sletter også hele familien '+escapeHtml(h.name)+' ('+h.members+' loginmedlemmer), inklusive kalender, opgaver, personer, feeds, avatarer og opskrifter med billeder.</label>':'<p>Familien '+escapeHtml(h.name)+' bevares. Dit medlemskab fjernes.</p>').join('')+
  '<p>Som eneste ejer skal du bekræfte familiesletning. Afbryd flowet, hvis familien skal bevares.</p><label for="delete-password">Din nuværende adgangskode</label><input id="delete-password" name="password" type="password" required autocomplete="current-password"><label for="delete-confirmation">Skriv SLET MIN KONTO</label><input id="delete-confirmation" name="confirmation" required autocomplete="off" pattern="SLET MIN KONTO"><button type="submit" class="danger-button">Slet min konto permanent</button><p id="delete-message" role="status"></p></form>'
  target.querySelector('form').onsubmit=async event=>{
   event.preventDefault();const form=event.target,data=new FormData(form),submit=form.querySelector('button[type=submit]'),info=form.querySelector('#delete-message')
@@ -2879,22 +2920,25 @@ function restoreInlineFocus(saved){
  if(input&&typeof saved.start==='number')input.setSelectionRange(saved.start,saved.end)
 }
 function bindPlanningSurface(){
+ recipeUI.bind(document)
  document.querySelectorAll('[data-food-tab]').forEach(button=>button.onclick=()=>setProductRoute(button.dataset.foodTab))
  const dismiss=document.querySelector('#dismiss-message');if(dismiss)dismiss.onclick=()=>{message='';document.querySelector('#message').textContent='';document.querySelector('.ux-notice').hidden=true}
  document.querySelectorAll('[data-go-route]').forEach(button=>button.onclick=()=>setProductRoute(button.dataset.goRoute))
  document.querySelectorAll('[data-product-route]').forEach(button=>button.onclick=()=>setProductRoute(button.dataset.productRoute))
  document.querySelectorAll('[data-open-settings]').forEach(button=>button.onclick=()=>openSettingsModal(button.dataset.openSettings))
- document.querySelectorAll('[data-plan-new]').forEach(button=>button.onclick=()=>{if(mode()!=='kiosk')planEditor.open(button.dataset.planNew,{date:button.dataset.planDate||toDateIso(new Date())})})
+ document.querySelectorAll('[data-plan-new]').forEach(button=>button.onclick=()=>{if(mode()!=='kiosk'){const date=button.dataset.planDate||toDateIso(new Date());if(button.dataset.planNew==='meal')recipeUI.choose(date);else planEditor.open(button.dataset.planNew,{date})}})
  document.querySelectorAll('[data-plan-edit]').forEach(button=>button.onclick=()=>{
-  const row=calendarItems.find(item=>item.id===button.dataset.planEdit);if(!isHouseholdPlan(row))return
-  if(mode()==='kiosk'){planEditor.view({title:row.title,date:formatDayHeaderDate(parseDateIso(row.date)),time:row.time,note:row.note});return}
+  const row=calendarItems.find(item=>item.id===button.dataset.planEdit);if(!isHouseholdPlan(row))return;detailRoot.innerHTML=''
+  if(recipeId(row)&&libraryRecipes.some(r=>r.id===recipeId(row))){recipeUI.detail(recipeId(row),{meal:row});return}
+  if(mode()==='kiosk'){planEditor.view({title:row.title,date:formatDayHeaderDate(parseDateIso(row.date)),time:row.time,note:row.note,recipe:row.data?.recipe});return}
   planEditor.open(row.type===PLAN_TYPES.meal?'meal':'shopping',{id:row.id})
  })
  document.querySelectorAll('[data-meal-week]').forEach(button=>button.onclick=()=>{calendarCursorDate=button.dataset.mealWeek==='0'?new Date():parseDateIso(addDays(toDateIso(calendarCursorDate),Number(button.dataset.mealWeek)*7));updateCalendarSurface()})
  document.querySelectorAll('[data-meal-ingredients]').forEach(button=>button.onclick=async()=>{
   const meal=calendarItems.find(row=>row.id===button.dataset.mealIngredients);if(!meal)return
+  if(recipeId(meal)){recipeUI.shopping(recipeId(meal),meal);return}
   button.disabled=true
-  try{const drafts=ingredientDrafts(meal.note,calendarItems);if(!drafts.length){message='Ingredienserne er allerede på indkøbslisten.';updateCalendarSurface();return}
+  try{const drafts=ingredientDrafts(meal.data?.recipe?.ingredients?.length?meal.data.recipe.ingredients:meal.note,calendarItems);if(!drafts.length){message='Ingredienserne er allerede på indkøbslisten.';updateCalendarSurface();return}
    const result=await runCalendarMutation(()=>({upserts:drafts.flatMap(fields=>planCreate(planValues('shopping',fields)).upserts),deleteIds:[],expected:[]}))
    message=result.error?result.error.message:drafts.length+' varer føjet til indkøbslisten.'
   }catch(error){message=error.message}finally{button.disabled=false;updateCalendarSurface()}
@@ -2931,7 +2975,7 @@ function bindPlanningSurface(){
 
 
 function taskDates(){const today=toDateIso(new Date());return taskRange==='month'?monthDates(today):taskRange==='week'?weekDates(today):[today]}
-function renderFoodTabs(){return '<nav class="food-tabs" aria-label="Mad og indkøb"><button data-food-tab="meals" aria-pressed="'+(productRoute==='meals')+'">Madplan</button><button data-food-tab="shopping" aria-pressed="'+(productRoute==='shopping')+'">Indkøb</button></nav>'}
+function renderFoodTabs(){return '<nav class="food-tabs" aria-label="Mad og indkøb">'+[['meals','Madplan'],...(mode()==='kiosk'?[]:[['recipes','Opskrifter']]),['shopping','Indkøb']].map(([id,label])=>'<button data-food-tab="'+id+'" aria-pressed="'+(productRoute===id)+'">'+label+'</button>').join('')+'</nav>'}
 function openCreateSheet(){
  if(mode()==='kiosk')return
  createRoot.innerHTML='<div id="create-sheet" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="create-sheet-title"><section class="create-sheet"><header><h2 id="create-sheet-title">Hvad vil du tilføje?</h2><button type="button" data-create-close aria-label="Luk">×</button></header>'+[['Aktivitet','Aktivitet','calendar'],['Opgave','Opgave','tasks'],['meal','Måltid','meals'],['shopping','Indkøbsvare','shopping'],['Fødselsdag','Fødselsdag / mærkedag','sun']].map(([kind,label,i])=>'<button type="button" data-create-kind="'+kind+'">'+icon(i)+'<span>'+label+'</span>'+icon('plus')+'</button>').join('')+'</section></div>'
@@ -2955,7 +2999,7 @@ function renderMobileDay(date,{heading=true}={}){
  const appointments=rows.filter(item=>getCalendarValue(item,'type')!=='Opgave'),tasks=rows.filter(item=>getCalendarValue(item,'type')==='Opgave'),meals=mealsOn(calendarItems,day)
  const dayTitle=week?formatWeekday(date)+' '+formatShortDate(date):new Intl.DateTimeFormat('da-DK',{weekday:'long',day:'numeric',month:'long'}).format(date)
  let content
- if(week)content=rows.length?appointments.map(renderMobileAgendaItem).join('')+(tasks.length?renderDayItems('Opgave',tasks,day):''):'<p class="agenda-empty">Ingen aftaler</p>'
+ if(week)content=(rows.length||meals.length?appointments.map(renderMobileAgendaItem).join('')+tasks.map(renderCompactTask).join(''):'<p class="agenda-empty">Ingen aftaler</p>')+compactMeals(meals)
  else content=(appointments.length?'<section class="mobile-agenda-section"><h3>Aftaler</h3>'+appointments.map(renderMobileAgendaItem).join('')+'</section>':!tasks.length&&!meals.length?'<p class="agenda-empty">Ingen planer</p>':'')+(tasks.length?'<section class="mobile-agenda-section"><h3>Opgaver</h3>'+renderDayItems('Opgave',tasks,day)+'</section>':'')+(meals.length?'<section class="mobile-agenda-section mobile-dinner'+(meals.length===1&&!meals[0].time?' is-title-only':'')+'"><h3>'+icon('meals')+' Aftensmad</h3>'+meals.map(meal=>'<button data-plan-edit="'+meal.id+'"><strong>'+escapeHtml(meal.title)+'</strong>'+(meal.time?'<small>'+escapeHtml(meal.time)+'</small>':'')+'</button>').join('')+'</section>':'')
  return '<article class="day-card mobile-agenda-day '+(day===toDateIso(new Date())?'is-today':'')+'" data-day="'+day+'">'+(heading&&week?'<header class="day-card-header"><strong>'+escapeHtml(dayTitle)+'</strong>'+(day===toDateIso(new Date())?'<span>I dag</span>':'')+'</header>':'')+content+'</article>'
 }
@@ -3014,4 +3058,16 @@ function setupTaskEditor(isTask){
  if(quick)quick.hidden=!isTask
  if(advanced&&!isTask)advanced.open=true
  if(isTask){form.querySelector('#task-repeat').disabled=form.querySelector('[name=repeatWeekly]').disabled;document.querySelector('#calendar-modal-title').textContent=getEditingCalendarItem()?'Rediger opgave':'Ny opgave';form.querySelector('button[type=submit]').textContent=getEditingCalendarItem()?'Gem ændringer':'Opret opgave'}
+}
+async function loadRecipes(){
+ if(!syncEngine||!navigator.onLine)return
+ const engine=syncEngine,version=++recipeLoadVersion
+ const {data,error,stale}=await recipeService.load()
+ if(engine!==syncEngine||version!==recipeLoadVersion||stale)return
+ if(error){recipeLoadError='Biblioteket kunne ikke opdateres. Viser senest gemte opskrifter.';return}
+ const resolved=await recipeService.images(data||[])
+ if(engine!==syncEngine||version!==recipeLoadVersion)return
+ recipeLoadError='';recipeImages=new Map(resolved.map(r=>[r.image_path,r.image_display_url]));libraryRecipes=resolved
+ await engine.snapshot({recipes:(data||[]).map(({image_display_url,...r})=>r)})
+ if(recipeUI.detailId&&!recipeUI.busy)recipeUI.detail(recipeUI.detailId,recipeUI.detailOptions||{})
 }

@@ -14,6 +14,7 @@ assert.match(manifest,/usesCleartextTraffic="false"/);assert.match(manifest,/all
 assert.match(gradle,/if \(hasReleaseSigning\) signingConfig signingConfigs.release/);assert.match(gradle,/throw new GradleException/);pass('Release signing fails closed without the four environment values')
 const info=plist.parse(readFileSync('ios/App/App/Info.plist','utf8'))
 assert.equal(info.CFBundleDisplayName,'Familiekalender');assert(info.CFBundleURLTypes[0].CFBundleURLSchemes.includes('familiekalender'));assert.equal(info.NSAppTransportSecurity.NSAllowsArbitraryLoads,false);pass('iOS plist parses with correct display name, URL scheme and ATS')
+assert.match(manifest,/<queries>[\s\S]*android.media.action.IMAGE_CAPTURE/);assert.match(info.NSCameraUsageDescription,/opskrift/);assert.match(info.NSPhotoLibraryUsageDescription,/opskrift/);assert.match(readFileSync('src/lib/recipe-ui.js','utf8'),/id="scan-camera" type="file" accept="image\/\*" capture="environment"/);pass('Recipe camera uses Capacitor-compatible capture input, Android intent visibility and iOS purpose strings')
 const privacy=plist.parse(readFileSync('ios/App/App/PrivacyInfo.xcprivacy','utf8'))
 assert.equal(privacy.NSPrivacyTracking,false);assert(privacy.NSPrivacyAccessedAPITypes.some(t=>t.NSPrivacyAccessedAPITypeReasons.includes('C617.1')));pass('iOS privacy manifest declares filesystem reason without tracking')
 const project=xcode.project('ios/App/App.xcodeproj/project.pbxproj');project.parseSync()

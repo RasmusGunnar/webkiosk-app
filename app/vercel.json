@@ -41,5 +41,10 @@
         }
       ]
     }
-  ]
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "polish/calendar-meals-imports": false
+    }
+  }
 }

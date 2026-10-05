@@ -418,7 +418,7 @@ export function eventsToCalendarRows(events: ParsedEvent[], feed: CalendarFeedRo
       const occurrenceDate = event.recurrenceId
         ? formatDate(new Date(event.recurrenceId), event.timeZone || DEFAULT_TIME_ZONE)
         : date;
-      const externalKey = buildExternalKey(event, feed, occurrenceDate, start, end);
+      const externalKey = buildExternalKey(event, feed);
       const externalId = externalKey;
       const data = {
         title: event.summary || "(uden titel)",
@@ -441,7 +441,7 @@ export function eventsToCalendarRows(events: ParsedEvent[], feed: CalendarFeedRo
         uid: event.uid,
         occurrenceDate,
         recurrenceId: event.recurrenceId,
-        seriesId: `${feed.source}:${event.uid}`,
+        seriesId: JSON.stringify([feed.source, feed.id, event.uid]),
       };
 
       return {
@@ -466,43 +466,9 @@ export function eventsToCalendarRows(events: ParsedEvent[], feed: CalendarFeedRo
     });
 }
 
-function buildExternalKey(
-  event: ParsedEvent,
-  feed: CalendarFeedRow,
-  occurrenceDate: string,
-  start: Date,
-  end: Date | null,
-): string {
-  const startTime = start.toISOString();
-  const endTime = end ? end.toISOString() : "";
-  const titleLocationHash = stableHash(`${event.summary || ""}|${event.location || ""}`);
-
-  return [
-    feed.source,
-    feed.id,
-    event.uid,
-    occurrenceDate,
-    startTime,
-    endTime,
-    titleLocationHash,
-  ].map(normalizeExternalKeyPart).join(":");
-}
-
-function normalizeExternalKeyPart(value: unknown): string {
-  return String(value ?? "")
-    .trim()
-    .replace(/\s+/g, " ")
-    .replace(/[:|]/g, "-");
-}
-
-function stableHash(value: string): string {
-  let hash = 5381;
-
-  for (let index = 0; index < value.length; index += 1) {
-    hash = ((hash << 5) + hash) ^ value.charCodeAt(index);
-  }
-
-  return (hash >>> 0).toString(36);
+// Source identity must not depend on mutable event presentation or rescheduling.
+export function buildExternalKey(event: Pick<ParsedEvent, 'uid' | 'recurrenceId'>, feed: Pick<CalendarFeedRow, 'id' | 'source'>): string {
+  return JSON.stringify([feed.source, feed.id, event.uid, event.recurrenceId || 'single']);
 }
 
 function toDate(value: any): Date | null {

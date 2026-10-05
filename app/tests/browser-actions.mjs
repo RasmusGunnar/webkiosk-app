@@ -23,8 +23,7 @@ export async function openSettings(page,tab='people'){
  await expect(page.locator('[data-settings-panel='+tab+']')).toBeVisible()
 }
 export async function logout(page){
- if(await settledMode(page)==='mobile'){await openSettings(page,'account');await page.locator('#account-logout').click()}
- else await page.locator('#logout-button').click()
+ await openSettings(page,'account');await page.locator('#account-logout').click()
 }
 export async function toggleView(page){
  if(await settledMode(page)==='mobile')await page.locator('[data-calendar-view][aria-pressed=false]').click()

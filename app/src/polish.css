@@ -1,0 +1,97 @@
+/* Product Polish 2.4 · content first, shared mobile/desktop calendar. */
+body[data-mode=desktop] .app-shell{max-width:1920px;padding:18px 24px 112px;width:100%}
+body[data-mode=desktop] .dashboard-header{margin-bottom:12px;min-height:38px}
+body[data-mode=desktop] .ux-brand{gap:9px}
+body[data-mode=desktop] .ux-brand-icon{width:34px;height:36px;border-radius:11px}
+body[data-mode=desktop] .ux-brand h1{font-size:17px;letter-spacing:-.02em}
+body[data-mode=desktop] .ux-brand .eyebrow{font-size:9px;margin:0 0 2px}
+body[data-mode=desktop] .product-nav{inset:auto auto 18px 50%;transform:translateX(-50%);width:max-content;max-width:calc(100vw - 150px);flex-direction:row;align-items:center;padding:6px;gap:4px;border-radius:22px;background:#fffffff5;box-shadow:0 6px 30px #23443118;backdrop-filter:blur(12px)}
+body[data-mode=desktop] .product-nav:before{display:none}
+body[data-mode=desktop] .product-nav button{flex-direction:row;justify-content:center;gap:8px;min-width:94px;min-height:46px;padding:10px 14px;font-size:12px;border-radius:16px;white-space:nowrap}
+body[data-mode=desktop] .product-nav button[aria-current=page]{background:var(--ux-sage);color:var(--ux-green);box-shadow:none}
+body[data-mode=desktop] .product-nav .ux-icon{width:19px;height:19px}
+body[data-mode=desktop] .person-chipbar{margin-bottom:12px;gap:6px}
+body[data-mode=desktop] .person-chip{min-height:36px;padding:3px 11px 3px 5px;font-size:12px}
+body[data-mode=desktop] .person-chip-avatar{width:25px;height:25px}
+body[data-mode=desktop] .calendar-heading{margin-bottom:12px}
+body[data-mode=desktop] .calendar-heading h2{font-size:22px}
+body[data-mode=desktop] .week-grid{grid-template-columns:repeat(7,minmax(0,1fr));gap:8px;min-width:0;align-items:stretch}
+body[data-mode=desktop] .week-grid .day-card{min-height:330px;padding:10px;display:flex;flex-direction:column;overflow:visible}
+body[data-mode] .week-grid .day-sections{display:flex;flex-direction:column;gap:12px;flex:1;overflow:visible;min-height:0}
+body[data-mode] .week-grid .day-card-header{margin-bottom:12px;padding-bottom:10px}
+body[data-mode] .week-grid .calendar-items{gap:5px}
+body[data-mode] .week-grid .calendar-day-section h3{font-size:10px;letter-spacing:.025em;line-height:1.3;margin:0 0 5px;overflow-wrap:normal}
+body[data-mode] .week-grid .calendar-item{padding:8px 7px;border-radius:8px;min-width:0}
+body[data-mode] .week-grid .calendar-item-layout{gap:5px}
+body[data-mode] .week-grid .calendar-item-title-row{display:block}
+body[data-mode] .week-grid .calendar-item-title-row strong{font-size:13px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:break-word;word-break:normal}
+body[data-mode] .week-grid .calendar-source-badge{display:inline-block;padding:0 3px;font-size:9px;line-height:1.5;max-width:100%;vertical-align:middle}
+body[data-mode] .week-grid .calendar-time-badge{display:inline;margin-left:3px;padding:0;background:none;font-size:11px;font-weight:500}
+body[data-mode] .week-grid .calendar-item-meta,body[data-mode] .week-grid .calendar-person{font-size:11px;line-height:1.35;margin:3px 0 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+body[data-mode] .week-grid .calendar-item-footer{display:none}
+.compact-task{display:flex;gap:7px;align-items:center;text-align:left;min-height:42px;width:100%;padding:5px 3px;border:0;border-bottom:1px solid var(--ux-line);border-radius:0;background:transparent;color:inherit}
+.compact-task>span:last-child{min-width:0;flex:1}.compact-task-status{font-size:19px;line-height:1;color:var(--ux-green);width:20px;flex:none;text-align:center}
+.compact-task strong{display:block;font-size:12px;line-height:1.3;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.compact-task small{display:block;font-size:10px;color:#6c786b;line-height:1.5;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.compact-task.is-done strong{text-decoration:line-through;color:#758170}
+.day-overflow{font-size:11px;min-height:32px;padding:4px 6px;border:0;background:var(--ux-sage);color:var(--ux-green);align-self:flex-start;white-space:nowrap}
+.day-meals{margin-top:auto;padding-top:9px;border-top:1px solid #ecd9be;display:grid;gap:4px}
+.day-meals button{display:flex;align-items:center;gap:6px;min-height:34px;padding:6px 7px;text-align:left;background:#fbefdf;border:0;color:#77522f;border-radius:8px;min-width:0}
+.day-meals .ux-icon{width:16px;height:16px}.day-meals strong{font-size:12px;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.full-day-detail .day-card{border:0;padding:0}.full-day-detail .day-sections{display:flex;flex-direction:column;gap:16px}.full-day-detail .day-meals{margin-top:0}.full-day-detail .day-card-header{display:none}
+body[data-mode=kiosk] .app-shell{padding:12px 18px 72px}
+body[data-mode=kiosk] .dashboard-header{margin-bottom:8px;padding-bottom:0}
+body[data-mode=kiosk][data-route=calendar] #device-clock{font-size:32px;line-height:1.1}
+body[data-mode=kiosk][data-route=calendar] #device-date{font-size:12px;margin:2px 0}
+body[data-mode=kiosk][data-route=calendar] .kiosk-label{font-size:12px}
+body[data-mode=kiosk] .product-nav{bottom:12px;padding:4px;opacity:.9;border-radius:16px}
+body[data-mode=kiosk] .product-nav button{min-height:38px;min-width:92px;font-size:12px;padding:6px 10px}
+body[data-mode=kiosk][data-route=calendar] .week-grid .day-card{display:flex;flex-direction:column;overflow:visible;padding:8px}
+body[data-mode=kiosk][data-route=calendar] .week-grid .day-sections{overflow:visible;gap:8px}
+body[data-mode=kiosk] .compact-task{min-height:38px;padding:4px 1px}
+body[data-mode=kiosk] .compact-task strong{font-size:13px}
+body[data-mode=kiosk] .compact-task small{font-size:11px}
+body[data-mode=kiosk] .week-grid .day-meals strong{font-size:13px}
+body[data-mode=desktop] .ux-welcome{padding:16px 22px;margin-bottom:10px}
+body[data-mode=desktop] .ux-welcome h3{font-size:28px;margin:4px 0 8px}
+body[data-mode] .shopping-row{padding:0 7px;min-height:42px;border:0;border-bottom:1px solid var(--ux-line);border-radius:0;gap:8px;background:transparent}
+body[data-mode] .shopping-group ul,body[data-mode] .shopping-completed ul{gap:0}
+body[data-mode] .shopping-name{display:flex;align-items:center;gap:12px;padding:6px 2px;min-height:42px;min-width:0}
+body[data-mode] .shopping-name strong{font-size:14px;line-height:1.3;font-weight:550;overflow-wrap:break-word}
+body[data-mode] .shopping-name small{font-size:12px;margin:0;flex:none;max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+body[data-mode] .shopping-check{min-height:42px;width:30px;flex:none}
+body[data-mode] .shopping-group h4{margin:14px 0 4px}
+body[data-mode=mobile] .shopping-row,body[data-mode=mobile] .shopping-name,body[data-mode=mobile] .shopping-check{min-height:46px}
+body[data-mode=mobile] .compact-task{min-height:46px}.mobile-day .day-meals{margin-top:10px}
+.recipe-import{background:var(--ux-sage);padding:12px;border-radius:12px;margin-bottom:12px}
+.recipe-import>div{display:flex;align-items:center;gap:8px}.recipe-import input{min-width:0;flex:1}.recipe-import button{white-space:nowrap;font-size:12px}
+.recipe-import [role=status]:empty{display:none}.recipe-import [role=status]{font-size:12px;margin:8px 0 0}
+.recipe-fields{display:grid;gap:6px}.recipe-fields details{margin:8px 0}.recipe-fields details input{width:100%}
+.recipe-fields label,.recipe-fields textarea{display:block;width:100%}.recipe-fields summary{font-size:13px}
+.recipe-detail{line-height:1.65}.recipe-detail li{margin-bottom:8px}.recipe-image{max-height:200px;width:100%;object-fit:cover;border-radius:12px}
+.import-people{display:flex;flex-wrap:wrap;gap:10px;border:1px solid var(--ux-line);border-radius:12px;padding:10px}.import-people legend{font-size:12px}.import-people label{display:flex;align-items:center;gap:6px;font-size:13px}.import-people input{width:18px;height:18px;min-height:0}
+[data-import-scope]{padding:14px;background:#f8ece3;border-radius:12px}[data-import-scope] h3{margin:0 0 8px;font-size:16px}[data-import-scope] p{font-size:13px}[data-import-scope] button{margin:4px 6px 0 0;font-size:12px}
+@media(max-width:900px){body[data-mode=desktop] .app-shell{padding-left:12px;padding-right:12px}body[data-mode=desktop] .product-nav button{min-width:76px;padding:8px;font-size:11px}body[data-mode=desktop] .week-grid{gap:4px}body[data-mode=desktop] .week-grid .day-card{padding:6px}}
+
+body[data-mode=desktop] .shopping-check{height:40px;min-height:40px}body[data-mode=desktop] .shopping-group{padding:0 10px;border:0;background:transparent}body[data-mode=desktop] .shopping-groups{gap:12px}
+
+.compact-activity{display:grid;gap:4px;width:100%;min-width:0;min-height:52px;margin:0;padding:7px 8px;text-align:left;border:1px solid var(--ux-line);border-left:3px solid var(--item-color,#869981);border-radius:8px;background:#fff;color:inherit}
+.compact-activity strong{font-size:13px;font-weight:600;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:normal;overflow-wrap:break-word}
+.compact-activity-meta{display:flex;align-items:center;gap:6px;font-size:10px;line-height:1.4;color:#677560;min-width:0}.compact-activity-meta>span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.compact-activity-meta small{font-size:9px;line-height:1.4;background:#edf1e9;border-radius:3px;padding:1px 3px;margin-left:auto}
+body[data-mode=kiosk] .compact-activity{min-height:52px;padding:7px 6px}body[data-mode=kiosk] .compact-activity strong{font-size:14px}body[data-mode=kiosk] .compact-activity-meta{font-size:11px}
+body[data-mode=kiosk][data-route=calendar] .week-grid .day-sections>section,body[data-mode=kiosk][data-route=calendar] .day-overflow{flex-shrink:0}
+
+body[data-mode=kiosk][data-route=calendar] .dashboard-header{padding:0;margin-bottom:6px}
+body[data-mode=kiosk][data-route=calendar] .person-chipbar{margin-bottom:8px;padding:0}
+body[data-mode=kiosk][data-route=calendar] .person-chip{min-height:36px;font-size:13px;padding:3px 10px 3px 5px}
+body[data-mode=kiosk][data-route=calendar] .person-chip-avatar{width:26px;height:26px}
+body[data-mode=kiosk][data-route=calendar] .calendar-heading{margin-bottom:8px}
+body[data-mode=kiosk][data-route=calendar] .week-grid .day-card-header{min-height:38px;margin-bottom:8px;padding-bottom:6px;gap:2px}
+body[data-mode=kiosk][data-route=calendar] .week-grid .day-sections{gap:6px}
+body[data-mode=kiosk][data-route=calendar] .compact-activity{min-height:46px;padding:6px}
+body[data-mode=kiosk][data-route=calendar] .compact-activity strong{font-size:13px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body[data-mode=kiosk][data-route=calendar] .compact-task{min-height:36px}
+body[data-mode=kiosk][data-route=calendar] .day-meals{padding-top:6px}
+body[data-mode=kiosk][data-route=calendar] .day-meals button{min-height:32px;padding:5px 6px}
+body[data-mode=kiosk][data-route=calendar] .day-overflow{min-height:28px}
+
+.compact-activity .calendar-item-icon{display:inline-block;vertical-align:-2px;margin:0 5px 0 0}.compact-activity .calendar-milestone-star{display:inline-grid;width:18px;height:18px}

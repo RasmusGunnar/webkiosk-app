@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Capacitor checks that a camera app can handle the explicit capture intent. -->
+    <queries><intent><action android:name="android.media.action.IMAGE_CAPTURE" /></intent></queries>
+
     <application
         android:allowBackup="false"
         android:usesCleartextTraffic="false"

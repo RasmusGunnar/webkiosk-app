@@ -41,3 +41,6 @@ verify_jwt = false
 [functions.delete-account]
 # Explicit getUser JWT validation and password reauthentication inside the function.
 verify_jwt = false
+
+[functions.recipe-preview]
+verify_jwt = false

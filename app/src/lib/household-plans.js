@@ -1,3 +1,4 @@
+import {recipeValues} from './recipe.js'
 import { dateIso, parseDate } from './calendar-dates.js'
 import { itemValues } from './calendar-semantics.js'
 export const PLAN_TYPES={meal:'Madplan',shopping:'Indkøb'}
@@ -17,6 +18,7 @@ export function planValues(kind,fields,existing=null,today=dateIso(new Date())){
  const time=kind==='meal'?String(fields.time||''):''
  if(time&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(time))throw Error('Vælg et gyldigt klokkeslæt.')
  return {...(existing?itemValues(existing):{}),title,note,date,time,type:PLAN_TYPES[kind],
+  ...(kind==='meal'?{recipe:recipeValues(fields,existing?.data?.recipe||existing?.recipe||{}),...(fields.servings_override!==undefined?{servings_override:fields.servings_override?Number(fields.servings_override):null}:{})}:{}),
   done:kind==='shopping'?Boolean(existing?.done):false,people:['Alle'],person:'Alle',personIds:[],
   location:kind==='shopping'&&SHOPPING_CATEGORIES.includes(fields.location)?fields.location:'',durationMin:'',
   repeatWeekly:false,repeatYearly:false,weekdays:false,birthYear:'',seriesId:'',overrideOf:'',overrideBaseId:'',exceptions:[]}
@@ -35,7 +37,7 @@ const canonical=text=>text.normalize('NFKC').trim().replace(/\s+/g,' ').toLocale
 export function ingredientDrafts(note,rows){
  const known=new Set(shoppingItems(rows).filter(row=>!row.done).map(row=>canonical(row.title)))
  const result=[]
- for(const line of String(note||'').split(/\r?\n/)){
+ for(const line of (Array.isArray(note)?note:String(note||'').split(/\r?\n/))){
   const title=line.trim().replace(/^[-*•]\s*/,'').trim()
   if(!title||known.has(canonical(title)))continue
   if(title.length>160)throw Error('Hver ingrediens må højst være 160 tegn.')

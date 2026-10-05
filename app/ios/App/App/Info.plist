@@ -26,8 +26,8 @@
       <key>CFBundleURLName</key><string>dk.rasmusgunnar.familiekalender</string>
       <key>CFBundleURLSchemes</key><array><string>familiekalender</string></array>
     </dict></array>
-    <key>NSPhotoLibraryUsageDescription</key><string>Vælg et billede til en person i familiens kalender.</string>
-    <key>NSCameraUsageDescription</key><string>Tag et billede til en familieprofil, hvis du vælger kameraet i billedvælgeren.</string>
+    <key>NSPhotoLibraryUsageDescription</key><string>Vælg billeder til familieprofiler eller til at læse og gemme en opskrift.</string>
+    <key>NSCameraUsageDescription</key><string>Tag billeder af en opskrift eller en familieprofil, når du selv vælger kameraet.</string>
     <key>ITSAppUsesNonExemptEncryption</key><false/>
     <key>NSAppTransportSecurity</key><dict><key>NSAllowsArbitraryLoads</key><false/></dict>
     <key>LSRequiresIPhoneOS</key>

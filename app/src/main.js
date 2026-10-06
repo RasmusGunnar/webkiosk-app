@@ -11,11 +11,11 @@ import {RecipeService,imageBlob} from './lib/recipe-service.js'
 import {RecipeUI} from './lib/recipe-ui.js'
 import {recipeId,fromPreview} from './lib/recipe-model.js'
 import {compactDay,compactTask,compactMeals,filterRoutes} from './lib/calendar-layout.js'
-import {ImportedEditor,visibleImports} from './lib/imported-editor.js'
+import {ImportedEditor,visibleImports,canEditImported} from './lib/imported-editor.js'
 import { supabase, configurationError, cacheNamespace, clearLocalAuth } from './lib/supabase'
 import { findPerson, selectPeople, itemPeople, itemPersonIds, itemMatchesPerson, feedPerson } from './lib/people.js'
 import { avatarDisplayUrl, validateAvatar, resolveAvatarUrls, savePerson } from './lib/avatars.js'
-import { normalizeFeedUrl, redactFeedUrl, feedIdOf } from './lib/feeds.js'
+import { normalizeFeedUrl, redactFeedUrl, feedIdOf, feedSyncStatus } from './lib/feeds.js'
 import { calendarPayload } from './lib/calendar.js'
 import { observeSession } from './lib/auth.js'
 import { readAllRows } from './lib/rows.js'
@@ -95,6 +95,7 @@ let calendarImportMessage = ''
 let isSavingCalendarFeed = false
 let importingCalendarFeedId = null
 let calendarFeedImportMessages = {}
+let hiddenImports=[],hiddenImportsOpen=false,hiddenImportsLoading=false
 let editingCalendarFeedId = null
 let calendarFeedDraft = createEmptyCalendarFeedDraft()
 let calendarViewMode = getDefaultCalendarViewMode()
@@ -317,6 +318,7 @@ function clearSessionState() {
   isCreatingPerson = false; isCreatingCalendarItem = false; isCreatingHousehold = false
   isSavingCalendarFeed = false; importingCalendarFeedId = null
   settingsMessage = ''; calendarImportMessage = ''; calendarFeedImportMessages = {}
+  hiddenImports=[];hiddenImportsOpen=false;hiddenImportsLoading=false
   editingCalendarFeedId = null; calendarFeedDraft = createEmptyCalendarFeedDraft()
   pendingAvatarFiles.clear()
   calendarCursorDate = new Date(); message = ''; householdsLoadFailed = false
@@ -560,6 +562,8 @@ ${renderProductHeader()}
   }
 
   if (!savedSettingsModal) {
+  document.querySelector('#hidden-imports-open')?.addEventListener('click',()=>void loadHiddenImports())
+  document.querySelectorAll('[data-restore-import]').forEach(button=>button.onclick=()=>void restoreHiddenImport(Number(button.dataset.restoreImport)))
   document.querySelector('#add-calendar-feed-button')?.addEventListener('click', openCreateCalendarFeedForm)
 
   document.querySelectorAll('[data-edit-calendar-feed]').forEach((button) => {
@@ -609,6 +613,7 @@ function scheduleCalendarSurface() {
 function updateCalendarSurface() {
   if (!session || !activeHousehold || !document.querySelector('#calendar-view')) return
   const inlineFocus=captureInlineFocus()
+  for(const feed of calendarFeeds){const status=document.querySelector('[data-feed-status="'+feed.id+'"]');if(status)status.textContent=feedSyncStatus(feed)}
   document.querySelector('#calendar-view').innerHTML = renderCalendarView()
   const chips = document.querySelector('#person-chipbar')
   if (chips) {
@@ -1055,13 +1060,15 @@ function renderSettingsModal() {
           <div class="settings-block-header">
             <div>
               <h3>Kalender-import</h3>
-              <p>Hent begivenheder fra eksterne kalendere</p>
+              <p>Aktive kalendere synkroniseres automatisk hvert 5. minut.</p>
             </div>
             <button id="add-calendar-feed-button" class="btn small" type="button" ${canManageFeeds() ? '' : 'disabled'}>+ Tilf&oslash;j feed</button>
           </div>
 
           ${renderCalendarFeedsList()}
           ${renderCalendarFeedForm()}
+          <button type="button" id="hidden-imports-open">Skjulte importerede aftaler</button>
+          ${renderHiddenImports()}
           ${calendarImportMessage ? `<p class="message subtle-message">${escapeHtml(calendarImportMessage)}</p>` : ''}
         </section>
       </div>
@@ -1122,7 +1129,7 @@ function renderCalendarFeedRow(feed) {
         </div>
         <p class="calendar-feed-meta">Person: ${escapeHtml(assignedPerson)}</p>
         <p class="calendar-feed-url" title="${escapeHtml(feedUrl)}">${escapeHtml(feedUrl)}</p>
-        ${syncStatus ? `<p class="calendar-feed-status">Sidste sync: ${escapeHtml(syncStatus)}</p>` : ''}
+        <p class="calendar-feed-status" data-feed-status="${escapeHtml(feed.id)}">${escapeHtml(syncStatus)}</p>
         ${importStatus ? `
           <p class="calendar-feed-status ${escapeHtml(importStatus.type || '')}">
             <span>${escapeHtml(importStatus.text)}</span>
@@ -1244,14 +1251,7 @@ function getCalendarFeedSourceLabel(source) {
   return labels[normalizeCalendarFeedSource(source)]
 }
 
-function getCalendarFeedSyncStatus(feed) {
-  return String(
-    feed.last_sync_status
-      || feed.sync_status
-      || feed.last_status
-      || '',
-  ).trim()
-}
+function getCalendarFeedSyncStatus(feed) { return feedSyncStatus(feed) }
 
 function setCalendarFeedImportMessage(feedId, text, type = 'info', details = {}) {
   calendarFeedImportMessages = {
@@ -1686,6 +1686,7 @@ async function loadCalendarFeeds() {
   const { data, error } = await supabase.from('calendar_feeds').select('*').eq('household_id',activeHousehold.id).order('name').abortSignal(AbortSignal.timeout(6000))
   if (error || engine !== syncEngine || version !== feedsLoadVersion) return
   liveFeedMetadata = data || []
+  for(const feed of liveFeedMetadata){const status=document.querySelector('[data-feed-status="'+feed.id+'"]');if(status)status.textContent=feedSyncStatus(feed)}
   await engine.snapshot({feeds:liveFeedMetadata})
 }
 
@@ -1940,7 +1941,7 @@ function openEditCalendarModal(itemId) {
   if(mode()==='kiosk'){const item=findRenderableCalendarItem(itemId);if(item)planEditor.view({title:getCalendarItemTitle(item),date:formatDayHeaderDate(parseDateIso(item.date)),time:item.time,note:getCalendarValue(item,'note'),location:getCalendarValue(item,'location'),people:getCalendarItemPeople(item).join(', '),source:sourceLabel(item)});return}
   const item = findRenderableCalendarItem(itemId)
   if (!item) return
-  if(imported(item)&&item.calendar_id&&item.data?.uid){importedEditor.open(item);return}
+  if(imported(item)&&canEditImported(item)){importedEditor.open(item);return}
   editingCalendarItemId = itemId
   editingCalendarSnapshot = structuredClone(item)
   editingRowsSnapshot = structuredClone(calendarItems)
@@ -3076,4 +3077,26 @@ async function loadRecipes(){
  recipeLoadError='';recipeImages=new Map(resolved.map(r=>[r.image_path,r.image_display_url]));libraryRecipes=resolved
  await engine.snapshot({recipes:(data||[]).map(({image_display_url,...r})=>r)})
  if(recipeUI.detailId&&!recipeUI.busy)recipeUI.detail(recipeUI.detailId,recipeUI.detailOptions||{})
+}
+
+function renderHiddenImports(){
+ if(!hiddenImportsOpen)return '';
+ if(hiddenImportsLoading)return '<p role="status">Henter skjulte aftaler…</p>';
+ return '<div class="hidden-imports"><p class="hint">Gendan gør aftalen synlig igen, når den stadig findes i kilden. En skjult serie og dens enkeltforekomster kan gendannes hver for sig.</p>'+
+ (hiddenImports.length?hiddenImports.map((row,i)=>'<article><div><strong>'+escapeHtml(row.title)+'</strong><small>'+escapeHtml(row.feed_name)+' · '+(row.occurrence==='*'?'Hele serien':escapeHtml(row.date||'Enkelt aftale'))+'</small></div><button type="button" data-restore-import="'+i+'">Gendan</button></article>').join(''):'<p>Ingen skjulte importerede aftaler.</p>')+'</div>';
+}
+async function loadHiddenImports(){
+ const hid=activeHousehold?.id,epoch=sessionEpoch;if(!hid)return;
+ hiddenImportsOpen=true;hiddenImportsLoading=true;render();
+ const {data,error}=await supabase.rpc('list_hidden_calendar_imports',{p_household_id:hid});
+ if(hid!==activeHousehold?.id||epoch!==sessionEpoch)return;
+ hiddenImportsLoading=false;if(error){hiddenImportsOpen=false;calendarImportMessage='Kunne ikke hente skjulte aftaler. Prøv igen.'}else hiddenImports=data||[];
+ render();
+}
+async function restoreHiddenImport(index){
+ const row=hiddenImports[index],hid=activeHousehold?.id,epoch=sessionEpoch;if(!row||!hid)return;
+ const {error}=await supabase.rpc('restore_calendar_import',{p_household_id:hid,p_feed_id:row.feed_id,p_uid:row.uid,p_occurrence:row.occurrence});
+ if(hid!==activeHousehold?.id||epoch!==sessionEpoch)return;
+ if(error){calendarImportMessage='Kunne ikke gendanne aftalen. Prøv igen.';render();return}
+ await refreshHousehold();await loadHiddenImports();
 }

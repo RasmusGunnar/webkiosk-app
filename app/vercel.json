@@ -44,7 +44,8 @@
   ],
   "git": {
     "deploymentEnabled": {
-      "polish/calendar-meals-imports": false
+      "polish/calendar-meals-imports": false,
+      "feature/calendar-import-sync": false
     }
   }
 }

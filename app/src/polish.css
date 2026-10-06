@@ -95,3 +95,5 @@ body[data-mode=kiosk][data-route=calendar] .day-meals button{min-height:32px;pad
 body[data-mode=kiosk][data-route=calendar] .day-overflow{min-height:28px}
 
 .compact-activity .calendar-item-icon{display:inline-block;vertical-align:-2px;margin:0 5px 0 0}.compact-activity .calendar-milestone-star{display:inline-grid;width:18px;height:18px}
+
+.hidden-imports{margin-top:12px}.hidden-imports article{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--ux-line)}.hidden-imports article div{min-width:0;overflow-wrap:anywhere}.hidden-imports small{display:block;margin-top:4px;color:var(--ux-muted)}.imported-editor .modal-actions{flex-wrap:wrap}.imported-editor input,.imported-editor textarea{max-width:100%}

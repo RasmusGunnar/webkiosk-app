@@ -44,3 +44,7 @@ verify_jwt = false
 
 [functions.recipe-preview]
 verify_jwt = false
+
+[functions.sync-calendar-feeds]
+# Dedicated server secret, never a frontend key.
+verify_jwt = false

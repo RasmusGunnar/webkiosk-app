@@ -36,7 +36,7 @@ export class LocalStore {
 }
 export const scopeKey=(userId,householdId)=>'household:'+userId+':'+householdId
 export function safeFeedMetadata(feeds) {
-  const keys=['id','household_id','source','name','assigned_person_id','assigned_person_name','is_active','last_sync_at','last_sync_status','last_import_count']
+  const keys=['id','household_id','source','name','assigned_person_id','assigned_person_name','is_active','last_sync_at','last_sync_status','last_attempt_at','last_result','last_import_count']
   return feeds.map(feed=>Object.fromEntries(keys.filter(key=>key in feed).map(key=>[key,feed[key]])))
 }
 export function safePeopleCache(people) {return people.map(({avatar_display_url,...person})=>person)}

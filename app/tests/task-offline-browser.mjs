@@ -15,7 +15,7 @@ const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Copenhagen',year:'
 let uid,hid,hid2,phone,wall,checks=0
 const errors=[],results=[]
 const pass=label=>{checks++;results.push(label);console.log('PASS '+checks+': '+label)}
-const card=(page,title)=>page.locator('.calendar-item').filter({has:page.locator('strong',{hasText:title})}).first()
+const card=(page,title)=>page.locator('[data-calendar-item],[data-task-detail]').filter({hasText:title}).first()
 const cache=page=>page.evaluate(async()=>{
  const names=await indexedDB.databases(),name=names.find(row=>row.name.startsWith('familiekalender-offline-v1:'))?.name
  if(!name)return []
@@ -81,6 +81,7 @@ try {
  await phone.locator('#person-'+adult.id+'-reward-enabled').check()
  await phone.locator('[data-save-person="'+adult.id+'"]').click()
  await expect.poll(async()=>(await must(admin.from('household_people').select('reward_enabled').eq('id',adult.id).single())).reward_enabled).toBe(true)
+ await expect(phone.getByText('Person gemt.',{exact:true})).toBeVisible();
  await phone.locator('#person-'+adult.id+'-reward-enabled').uncheck();await phone.locator('[data-save-person="'+adult.id+'"]').click()
  await expect.poll(async()=>(await must(admin.from('household_people').select('reward_enabled').eq('id',adult.id).single())).reward_enabled).toBe(false)
  await phone.locator('#settings-modal-close').click();await routeTo(phone,'calendar')
@@ -110,7 +111,7 @@ try {
  await phone.locator('#calendar-next-button').click()
  // Weekly task exists only on its weekday next week, navigate directly via week mode.
  await toggleView(phone);await phone.locator('#calendar-next-button').click()
- await expect(card(phone,'Tøm tasker').locator('[data-calendar-toggle]')).not.toBeChecked()
+ await expect(card(phone,'Tøm tasker')).not.toHaveClass(/is-done/)
  await phone.locator('#calendar-today-button').click();await toggleView(phone)
  pass('Repeated completion stays on concrete occurrence; next week remains incomplete')
  await create(phone,'Task eight',{person:ida.id,done:true})

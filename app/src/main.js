@@ -7,9 +7,9 @@ import './mobile.css'
 import './rewards.css'
 import './polish.css'
 import './recipes.css'
-import {RecipeService} from './lib/recipe-service.js'
+import {RecipeService,imageBlob} from './lib/recipe-service.js'
 import {RecipeUI} from './lib/recipe-ui.js'
-import {recipeId} from './lib/recipe-model.js'
+import {recipeId,fromPreview} from './lib/recipe-model.js'
 import {compactDay,compactTask,compactMeals,filterRoutes} from './lib/calendar-layout.js'
 import {ImportedEditor,visibleImports} from './lib/imported-editor.js'
 import { supabase, configurationError, cacheNamespace, clearLocalAuth } from './lib/supabase'
@@ -136,7 +136,13 @@ const recipeUI=new RecipeUI({root:recipeRoot,getContext:recipeContext,service:re
  addShopping:async(recipe,ingredients,{meal,actionId})=>{const rows=ingredients.filter(i=>!calendarItems.some(row=>row.data?.recipe_action_id===actionId&&row.data?.ingredient_id===i.id)).map(i=>({id:crypto.randomUUID(),values:{...planValues('shopping',{title:i.raw_text.slice(0,160),note:i.raw_text.length>160?i.raw_text:'',location:shoppingCategory(i.raw_text)}),recipe_id:recipe.id,meal_id:meal?.id||null,ingredient_id:i.id,ingredient_raw_text:i.raw_text,recipe_action_id:actionId}}));if(!rows.length)return;const result=await runCalendarMutation(()=>({upserts:rows,deleteIds:[],expected:[]}));if(result.error)throw result.error}
 })
 const planEditor=new PlanEditor({getRecipes:()=>libraryRecipes,chooseRecipe:date=>{planEditor.close();recipeUI.choose(date)},openRecipe:id=>{planEditor.close();recipeUI.detail(id)},root:planRoot,getRows:()=>calendarItems,getContext:()=>sessionEpoch+':'+activeHousehold?.id,
- fetchRecipe:async url=>{if(!navigator.onLine)throw Error('Offline');const {data,error}=await supabase.functions.invoke('recipe-preview',{body:{url},timeout:15000});if(error||!data?.recipe)throw Error('Kunne ikke hente opskrift');return data.recipe},
+ fetchRecipe:async url=>(await recipeService.import({url})).recipe,
+ saveRecipe:async(preview,{id,existing})=>{
+  await recipeService.save(fromPreview(preview),{id,existing,image:!existing&&preview.image_copy?imageBlob(preview.image_copy):null,removeImage:!preview.image})
+  const {data,error}=await supabase.from('recipes').select('*').eq('id',id).single();if(error)throw error
+  await loadRecipes()
+  return data
+ },
  save:(values,existing)=>runCalendarMutation(()=>existing?planEdit([existing],existing,values):planCreate(values)),
  remove:existing=>runCalendarMutation(()=>({upserts:[],deleteIds:[existing.id],expected:[{id:existing.id,updated_at:existing.updated_at}]})),
  onSaved:()=>{message='Gemt til familien.';updateCalendarSurface()}

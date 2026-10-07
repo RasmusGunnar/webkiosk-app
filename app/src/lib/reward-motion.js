@@ -27,11 +27,12 @@ export class RewardMotion {
   this.emit(event)
   if(event.kind==='allowance'){
    this.clearChecks(pid)
-   this.animateCount('allowance',pid,event.from.earned_minor,event.to.earned_minor,currency)
+   if(event.to.earned_minor==null){this.announce(prefix+'Alle pligter er fritaget. Aftal beløbet med en voksen.');return}
+   this.animateCount('allowance',pid,event.from.earned_minor??0,event.to.earned_minor??0,currency)
    this.animateCount('percent',pid,event.from.completion_percent,event.to.completion_percent,n=>new Intl.NumberFormat('da-DK',{maximumFractionDigits:1}).format(n)+' %')
    this.animateProgress('month',pid,event.from.completion_percent,event.to.completion_percent,100)
    this.announce(prefix+event.to.completion_percent+' % · '+currency(event.to.earned_minor)+' optjent')
-   if(event.milestone){const scope=this.scope;void this.claimMilestone(pid,`${event.to.year}-${String(event.to.month).padStart(2,'0')}-01`).then(ok=>{if(ok&&scope===this.scope)this.showMilestone(pid,event.to.earned_minor)}).catch(()=>{})}
+   if(event.milestone){const scope=this.scope;void this.claimMilestone(pid,event.to.period_start||`${event.to.year}-${String(event.to.month).padStart(2,'0')}-01`).then(ok=>{if(ok&&scope===this.scope)this.showMilestone(pid,event.to.earned_minor)}).catch(()=>{})}
   }else if(event.kind==='balance')this.animateCount('stars',pid,event.from,event.to,n=>String(Math.round(n)))
   else if(event.kind==='stars'){this.clearChecks(pid);this.showTransientDelta({...event,text:(event.delta>0?'+':'')+event.delta+' ⭐',announcement:prefix+(event.delta>0?'+':'')+event.delta+' bonusstjerner'})}
   else if(event.kind==='goal'){
@@ -55,7 +56,7 @@ export class RewardMotion {
   const text=status==='pending'?'Sendt til godkendelse':status==='completed'?'Udført ✓':status==='approved'?'Godkendt ✓':status==='open'?'Genåbnet':'Prøv igen'
   this.showTransientDelta({key:'check:'+taskId+':'+pid,taskId,pid,text,check:true,duration:650})
  }
- showMilestone(pid,minor){this.emit({kind:'milestone',key:'milestone:'+pid,pid});this.showTransientDelta({key:'milestone:'+pid,pid,text:'Du klarede månedens opgaver! '+currency(minor)+' optjent',milestone:true,duration:1500})}
+ showMilestone(pid,minor){this.emit({kind:'milestone',key:'milestone:'+pid,pid});this.showTransientDelta({key:'milestone:'+pid,pid,text:'Du klarede periodens opgaver! '+currency(minor)+' optjent',milestone:true,duration:1500})}
  clearChecks(pid){for(const [key,effect] of this.effects)if(effect.check&&effect.pid===pid){effect.node?.remove();effect.anchor?.classList.remove('reward-motion-check');this.effects.delete(key)}}
  anchor(effect){
   const panels=(effect.pid?select('data-reward-person-panel',effect.pid):[]).filter(visible).sort((a,b)=>Number(!!b.closest('.reward-modal'))-Number(!!a.closest('.reward-modal')))

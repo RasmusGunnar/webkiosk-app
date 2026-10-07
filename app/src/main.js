@@ -1,3 +1,4 @@
+import {allowanceTasks} from './lib/allowance-model.js'
 import {RewardsUI} from './lib/rewards-ui.js'
 import {emptyRewards,rewardRule,managedTask,taskComplete,actionPayload,rewardOrigin,rewardConfig,rewardToday} from './lib/rewards-model.js'
 import './style.css'
@@ -2557,7 +2558,7 @@ function formatDayHeaderDate(date) {
   }).format(date)
 }
 
-function getRenderableCalendarItems() { return materialize(calendarOnly(calendarItems), getVisibleCalendarDates()) }
+function getRenderableCalendarItems() { const dates=getVisibleCalendarDates(),rows=materialize(calendarOnly(calendarItems),dates);return ['today','tasks'].includes(productRoute)?allowanceTasks(rows,rewardState,productRoute==='today'?[rewardToday()]:dates):rows }
 
 function getVisibleCalendarDates() {
   if(productRoute==='tasks')return taskDates()
@@ -2685,7 +2686,7 @@ function renderHome() {
  if(mode()==='mobile'){const now=new Date(),greeting=now.getHours()<10?'Godmorgen':now.getHours()<17?'Goddag':'God aften';return '<div class="mobile-today"><header class="mobile-today-heading"><h2>'+escapeHtml(new Intl.DateTimeFormat('da-DK',{weekday:'long',day:'numeric',month:'long'}).format(now))+'</h2><p>'+greeting+', familien</p></header>'+renderMobileDay(now,{heading:false})+'</div>'}
  const now=new Date(),today=toDateIso(now),upcoming=upcomingItems(calendarItems,householdPeople,activePersonFilter)
  const next=upcoming[0],later=upcoming.filter(item=>item.date>today).slice(0,4),kiosk=mode()==='kiosk'
- const daily=materialize(calendarOnly(calendarItems),[today]).filter(doesItemMatchPersonFilter)
+ const daily=allowanceTasks(materialize(calendarOnly(calendarItems),[today]),rewardState,[today]).filter(doesItemMatchPersonFilter)
  const tasks=daily.filter(item=>item.type==='Opgave'),completed=tasks.filter(item=>taskComplete(item,householdPeople,rewardState,activePersonFilter)).length,meals=mealsOn(calendarItems,today),shopping=shoppingItems(calendarItems).filter(item=>!item.done)
  const eventButton=item=>'<button class="upcoming-event" data-upcoming="'+escapeHtml(item.id)+'" style="border-left-color:'+escapeHtml(getCalendarItemColor(item))+'"><span class="upcoming-date">'+escapeHtml(formatShortDate(parseDateIso(item.date)))+' · '+escapeHtml(item.time||'Heldag')+'</span><strong>'+escapeHtml(getCalendarItemTitle(item))+'</strong><span>'+escapeHtml(getCalendarItemPeople(item).join(', '))+'</span></button>'
  const mealCard='<section class="ux-dinner"><div class="ux-dinner-top"><span>'+icon('meals')+'</span><p class="eyebrow">På menuen i aften</p></div>'+(meals.length?meals.map(meal=>'<button data-plan-edit="'+meal.id+'" class="ux-dinner-name"><strong>'+escapeHtml(meal.title)+'</strong>'+(meal.time||!kiosk?'<small>'+escapeHtml(meal.time||'God appetit, allesammen')+'</small>':'')+'</button>').join(''):'<h3>Hvad har I lyst til?</h3><p>'+(kiosk?'Planlæg aftensmaden fra familiens mobil.':'En lille plan gør eftermiddagen lettere.')+'</p>')+(!kiosk?'<button class="ux-link" data-go-route="meals">'+(meals.length?'Se ugens madplan':'Planlæg aftensmad')+' '+icon('arrow')+'</button>':'')+'</section>'
@@ -2709,7 +2710,7 @@ function renderShortcuts() {
 function renderTaskView() {
   if(mode()==='kiosk'&&taskRange==='month')taskRange='week'
   const dates=taskDates()
-  const tasks=materialize(calendarItems,dates,{milestones:false}).filter(item=>item.type==='Opgave'&&!rewardRule(item).pool&&doesItemMatchPersonFilter(item))
+  const tasks=allowanceTasks(materialize(calendarItems,dates,{milestones:false}),rewardState,dates).filter(item=>item.type==='Opgave'&&!rewardRule(item).pool&&doesItemMatchPersonFilter(item))
   const open=tasks.filter(item=>!taskComplete(item,householdPeople,rewardState,activePersonFilter)),done=tasks.filter(item=>taskComplete(item,householdPeople,rewardState,activePersonFilter))
   const group=items=>dates.map(date=>{
     const daily=items.filter(item=>item.date===date)
@@ -3063,7 +3064,7 @@ async function loadRewardsV2(){
 async function performRewardAction(action,payload){
  const engine=syncEngine;if(!engine)return {error:new Error('Familien er endnu ikke klar.')}
  if(['complete','undo'].includes(action)){
-  const item=materialize(calendarItems,[payload.due_date],{milestones:false}).find(t=>(t.isRepeatOccurrence?t.baseId:t.id)===payload.item_id&&actionPayload(t,payload.person_id).occurrence_date===payload.occurrence_date)
+  const item=allowanceTasks(materialize(calendarItems,[payload.due_date],{milestones:false}),rewardState,[payload.due_date]).find(t=>(t.isRepeatOccurrence?t.baseId:t.id)===payload.item_id&&actionPayload(t,payload.person_id).occurrence_date===payload.occurrence_date)
   if(!item)return {error:new Error('Opgaven findes ikke længere.')}
   const rule=rewardRule(item)
   rewardMotion.taskCheck(payload.item_id,action==='undo'?'open':rule.approval?'pending':'completed',payload.person_id)
@@ -3074,7 +3075,7 @@ async function performRewardAction(action,payload){
  engine.writeGeneration++
  const result=await supabase.rpc('reward_action',{p_request_id:crypto.randomUUID(),p_household_id:activeHousehold.id,p_action:action,p_payload:payload})
  if(engine!==syncEngine)return {error:new Error('Familien er skiftet.')}
- if(!result.error){engine.writeGeneration++;await engine.snapshot({rewards:result.data.rewards});if(action==='config')await loadHouseholdPeople();updateCalendarSurface()}
+ if(!result.error){engine.writeGeneration++;await engine.snapshot({rewards:result.data.rewards});if(['config','allowance_save'].includes(action))await loadHouseholdPeople();updateCalendarSurface()}
  return result
 }
 function setupTaskEditor(isTask){
@@ -3096,8 +3097,8 @@ function setupTaskEditor(isTask){
   advanced.lastElementChild.append(form.querySelector('#calendar-options'));grid.append(advanced)
   rewardFields=document.createElement('fieldset');rewardFields.id='task-reward-fields';rewardFields.className='full';rewardFields.disabled=!rewardsUI.adult
   const configured=calendarValue(item,'rewardMode')||'none',requires=item?!!calendarValue(item,'requiresApproval'):householdPeople.some(p=>rewardConfig(rewardState,p.id).default_requires_approval)
-  rewardFields.innerHTML='<details class="task-reward-details"><summary>Belønning <small>valgfrit</small></summary><div class="stack-form"><label for="task-reward-mode">Denne opgave</label><select id="task-reward-mode" name="rewardMode"><option value="none">Ingen belønning</option><option value="allowance">Tæller til lommepenge</option><option value="stars">Bonus ⭐</option></select><div id="task-stars-fields"><label for="task-star-value">Bonusstjerner</label><input id="task-star-value" type="number" name="starValue" min="1" max="100000" step="1" value="'+(Number(calendarValue(item,'starValue'))||10)+'"><label><input type="checkbox" name="bonusPool" '+(calendarValue(item,'bonusPool')?'checked':'')+'> Frivillig bonusopgave — én person kan tage den</label></div><label><input name="requiresApproval" type="checkbox" '+(requires?'checked':'')+'> Kræver voksengodkendelse</label><p class="hint">Nye belønningsregler gælder fra nu og frem. Afsluttede belønninger bevares.</p></div></details>'
-  advanced.before(rewardFields);form.querySelector('[name=rewardMode]').value=configured
+  rewardFields.innerHTML='<details class="task-reward-details"><summary>Belønning <small>valgfrit</small></summary><div class="stack-form"><label for="task-reward-mode">Denne opgave</label><select id="task-reward-mode" name="rewardMode"><option value="none">Ingen belønning</option><option value="stars">Bonus ⭐</option></select><div id="task-stars-fields"><label for="task-star-value">Bonusstjerner</label><input id="task-star-value" type="number" name="starValue" min="1" max="100000" step="1" value="'+(Number(calendarValue(item,'starValue'))||10)+'"><label><input type="checkbox" name="bonusPool" '+(calendarValue(item,'bonusPool')?'checked':'')+'> Frivillig bonusopgave — én person kan tage den</label></div><label><input name="requiresApproval" type="checkbox" '+(requires?'checked':'')+'> Kræver voksengodkendelse</label><p class="hint">Nye belønningsregler gælder fra nu og frem. Afsluttede belønninger bevares.</p></div></details>'
+  if(configured==='allowance'){const o=document.createElement('option');o.value='allowance';o.textContent='Tidligere lommepengeopgave · gennemgå aftale';rewardFields.querySelector('select').append(o)}advanced.before(rewardFields);form.querySelector('[name=rewardMode]').value=configured
   const refresh=()=>{const mode=form.querySelector('[name=rewardMode]').value;form.querySelector('#task-stars-fields').hidden=mode!=='stars';form.querySelector('[name=starValue]').required=mode==='stars';const managed=mode!=='none'||form.querySelector('[name=requiresApproval]').checked;setCheckboxOptionEnabled(form.querySelector('#done-option'),!managed)}
   form.querySelector('[name=rewardMode]').onchange=refresh;form.querySelector('[name=requiresApproval]').onchange=ev=>{ev.target.dataset.manual='true';refresh()};refresh()
   quick.querySelectorAll('[data-task-day]').forEach(b=>b.onclick=()=>{const input=form.querySelector('#calendar-date');if(b.dataset.taskDay==='date'){input.focus();input.showPicker?.()}else input.value=addDays(rewardToday(),Number(b.dataset.taskDay))})

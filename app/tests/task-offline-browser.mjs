@@ -67,6 +67,8 @@ try {
  await must(admin.from('calendar_items').insert([...baseline,editable,deletable,toggle,conflict,seed('Only B',{household_id:hid2})]))
  await must(admin.from('calendar_feeds').insert({household_id:hid,source:'ics',name:'Private metadata fixture',feed_url:'https://example.invalid/calendar/private-fixture.ics',is_active:true}))
  wall=await newPage(1800);phone=await newPage(390)
+ // Day view exposes every task; the compact week intentionally folds items after six.
+ await toggleView(wall)
  await expect(phone.locator('[data-reward-person]')).toHaveCount(0)
  await expect(phone.locator('#celebration-title')).toHaveCount(0)
  pass('Initial completed history loads without weekly rewards or popup')

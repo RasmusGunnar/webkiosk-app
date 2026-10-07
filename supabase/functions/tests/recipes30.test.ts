@@ -27,11 +27,11 @@ Deno.test('Vision adapter maps structured response, preserves unknowns and requi
  const r=visionResult({title:'Suppe',ingredients:['2 dåser tomater'],instructions:[],servings:null,incomplete:false});assert(r.incomplete);assert(r.instructions.length===0);assert(r.servings===null);assert(r.image_candidate===null);
  let body:any;const output={title:'Suppe',description:'',ingredients:['2 dåser tomater'],instructions:['Kog op.'],servings:4,prep_minutes:null,cook_minutes:20,total_minutes:20,incomplete:false,image_candidate:null};
  const result=await analyseRecipe([image,image],{env:key=>key==='OPENAI_API_KEY'?'server-test-credential':undefined,request:((_url:unknown,init:RequestInit)=>{body=JSON.parse(String(init.body));return Promise.resolve(Response.json({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify(output)}]}]}));}) as typeof fetch});
- assert(result.ingredients[0]==='2 dåser tomater');assert(body.input[0].content.filter((x:any)=>x.type==='input_image').length===2);assert(body.store===false);assert(body.text.format.strict);assert(!JSON.stringify(result).includes('server-test-credential'));
+ assert(result.ingredients[0].raw_text==='2 dåser tomater');assert(body.input[0].content.filter((x:any)=>x.type==='input_image').length===2);assert(body.store===false);assert(body.text.format.strict);assert(!JSON.stringify(result).includes('server-test-credential'));
 });
 Deno.test('Missing vision provider is a controlled server error; no fake success or leaked error',async()=>{
  await rejects(()=>analyseRecipe([image],{env:()=>undefined}));
- const handler=makeRecipeHandler({authenticate:()=>Promise.resolve(true),authorize:()=>Promise.resolve(true),vision:()=>{throw Error('VISION_NOT_CONFIGURED');}});
+ const handler=makeRecipeHandler({authenticate:()=>Promise.resolve(true),authorize:()=>Promise.resolve(true),rate:()=>Promise.resolve(true),vision:()=>{throw Error('VISION_NOT_CONFIGURED');}});
  const r=await handler(new Request('http://local',{method:'POST',headers:{Authorization:'Bearer fixture'},body:JSON.stringify({action:'scan',household_id:'fixture',images:[image]})}));const result=await r.json();assert(r.status===503);assert(result.error==='VISION_NOT_CONFIGURED');assert(!result.recipe);
  const denied=makeRecipeHandler({authenticate:()=>Promise.resolve(true),authorize:()=>Promise.resolve(false),vision:()=>{throw Error('Provider must never be called');}});
  assert((await denied(new Request('http://local',{method:'POST',headers:{Authorization:'Bearer fixture'},body:JSON.stringify({action:'scan',household_id:'other',images:[image]})}))).status===403);

@@ -4,9 +4,9 @@ export const RECIPE_BUCKET='recipe-images'
 export const IMAGE_TYPES={'image/jpeg':'jpg','image/png':'png','image/webp':'webp'}
 export function validateRecipeImage(file){if(!IMAGE_TYPES[file.type]||file.size<=0||file.size>5*1024*1024)throw Error('Vælg JPEG, PNG eller WebP på højst 5 MB.')}
 export async function preparePhoto(file){
- validateRecipeImage(file)
+ if(!IMAGE_TYPES[file.type]||file.size<=0||file.size>25*1024*1024)throw Error('Vælg JPEG, PNG eller WebP på højst 25 MB.')
  // Decode and re-encode: bound dimensions and strip camera EXIF/location metadata.
- const bitmap=await createImageBitmap(file);if(bitmap.width*bitmap.height>50000000){bitmap.close();throw Error('Billedet er for stort. Vælg en mindre version.')}
+ const bitmap=await createImageBitmap(file,{imageOrientation:'from-image'});if(bitmap.width*bitmap.height>50000000){bitmap.close();throw Error('Billedet er for stort. Vælg en mindre version.')}
  const ratio=Math.min(1,2000/Math.max(bitmap.width,bitmap.height)),canvas=document.createElement('canvas');canvas.width=Math.round(bitmap.width*ratio);canvas.height=Math.round(bitmap.height*ratio);canvas.getContext('2d').drawImage(bitmap,0,0,canvas.width,canvas.height);bitmap.close()
  const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',.87));if(!blob)throw Error('Billedet kunne ikke læses.');validateRecipeImage(blob);return blob
 }
@@ -34,6 +34,28 @@ export class RecipeService{
  }
 
  async import(body){this.online();const c=this.getContext();const {data,error}=await this.client.functions.invoke('recipe-preview',{body:{...body,household_id:c.householdId},timeout:60000});if(c.key!==this.getContext().key)throw Error('Familien er ændret. Prøv igen.');if(error){let result;try{result=await error.context.json()}catch{}throw Error(result?.message||'Opskriften kunne ikke hentes. Prøv igen eller skriv den manuelt.')}return data}
+ async scan(pages){
+  if(!navigator.onLine)throw Error('Opskriftsscanning kræver internetforbindelse.')
+  if(!pages.length||pages.length>4)throw Error('Vælg 1–4 sider.')
+  pages.forEach(validateRecipeImage);if(pages.reduce((n,p)=>n+p.size,0)>12*1024*1024)throw Error('Billederne fylder mere end 12 MB tilsammen. Vælg mindre billeder.')
+  const c=this.getContext(),{data}=await this.client.auth.getSession(),uid=data.session?.user?.id
+  if(!uid)throw Error('Log ind igen for at scanne.')
+  const scanId=crypto.randomUUID(),paths=[],bucket=this.client.storage.from(RECIPE_BUCKET)
+  try{
+   for(const page of pages){
+    if(c.key!==this.getContext().key)throw Error('Familien er ændret.')
+    const path=c.householdId+'/'+scanId+'/scan-'+uid+'-'+crypto.randomUUID()+'.jpg';paths.push(path)
+    const {error}=await bucket.upload(path,page,{contentType:page.type,upsert:false});if(error)throw Error('Billedet kunne ikke uploades. Prøv igen.')
+   }
+   if(c.key!==this.getContext().key)throw Error('Familien er ændret.')
+   return await this.import({action:'scan',paths})
+  }finally{
+   // Also covers partial uploads and a lost function response. Only this attempt's paths.
+   if(paths.length){let removed=false;for(let n=0;n<2&&!removed;n++){try{const {error}=await bucket.remove(paths);removed=!error}catch{}}
+    if(!removed)throw Error('Midlertidige billeder kunne ikke fjernes. Prøv igen, når forbindelsen er tilbage.')
+   }
+  }
+ }
  async save(values,{existing=null,image=null,removeImage=false,id=existing?.id||crypto.randomUUID()}={}){
   this.online();const c=this.getContext();let newPath=null
   try{

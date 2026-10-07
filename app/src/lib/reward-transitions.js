@@ -1,6 +1,6 @@
 import {emptyRewards, starBalance, rewardGoal} from './rewards-model.js'
 
-const monthKey=m=>`${m.person_id}:${m.year}-${m.month}`
+const monthKey=m=>m.id||m.period_start&&m.person_id+':'+m.period_start||`${m.person_id}:${m.year}-${m.month}`
 export const fullMonth=m=>m?.eligible_total>0&&m.completed_total===m.eligible_total
 const byId=rows=>new Map((rows||[]).map(row=>[row.id,row]))
 
@@ -38,6 +38,8 @@ export class RewardTransitions {
   }
   for(const row of state.occurrences||[]){
    const old=oldOccurrences.get(row.id)
+   // Pre-materialized obligations are initial state, not an undo by the child.
+   if(!old&&row.status==='open')continue
    if(old?.revision===row.revision||old?.status===row.status||!['pending','completed','approved','open','rejected'].includes(row.status))continue
    add({kind:'task',key:`occurrence:${row.id}:${row.revision}`,pid:row.person_id,taskId:row.task_id,status:row.status,mode:row.reward_mode,title:row.title})
   }

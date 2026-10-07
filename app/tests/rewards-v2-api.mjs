@@ -25,7 +25,9 @@ try{
  check('RLS hides foreign config',(await must(other.from('reward_person_config').select('*').eq('household_id',hid))).length===0)
  const make=async(mode='allowance',extra={})=>must(owner.from('calendar_items').insert({id:randomUUID(),household_id:hid,created_by:(await owner.auth.getUser()).data.user.id,title:'Testopgave',date:today,type:'Opgave',person_ids:[p1.id],person:'Carl',done:false,data:{rewardMode:mode,starValue:mode==='stars'?10:0,requiresApproval:false,...extra}}).select().single())
  const payload=(t,p=p1)=>({item_id:t.id,person_id:p.id,occurrence_date:today,due_date:today})
- const tasks=[];for(let n=0;n<20;n++)tasks.push(await make())
+ await must(call(owner,hid,'allowance_save',{person_id:p1.id,cadence:'week',amount_minor:10000,start_today:true,duties:Array.from({length:20},(_,n)=>({title:'Fast pligt '+n,schedule:'weekly',approval:false}))}))
+ await must(call(owner,hid,'allowance_save',{person_id:p2.id,cadence:'week',amount_minor:10000,start_today:true,duties:[]}))
+ const tasks=(await must(owner.rpc('get_reward_state',{p_household_id:hid}))).occurrences.filter(o=>o.person_id===p1.id).map(o=>({id:o.task_id,date:o.due_date}))
  for(const t of tasks.slice(0,10))await must(call(child,hid,'complete',payload(t)))
  let state=await must(owner.rpc('get_reward_state',{p_household_id:hid})),month=state.monthly.find(m=>m.person_id===p1.id)
  check('10 / 20 = 50 percent',month.eligible_total===20&&month.completed_total===10&&month.completion_percent===50)
@@ -40,7 +42,7 @@ try{
  await must(call(owner,hid,'unexcuse',payload(tasks[19])))
  const shared=await make('allowance');await must(owner.from('calendar_items').update({person_ids:[p1.id,p2.id],person:'Alle'}).eq('id',shared.id));await must(call(child,hid,'complete',payload(shared)))
  state=await must(owner.rpc('get_reward_state',{p_household_id:hid}));check('Multi-person completion is independent',state.monthly.find(m=>m.person_id===p2.id).completed_total===0)
- const all=await make('allowance');await must(owner.from('calendar_items').update({person_ids:[],person:'Alle',data:{rewardMode:'allowance',people:['Alle']}}).eq('id',all.id));await must(call(child,hid,'complete',payload(all,p2)));state=await must(owner.rpc('get_reward_state',{p_household_id:hid}));check('Alle assigns each eligible person',state.monthly.find(m=>m.person_id===p2.id).eligible_total===2&&state.monthly.find(m=>m.person_id===p2.id).completed_total===1)
+ const all=await make('allowance');await must(owner.from('calendar_items').update({person_ids:[],person:'Alle',data:{rewardMode:'allowance',people:['Alle']}}).eq('id',all.id));await must(call(child,hid,'complete',payload(all,p2)));state=await must(owner.rpc('get_reward_state',{p_household_id:hid}));check('Unlinked legacy tasks cannot change frozen contracts',state.monthly.find(m=>m.person_id===p2.id).eligible_total===0&&state.monthly.find(m=>m.person_id===p2.id).completed_total===0)
  const pending=await make('stars',{requiresApproval:true});const req=randomUUID();await must(call(child,hid,'complete',payload(pending),req));await must(call(child,hid,'complete',payload(pending),req));state=await must(owner.rpc('get_reward_state',{p_household_id:hid}));check('Pending completion grants no stars',!state.balances.length&&state.occurrences.find(s=>s.task_id===pending.id).status==='pending')
  check('Child cannot approve',Boolean((await call(child,hid,'approve',payload(pending))).error));await must(call(owner,hid,'approve',payload(pending)));await must(call(owner,hid,'approve',payload(pending)));state=await must(owner.rpc('get_reward_state',{p_household_id:hid}));check('Approve twice awards once',state.balances.find(b=>b.person_id===p1.id).balance===10&&state.ledger.filter(l=>l.source_type==='task_award').length===1)
  await must(call(owner,hid,'reject',payload(pending)));state=await must(owner.rpc('get_reward_state',{p_household_id:hid}));check('Reject after approve reverses ledger',state.balances.find(b=>b.person_id===p1.id).balance===0&&state.ledger.length===2)
@@ -72,9 +74,10 @@ try{
  const started=await make('stars',{requiresApproval:true,starValue:7});await must(call(child,hid,'complete',payload(started)));await must(owner.from('calendar_items').update({data:{...started.data,rewardMode:'none',starValue:0,requiresApproval:false}}).eq('id',started.id));await must(call(owner,hid,'approve',payload(started)));state=await must(owner.rpc('get_reward_state',{p_household_id:hid}));check('Rule changes cannot rewrite already started occurrence',state.occurrences.find(s=>s.task_id===started.id).awarded_delta===7)
  const exported=await must(owner.rpc('export_family_data',{p_household_id:hid}));check('Export includes full reward ledger and config',exported.rewards_v2.ledger.length>5&&exported.rewards_v2.configs.length===2)
  const milestoneHousehold=await must(owner.rpc('create_household',{p_name:'Milestone race isolated'}));households.push(milestoneHousehold);report();const milestonePerson=await must(owner.from('household_people').insert({household_id:milestoneHousehold,name:'Milestone child',role:'child'}).select().single());await must(call(owner,milestoneHousehold,'config',config(milestonePerson)))
- const milestoneTask=await must(owner.from('calendar_items').insert({household_id:milestoneHousehold,created_by:users[0],title:'One monthly task',date:today,type:'Opgave',person:'Alle',person_ids:[],data:{rewardMode:'allowance'}}).select().single());
+ await must(call(owner,milestoneHousehold,'allowance_save',{person_id:milestonePerson.id,cadence:'week',amount_minor:10000,start_today:true,duties:[{title:'One fixed task',schedule:'weekly',approval:false}]}));
+ const milestoneTask={id:(await must(owner.rpc('get_reward_state',{p_household_id:milestoneHousehold}))).occurrences[0].task_id};
  await must(call(owner,milestoneHousehold,'complete',payload(milestoneTask,milestonePerson)))
- const monthArgs={p_household_id:milestoneHousehold,p_person_id:milestonePerson.id,p_month_start:today.slice(0,7)+'-01'};
+ const monthArgs={p_household_id:milestoneHousehold,p_person_id:milestonePerson.id,p_month_start:today};
  const milestoneClaims=await Promise.all([1,2].map(()=>must(owner.rpc('claim_reward_milestone',monthArgs))));check('Concurrent devices display monthly milestone once',milestoneClaims.filter(Boolean).length===1)
  check('Milestone retry never displays twice',!(await must(owner.rpc('claim_reward_milestone',monthArgs))))
  check('Other household cannot claim milestone',Boolean((await other.rpc('claim_reward_milestone',monthArgs)).error))

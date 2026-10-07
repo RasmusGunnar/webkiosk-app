@@ -16,7 +16,7 @@ export async function importCalendarFeed(writer: any, feedId: string, actorId: s
     const text = await fetchFeedText(feed.feed_url, { fetcher: options.fetcher, hosts: allowedFeedHosts(options.env?.('CALENDAR_FEED_ALLOWED_HOSTS') || '') });
     const events = parseIcsEvents(text, { start, end });
     const rows = eventsToCalendarRows(events, feed, actorId || feed.sync_actor_id)
-      .filter(row => row.payload.date >= date(start) && row.payload.date <= date(end));
+      .filter(row => row.payload.data.endDate >= date(start) && row.payload.date <= date(end));
     const result = await writer.rpc('apply_calendar_feed_import', {
       p_feed_id: feed.id, p_actor_id: actorId || feed.sync_actor_id, p_token: feed.import_token,
       p_rows: rows, p_range_start: date(start), p_range_end: date(end), p_cleanup: options.cleanup !== false,

@@ -234,7 +234,9 @@ function getEvents(entries: Map<string, CalendarEntry>, range: { start: Date; en
     if (base.rrule) {
       const tzid = base.rrule.origOptions?.tzid;
       const rule = tzid ? new base.rrule.constructor({ ...base.rrule.origOptions, tzid: null }) : base.rrule;
-      const occurrences = rule.between(new Date(range.start.getTime() - DAY_MS), new Date(range.end.getTime() + DAY_MS), true, (_date: Date, index: number) => { if (index >= MAX_EVENTS) throw new ImportFailure("IMPORT_LIMIT", 413); return true; });
+      // Include occurrences that started before the window but are still ongoing.
+      const lookBehind = Math.max(DAY_MS, base.durationMs || 0) + DAY_MS;
+      const occurrences = rule.between(new Date(range.start.getTime() - lookBehind), new Date(range.end.getTime() + DAY_MS), true, (_date: Date, index: number) => { if (index >= MAX_EVENTS) throw new ImportFailure("IMPORT_LIMIT", 413); return true; });
       const seenKeys = new Set<string>();
 
       for (const occurrenceStart of occurrences) {
@@ -273,7 +275,13 @@ function cloneOccurrence(base: ExtractedComponent, startDate: Date, recurrenceId
   const durationMs = Number.isFinite(base.durationMs)
     ? base.durationMs
     : (base.end && base.start ? base.end.getTime() - base.start.getTime() : 0);
-  const end = durationMs ? new Date(startDate.getTime() + durationMs) : null;
+  let end = durationMs ? new Date(startDate.getTime() + durationMs) : null;
+  if (base.allDay && base.start && base.end) {
+    // DATE durations count civil days, not 24-hour blocks across a DST change.
+    const days = Math.round((Date.parse(formatDate(base.end,base.timeZone)+'T12:00:00Z')-Date.parse(formatDate(base.start,base.timeZone)+'T12:00:00Z'))/DAY_MS);
+    const endCivil = new Date(Date.parse(formatDate(startDate,base.timeZone)+'T00:00:00Z')+days*DAY_MS);
+    end = recurrenceInstant(endCivil,base.timeZone);
+  }
 
   return {
     ...base,
@@ -331,6 +339,11 @@ export function eventsToCalendarRows(events: ParsedEvent[], feed: CalendarFeedRo
       const end = event.end ? new Date(event.end) : null;
       const date = formatDate(start, event.timeZone || DEFAULT_TIME_ZONE);
       const time = event.allDay ? "" : formatTime(start, event.timeZone || DEFAULT_TIME_ZONE);
+      const sourceEndDate = end ? formatDate(end, event.timeZone || DEFAULT_TIME_ZONE) : date;
+      // RFC 5545 DATE DTEND is exclusive; convert once at the import boundary.
+      const endDate = event.allDay && sourceEndDate > date
+        ? new Date(Date.parse(sourceEndDate + 'T12:00:00Z') - DAY_MS).toISOString().slice(0,10) : sourceEndDate;
+      const endTime = !event.allDay && end ? formatTime(end, event.timeZone || DEFAULT_TIME_ZONE) : null;
       const durationMin = end ? Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000)) : 0;
       const occurrenceDate = event.recurrenceId
         ? formatDate(new Date(event.recurrenceId), event.timeZone || DEFAULT_TIME_ZONE)
@@ -346,6 +359,8 @@ export function eventsToCalendarRows(events: ParsedEvent[], feed: CalendarFeedRo
         personIds: feed.assigned_person_id ? [feed.assigned_person_id] : [],
         type: "Aktivitet",
         durationMin,
+        endDate, endTime, allDay: event.allDay,
+        sourceStart: event.start, sourceEnd: event.end, timeZone: event.timeZone || DEFAULT_TIME_ZONE,
         location: event.location || "",
         note: event.description || "",
         done: false,
@@ -368,6 +383,7 @@ export function eventsToCalendarRows(events: ParsedEvent[], feed: CalendarFeedRo
           title: data.title,
           date: data.date,
           time: data.time,
+          end_date: data.endDate, end_time: data.endTime, all_day: data.allDay,
           person: data.person,
           person_ids: data.personIds,
           type: data.type,
@@ -430,7 +446,7 @@ function makeKey(date: Date | null): string | null {
 }
 
 function overlapsRange(start: Date, end: Date | null, rangeStart: Date, rangeEnd: Date): boolean {
-  const effectiveEnd = end || start;
+  const effectiveEnd = end && end > start ? end : new Date(start.getTime() + 1);
   return effectiveEnd > rangeStart && start < rangeEnd;
 }
 
@@ -444,10 +460,11 @@ function formatDate(date: Date, timeZone: string): string {
 }
 
 function formatTime(date: Date, timeZone: string): string {
-  return new Intl.DateTimeFormat("da-DK", {
+  const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone,
     hour12: false,
     hour: "2-digit",
     minute: "2-digit",
-  }).format(date);
+  }).formatToParts(date);
+  return parts.find(p=>p.type==='hour')!.value+':'+parts.find(p=>p.type==='minute')!.value;
 }

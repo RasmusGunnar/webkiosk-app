@@ -1,0 +1,12 @@
+.imported-editor [hidden]{display:none!important}
+.import-scope-form{display:flex;flex-direction:column;gap:16px;min-width:0}
+.import-scope-form fieldset{display:grid;gap:10px;border:0;padding:0;margin:0;min-width:0}
+.import-scope-choice{display:flex;gap:12px;align-items:center;padding:15px;border:1px solid var(--ux-line,#d5ddd1);border-radius:12px;cursor:pointer;background:#fff}
+.import-scope-choice:has(input:checked){background:var(--ux-sage,#eef3e8);border-color:var(--ux-green,#2c5944)}
+.import-scope-choice:focus-within{outline:2px solid var(--ux-green,#2c5944);outline-offset:2px}
+.import-scope-choice input{width:18px;height:18px;margin:0;flex:none}
+.import-scope-choice span{min-width:0}
+.import-scope-choice strong{display:block;font-size:15px;line-height:1.45}
+.import-scope-choice small{display:block;font-size:13px;font-weight:400;line-height:1.5;color:#596656;margin-top:2px}
+.import-scope-form .modal-actions{margin-top:8px}
+@media(max-width:699px){.import-scope-choice{padding:14px 12px}.imported-editor:has(.import-scope-form:not([hidden])){display:flex;flex-direction:column}.import-scope-form:not([hidden]){flex:1}.import-scope-form .modal-actions{margin-top:auto;padding-top:16px}}

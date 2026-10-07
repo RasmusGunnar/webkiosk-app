@@ -7,6 +7,10 @@ import './mobile.css'
 import './rewards.css'
 import './polish.css'
 import './recipes.css'
+import './multiday.css'
+import './imported-scopes.css'
+import {hiddenImportLabel} from './lib/imported-scopes.js'
+import {eventInterval,eventOverlapsDate,eventDisplayRange,eventDayLabel,eventDayState,eventDateRange,validateEventInterval,supportsInterval,daysBetween} from './lib/calendar-interval.js'
 import {RecipeService,imageBlob} from './lib/recipe-service.js'
 import {RecipeUI} from './lib/recipe-ui.js'
 import {recipeId,fromPreview} from './lib/recipe-model.js'
@@ -128,7 +132,7 @@ const detailRoot=document.createElement('div');document.body.append(detailRoot)
 detailRoot.addEventListener('dismiss-dialog',()=>{detailRoot.innerHTML=''})
 const importedRoot=document.createElement('div');document.body.append(importedRoot)
 const importedEditor=new ImportedEditor({root:importedRoot,getContext:()=>sessionEpoch+':'+activeHousehold?.id,getPeople:()=>householdPeople.filter(isActiveHouseholdPerson),
- save:async(item,patch,scope)=>{if(!navigator.onLine||syncStatus.offline)throw Error('Forbind til internettet for at gemme ændringer i importerede aftaler.');const engine=syncEngine;engine.writeGeneration++;const {error}=await supabase.rpc('edit_imported_calendar_item',{p_id:item.id,p_expected:item.updated_at,p_patch:patch,p_hide_scope:scope});if(error)throw error;if(engine===syncEngine){engine.writeGeneration++;await refreshHousehold()}},onSaved:()=>updateCalendarSurface()})
+ save:async(item,patch,{scope='occurrence',hide=false})=>{if(!navigator.onLine||syncStatus.offline)throw Error('Forbind til internettet for at gemme ændringer i importerede aftaler.');const engine=syncEngine;engine.writeGeneration++;const {error}=await supabase.rpc('edit_imported_calendar_scope',{p_id:item.id,p_expected:item.updated_at,p_patch:patch,p_scope:scope,p_hide:hide});if(error)throw error;if(engine===syncEngine){engine.writeGeneration++;await refreshHousehold()}},onSaved:()=>updateCalendarSurface()})
 const recipeRoot=document.createElement('div');document.body.append(recipeRoot)
 const recipeContext=()=>({key:sessionEpoch+':'+activeHousehold?.id,householdId:activeHousehold?.id,recipes:libraryRecipes,people:householdPeople,items:calendarItems,mode:mode(),error:recipeLoadError})
 const recipeService=new RecipeService({client:supabase,getContext:recipeContext})
@@ -525,6 +529,9 @@ ${renderProductHeader()}
     document.querySelector('#calendar-modal-cancel').addEventListener('click', closeCalendarModal)
     document.querySelector('#calendar-modal-delete')?.addEventListener('click', handleDeleteCalendarItem)
     document.querySelector('#calendar-type').addEventListener('change', updateModalTypeFields)
+    document.querySelector('#calendar-all-day').addEventListener('change', updateIntervalFields)
+    const startInput=document.querySelector('#calendar-date'),endInput=document.querySelector('#calendar-end-date');let previousStart=startInput.value
+    startInput.addEventListener('change',()=>{if(endInput.value===previousStart)endInput.value=startInput.value;previousStart=startInput.value})
     document.querySelectorAll('[data-calendar-person-choice]').forEach((input) => {
       input.addEventListener('change', handleCalendarPersonChoice)
     })
@@ -699,6 +706,7 @@ function renderCalendarView() {
   return `
     <div class="week-scroll">
       <div class="week-grid">
+
         ${getVisibleWeekDays().map((date) => renderDayCard(date)).join('')}
       </div>
     </div>
@@ -717,8 +725,7 @@ function renderPersonChips() {
 function renderDayCard(date,full=false) {
   if(mode()==='mobile'&&!full)return renderMobileDay(date)
   const dateIso = toDateIso(date)
-  const dayItems = getRenderableCalendarItems()
-    .filter((item) => getCalendarValue(item, 'date') === dateIso && doesItemMatchPersonFilter(item))
+  const dayItems = getRenderableCalendarItems().filter(item=>eventOverlapsDate(item,dateIso)&&doesItemMatchPersonFilter(item)).sort((a,b)=>Number(eventInterval(b).multiDay)-Number(eventInterval(a).multiDay))
   const compact=!full&&productRoute==='calendar'&&calendarViewMode==='week'
   const budget=mode()==='kiosk'?(innerHeight<700?2:4):6
   const visible=compact?compactDay(dayItems,budget):{items:dayItems,hidden:0}
@@ -748,11 +755,11 @@ function renderDayCard(date,full=false) {
             <section class="calendar-day-section">
               <h3>${section.label}</h3>
               <div class="calendar-items">
-                ${section.key==='Opgave'?items.map(renderCompactTask).join(''):items.map(compact?renderWeekItem:renderCalendarItemCard).join('')}
+                ${section.key==='Opgave'?items.map(renderCompactTask).join(''):items.map(item=>compact?renderWeekItem(item,dateIso):renderCalendarItemCard(item,dateIso)).join('')}
               </div>
             </section>
           `
-        }).join('') || (meals.length?'':'<p class="empty-section empty-day">Ingen planer</p>')}
+        }).join('') || (meals.length?'':'<p class="empty-section empty-day">'+'Ingen planer'+'</p>')}
         ${hidden?'<button class="day-overflow" data-day-detail="'+dateIso+'">+ '+hidden+' flere</button>':''}
         ${compactMeals(shownMeals)}
       </div>
@@ -760,12 +767,17 @@ function renderDayCard(date,full=false) {
   `
 }
 
-function renderWeekItem(item){return '<button class="compact-activity" data-calendar-item="'+escapeHtml(item.id)+'" style="--item-color:'+escapeHtml(getCalendarItemColor(item))+'"><strong>'+renderCalendarItemIcon(item)+escapeHtml(getCalendarItemTitle(item))+'</strong><span class="compact-activity-meta"><time>'+escapeHtml(item.time||'Heldag')+'</time><span>'+escapeHtml(getCalendarItemPeople(item).join(', '))+'</span>'+(sourceLabel(item)?'<small>'+escapeHtml(sourceLabel(item))+'</small>':'')+'</span></button>'}
+function renderWeekItem(item,day){if(eventInterval(item).multiDay)return renderDailyIntervalItem(item,day,true);return '<button class="compact-activity" data-calendar-item="'+escapeHtml(item.id)+'" style="--item-color:'+escapeHtml(getCalendarItemColor(item))+'"><strong>'+renderCalendarItemIcon(item)+escapeHtml(getCalendarItemTitle(item))+'</strong><span class="compact-activity-meta"><time>'+escapeHtml(item.time||'Heldag')+'</time><span>'+escapeHtml(getCalendarItemPeople(item).join(', '))+'</span>'+(sourceLabel(item)?'<small>'+escapeHtml(sourceLabel(item))+'</small>':'')+'</span></button>'}
+function renderDailyIntervalItem(item,day,compact=false){
+ const title=getCalendarItemTitle(item),people=getCalendarItemPeople(item).join(', '),range=eventDisplayRange(item),label=eventDayLabel(item,day,{compact})
+ return '<button class="compact-activity calendar-multiday" data-calendar-item="'+escapeHtml(item.id)+'" data-event-state="'+eventDayState(item,day)+'" aria-label="'+escapeHtml(title+' · '+range+' · '+people)+'" title="'+escapeHtml(range+' · '+people+(sourceLabel(item)?' · '+sourceLabel(item):''))+'" style="--item-color:'+escapeHtml(getCalendarItemColor(item))+'"><strong>'+renderCalendarItemIcon(item)+escapeHtml(title)+'</strong>'+(!compact?'<span class="event-range">'+escapeHtml(eventDateRange(item)+' · '+people)+'</span>':'')+'<span class="compact-activity-meta event-day-label">'+escapeHtml(label)+'</span></button>'
+}
 function renderCompactTask(item){return compactTask(item,{people:getCalendarItemPeople(item).join(', '),done:taskComplete(item,householdPeople,rewardState,activePersonFilter),reward:rewardRule(item)})}
 function openDayDetail(date){detailRoot.innerHTML='<div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="day-detail-title"><section class="calendar-modal full-day-detail"><header class="modal-header"><h2 id="day-detail-title">'+escapeHtml(formatDayHeaderDate(parseDateIso(date)))+'</h2><button data-day-close aria-label="Luk">×</button></header>'+renderDayCard(parseDateIso(date),true)+'</section></div>';detailRoot.querySelector('[data-day-close]').onclick=()=>{detailRoot.innerHTML=''};bindCalendarSurface();bindPlanningSurface()}
-function renderCalendarItemCard(item) {
+function renderCalendarItemCard(item,day=toDateIso(calendarCursorDate)) {
   if(managedTask(item))return rewardsUI.taskCard(item,activePersonFilter)
-  if(mode()==='mobile')return renderMobileAgendaItem(item)
+  if(eventInterval(item).multiDay)return renderDailyIntervalItem(item,day)
+  if(mode()==='mobile')return renderMobileAgendaItem(item,day)
   const id = item.id
   const type = getCalendarSection(getCalendarValue(item, 'type'))
   const done = Boolean(getCalendarValue(item, 'done'))
@@ -795,7 +807,7 @@ function renderCalendarItemCard(item) {
   return `
     <article
       class="calendar-item ${itemIcon ? 'has-icon' : ''} ${done ? 'is-done' : ''}"
-      data-calendar-item="${escapeHtml(id)}" tabindex="0" role="button" aria-label="${escapeHtml(title)}"
+      data-calendar-item="${escapeHtml(id)}" tabindex="0" role="button" aria-label="${escapeHtml(title+' · '+eventDisplayRange(item))}"
       style="border-left-color:${escapeHtml(getCalendarItemColor(item))}"
     >
       <div class="calendar-item-layout">
@@ -813,6 +825,7 @@ function renderCalendarItemCard(item) {
               ${repeatMeta}
             </p>
           ` : `<p class="calendar-person">${escapeHtml(person)}${repeatMeta}</p>`}
+
           ${(location || note) ? `
             <div class="calendar-item-footer">
               ${location ? `<p class="calendar-note">${escapeHtml(location)}</p>` : ''}
@@ -879,6 +892,7 @@ function renderCalendarModal() {
     weekdays: Boolean(getCalendarValue(item || {}, 'weekdays')),
     birthYear: getCalendarValue(item || {}, 'birthYear'),
   }
+  const interval=item?eventInterval(item):{endDate:values.date,endTime:'',allDay:false}
   const isBirthday = values.type === 'Fødselsdag'
   const isTask = values.type === 'Opgave'
   const isMilestone = values.type === 'Mærkedag'
@@ -905,15 +919,24 @@ function renderCalendarModal() {
             </div>
 
             <div>
-              <label for="calendar-date">Dato</label>
+              <label for="calendar-date">Startdato</label>
               <input id="calendar-date" name="date" type="date" value="${escapeHtml(values.date)}" required />
             </div>
 
             <div>
-              <label for="calendar-time">Tid</label>
+              <label for="calendar-time">Starttid</label>
               <input id="calendar-time" name="time" type="time" value="${escapeHtml(values.time)}" />
             </div>
 
+            <div class="interval-field">
+              <label for="calendar-end-date">Slutdato</label>
+              <input id="calendar-end-date" name="endDate" type="date" value="${escapeHtml(interval.endDate)}" required />
+            </div>
+            <div class="interval-field">
+              <label for="calendar-end-time">Sluttid</label>
+              <input id="calendar-end-time" name="endTime" type="time" value="${escapeHtml(interval.endTime)}" />
+            </div>
+            <label class="interval-field full interval-all-day"><input id="calendar-all-day" name="allDay" type="checkbox" ${interval.allDay?'checked':''}> Heldag</label>
             <div class="full">
               <label>Personer</label>
               <div class="calendar-person-pills">
@@ -1709,6 +1732,12 @@ async function handleSaveCalendarItem(event) {
     weekdays: !editingItem && !['Fødselsdag','Mærkedag'].includes(type) && formData.has('weekdays'),
     repeatYearly: type === 'Fødselsdag', birthYear: type === 'Fødselsdag' ? String(formData.get('birthYear') || '') : '',
   }
+  if(supportsInterval(itemData)){
+    Object.assign(itemData,{endDate:String(formData.get('endDate')||itemData.date),endTime:String(formData.get('endTime')||''),allDay:formData.has('allDay'),durationMin:null})
+    if(itemData.allDay){itemData.time='';itemData.endTime=''}
+    const invalid=validateEventInterval(itemData)
+    if(invalid){form.querySelector('#calendar-editor-message').textContent=invalid;return}
+  }else Object.assign(itemData,{endDate:null,endTime:null,allDay:null})
   if(type==='Opgave'){
     const fields=document.querySelector('#task-reward-fields')
     if(fields&&!fields.disabled){itemData.rewardMode=formData.get('rewardMode')||'none';itemData.starValue=itemData.rewardMode==='stars'?Number(formData.get('starValue')):0;itemData.requiresApproval=formData.has('requiresApproval');itemData.bonusPool=itemData.rewardMode==='stars'&&formData.has('bonusPool')}
@@ -2334,6 +2363,13 @@ function syncActivePersonFilter() {
   if (activePersonFilter !== 'Alle' && !householdPeople.some(person => person.id === activePersonFilter && isActiveHouseholdPerson(person))) activePersonFilter = 'Alle'
 }
 
+function updateIntervalFields(){
+ const form=document.querySelector('#calendar-modal-form');if(!form)return
+ const enabled=supportsInterval({type:form.querySelector('#calendar-type').value}),allDay=enabled&&form.querySelector('#calendar-all-day').checked
+ form.querySelectorAll('.interval-field').forEach(el=>{el.hidden=!enabled;el.querySelectorAll('input').forEach(input=>input.disabled=!enabled)})
+ for(const id of ['calendar-time','calendar-end-time']){const input=form.querySelector('#'+id);input.disabled=allDay||id==='calendar-end-time'&&!enabled;input.parentElement.hidden=allDay||id==='calendar-end-time'&&!enabled}
+ form.querySelector('#calendar-duration').parentElement.hidden=enabled
+}
 function updateModalTypeFields() {
   const type = normalizeTypeValue(document.querySelector('#calendar-type')?.value || 'Aktivitet')
   const isBirthday = type === 'Fødselsdag'
@@ -2358,6 +2394,7 @@ function updateModalTypeFields() {
   setCheckboxOptionEnabled(doneOption, isTask)
   updateModalScopeFields()
   setupTaskEditor(isTask)
+  updateIntervalFields()
 }
 
 function updateModalScopeFields() {
@@ -2366,7 +2403,10 @@ function updateModalScopeFields() {
   const form = document.querySelector('#calendar-modal-form'), scope = form?.querySelector('[name=repeatScope]:checked')?.value || 'one'
   const base = baseFor(editingRowsSnapshot, item), input = form.querySelector('#calendar-date'), weeklyInput = form.querySelector('[name=repeatWeekly]')
   const previousScope = input.dataset.scope
-  if (previousScope !== scope) input.value = scope === 'series' ? base.date : scope === 'future' ? item.occurrenceDate : item.date
+  if (previousScope !== scope) {
+    const oldDate=input.value;input.value = scope === 'series' ? base.date : scope === 'future' ? item.occurrenceDate : item.date
+    const end=form.querySelector('#calendar-end-date');if(end?.value)end.value=addDays(end.value,daysBetween(oldDate,input.value))
+  }
   input.dataset.scope = scope
   input.disabled = scope !== 'one'
   weeklyInput.disabled = scope === 'one' || form.querySelector('#calendar-type').value === 'Fødselsdag'
@@ -2994,20 +3034,21 @@ function openCreateSheet(){
   if(['meal','shopping'].includes(kind))planEditor.open(kind,{date});else openCreateCalendarModal(date,kind)
  })
 }
-function renderMobileAgendaItem(item){
+function renderMobileAgendaItem(item,day){
+ if(eventInterval(item).multiDay)return renderDailyIntervalItem(item,day)
  if(managedTask(item))return rewardsUI.taskCard(item,activePersonFilter)
  const title=getCalendarItemTitle(item),type=getCalendarValue(item,'type'),task=type==='Opgave',done=Boolean(getCalendarValue(item,'done')),time=getCalendarValue(item,'time'),location=getCalendarValue(item,'location')
  const badge=renderCalendarItemIcon(item)||icon(type==='Fritidsinteresse'?'sun':'calendar')
- return '<article class="calendar-item mobile-agenda-item '+(done?'is-done':'')+'" data-calendar-item="'+escapeHtml(item.id)+'" tabindex="0" role="button" aria-label="'+escapeHtml(title)+'" style="--agenda-color:'+escapeHtml(getCalendarItemColor(item))+'"><span class="agenda-time'+(task?' is-task':'')+'">'+(task?badge:escapeHtml(time||'Heldag'))+'</span><div class="agenda-content"><strong>'+escapeHtml(title)+'</strong><p class="agenda-meta">'+(!task?'<span class="agenda-type" title="'+escapeHtml(type)+'" aria-label="'+escapeHtml(type)+'">'+badge+'</span>':'')+escapeHtml(getCalendarItemPeople(item).join(', ')||'Alle')+(task&&time?' · '+escapeHtml(time):'')+(location?' · '+escapeHtml(location):'')+'</p>'+renderCalendarRepeatMeta(item)+(sourceLabel(item)?'<span class="calendar-source-badge">'+escapeHtml(sourceLabel(item))+'</span>':'')+'</div>'+(task&&!imported(item)?'<label class="done-toggle"><input type="checkbox" data-calendar-toggle="'+escapeHtml(item.id)+'" '+(done?'checked':'')+' aria-label="'+escapeHtml((done?'Fortryd udført: ':'Markér udført: ')+title)+'"><span class="sr-only">'+(done?'Udført':'Markér udført')+'</span></label>':'')+'</article>'
+ return '<article class="calendar-item mobile-agenda-item '+(done?'is-done':'')+'" data-calendar-item="'+escapeHtml(item.id)+'" tabindex="0" role="button" aria-label="'+escapeHtml(title+' · '+eventDisplayRange(item))+'" style="--agenda-color:'+escapeHtml(getCalendarItemColor(item))+'"><span class="agenda-time'+(task?' is-task':'')+'">'+(task?badge:escapeHtml(time||'Heldag'))+'</span><div class="agenda-content"><strong>'+escapeHtml(title)+'</strong><p class="agenda-meta">'+(!task?'<span class="agenda-type" title="'+escapeHtml(type)+'" aria-label="'+escapeHtml(type)+'">'+badge+'</span>':'')+escapeHtml(getCalendarItemPeople(item).join(', ')||'Alle')+(task&&time?' · '+escapeHtml(time):'')+(location?' · '+escapeHtml(location):'')+'</p>'+renderCalendarRepeatMeta(item)+(sourceLabel(item)?'<span class="calendar-source-badge">'+escapeHtml(sourceLabel(item))+'</span>':'')+'</div>'+(task&&!imported(item)?'<label class="done-toggle"><input type="checkbox" data-calendar-toggle="'+escapeHtml(item.id)+'" '+(done?'checked':'')+' aria-label="'+escapeHtml((done?'Fortryd udført: ':'Markér udført: ')+title)+'"><span class="sr-only">'+(done?'Udført':'Markér udført')+'</span></label>':'')+'</article>'
 }
 function renderMobileDay(date,{heading=true}={}){
  const day=toDateIso(date),week=productRoute==='calendar'&&calendarViewMode==='week'
- const rows=getRenderableCalendarItems().filter(item=>getCalendarValue(item,'date')===day&&doesItemMatchPersonFilter(item)).sort((a,b)=>(getCalendarValue(a,'time')||'').localeCompare(getCalendarValue(b,'time')||''))
+ const rows=getRenderableCalendarItems().filter(item=>eventOverlapsDate(item,day)&&doesItemMatchPersonFilter(item)).sort((a,b)=>Number(eventInterval(b).multiDay)-Number(eventInterval(a).multiDay)||(getCalendarValue(a,'time')||'').localeCompare(getCalendarValue(b,'time')||''))
  const appointments=rows.filter(item=>getCalendarValue(item,'type')!=='Opgave'),tasks=rows.filter(item=>getCalendarValue(item,'type')==='Opgave'),meals=mealsOn(calendarItems,day)
  const dayTitle=week?formatWeekday(date)+' '+formatShortDate(date):new Intl.DateTimeFormat('da-DK',{weekday:'long',day:'numeric',month:'long'}).format(date)
  let content
- if(week)content=(rows.length||meals.length?appointments.map(renderMobileAgendaItem).join('')+tasks.map(renderCompactTask).join(''):'<p class="agenda-empty">Ingen aftaler</p>')+compactMeals(meals)
- else content=(appointments.length?'<section class="mobile-agenda-section"><h3>Aftaler</h3>'+appointments.map(renderMobileAgendaItem).join('')+'</section>':!tasks.length&&!meals.length?'<p class="agenda-empty">Ingen planer</p>':'')+(tasks.length?'<section class="mobile-agenda-section"><h3>Opgaver</h3>'+renderDayItems('Opgave',tasks,day)+'</section>':'')+(meals.length?'<section class="mobile-agenda-section mobile-dinner'+(meals.length===1&&!meals[0].time?' is-title-only':'')+'"><h3>'+icon('meals')+' Aftensmad</h3>'+meals.map(meal=>'<button data-plan-edit="'+meal.id+'"><strong>'+escapeHtml(meal.title)+'</strong>'+(meal.time?'<small>'+escapeHtml(meal.time)+'</small>':'')+'</button>').join('')+'</section>':'')
+ if(week)content=(rows.length||meals.length?appointments.map(item=>renderMobileAgendaItem(item,day)).join('')+tasks.map(renderCompactTask).join(''):'<p class="agenda-empty">Ingen aftaler</p>')+compactMeals(meals)
+ else content=(appointments.length?'<section class="mobile-agenda-section"><h3>Aftaler</h3>'+appointments.map(item=>renderMobileAgendaItem(item,day)).join('')+'</section>':!tasks.length&&!meals.length?'<p class="agenda-empty">Ingen planer</p>':'')+(tasks.length?'<section class="mobile-agenda-section"><h3>Opgaver</h3>'+renderDayItems('Opgave',tasks,day)+'</section>':'')+(meals.length?'<section class="mobile-agenda-section mobile-dinner'+(meals.length===1&&!meals[0].time?' is-title-only':'')+'"><h3>'+icon('meals')+' Aftensmad</h3>'+meals.map(meal=>'<button data-plan-edit="'+meal.id+'"><strong>'+escapeHtml(meal.title)+'</strong>'+(meal.time?'<small>'+escapeHtml(meal.time)+'</small>':'')+'</button>').join('')+'</section>':'')
  return '<article class="day-card mobile-agenda-day '+(day===toDateIso(new Date())?'is-today':'')+'" data-day="'+day+'">'+(heading&&week?'<header class="day-card-header"><strong>'+escapeHtml(dayTitle)+'</strong>'+(day===toDateIso(new Date())?'<span>I dag</span>':'')+'</header>':'')+content+'</article>'
 }
 
@@ -3082,8 +3123,8 @@ async function loadRecipes(){
 function renderHiddenImports(){
  if(!hiddenImportsOpen)return '';
  if(hiddenImportsLoading)return '<p role="status">Henter skjulte aftaler…</p>';
- return '<div class="hidden-imports"><p class="hint">Gendan gør aftalen synlig igen, når den stadig findes i kilden. En skjult serie og dens enkeltforekomster kan gendannes hver for sig.</p>'+
- (hiddenImports.length?hiddenImports.map((row,i)=>'<article><div><strong>'+escapeHtml(row.title)+'</strong><small>'+escapeHtml(row.feed_name)+' · '+(row.occurrence==='*'?'Hele serien':escapeHtml(row.date||'Enkelt aftale'))+'</small></div><button type="button" data-restore-import="'+i+'">Gendan</button></article>').join(''):'<p>Ingen skjulte importerede aftaler.</p>')+'</div>';
+ return '<div class="hidden-imports"><p class="hint">Gendan gør aftalen synlig igen, når den stadig findes i kilden. Gendan fjerner kun den valgte skjuleregel. Andre skjuleregler og lokale tilpasninger bevares.</p>'+
+ (hiddenImports.length?hiddenImports.map((row,i)=>'<article><div><strong>'+escapeHtml(row.title)+'</strong><small>'+escapeHtml(row.feed_name)+' · '+escapeHtml(hiddenImportLabel(row))+'</small></div><button type="button" data-restore-import="'+i+'">Gendan</button></article>').join(''):'<p>Ingen skjulte importerede aftaler.</p>')+'</div>';
 }
 async function loadHiddenImports(){
  const hid=activeHousehold?.id,epoch=sessionEpoch;if(!hid)return;

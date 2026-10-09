@@ -1,7 +1,7 @@
 import { Capacitor, registerPlugin } from '@capacitor/core'
 export function platformInfo(bridge=Capacitor, env=globalThis) {
  const native=bridge.isNativePlatform(), os=native?bridge.getPlatform():'web'
- return {native,os,android:os==='android',ios:os==='ios',pwa:!native&&Boolean(env.matchMedia?.('(display-mode: standalone)').matches||env.navigator?.standalone)}
+ return {native,os,android:os==='android',ios:os==='ios',isNative:native,isIOS:os==='ios',isAndroid:os==='android',isWeb:!native,pwa:!native&&Boolean(env.matchMedia?.('(display-mode: standalone)').matches||env.navigator?.standalone)}
 }
 export const platform=platformInfo()
 const DeviceScreen=registerPlugin('DeviceScreen')

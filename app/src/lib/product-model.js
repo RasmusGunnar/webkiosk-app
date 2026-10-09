@@ -1,3 +1,4 @@
+import {t} from '../i18n/index.js'
 import { calendarOnly } from './household-plans.js'
 import { addDays, dateIso, parseDate } from './calendar-dates.js'
 import { materialize, value } from './calendar-semantics.js'
@@ -15,8 +16,8 @@ export function upcomingItems(rows,people,filter='Alle',now=new Date()){
  return materialize(rows,[...dates].sort(),{milestones:false}).filter(item=>item.type!=='Opgave'&&itemMatchesPerson(item,filter,people)&&
   (item.date>today||item.date===today&&item.time&&item.time>=time)).sort((a,b)=>a.date.localeCompare(b.date)||String(a.time||'').localeCompare(String(b.time||'')))
 }
-export const roleLabel=role=>({owner:'Ejer',admin:'Administrator',adult:'Voksen',child:'Barn'}[role]||role)
-export function invitationStatus(invite,now=new Date()){return invite.revoked_at?'Tilbagekaldt':invite.accepted_at?'Accepteret':new Date(invite.expires_at)<=now?'Udløbet':'Afventer'}
+export const roleLabel=role=>({owner:(t("product.owner")),admin:(t("app.administrator")),adult:t('roles.adult'),child:t('roles.child')}[role]||role)
+export function invitationStatus(invite,now=new Date()){return invite.revoked_at?(t("product.revoked")):invite.accepted_at?(t("product.accepted")):new Date(invite.expires_at)<=now?(t("native_family.expired")):(t("product.pending"))}
 export function callbackUrl(location){return new URL(location.pathname,location.origin).href}
 export function consumeInvite(location,history,storage){
  const params=new URLSearchParams(location.hash.slice(1)),token=params.get('invite')

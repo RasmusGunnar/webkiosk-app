@@ -1,3 +1,4 @@
+import {t,formatNumber} from '../i18n/index.js'
 import {RewardTransitions} from './reward-transitions.js'
 import {currency} from './rewards-model.js'
 
@@ -27,24 +28,24 @@ export class RewardMotion {
   this.emit(event)
   if(event.kind==='allowance'){
    this.clearChecks(pid)
-   if(event.to.earned_minor==null){this.announce(prefix+'Alle pligter er fritaget. Aftal beløbet med en voksen.');return}
+   if(event.to.earned_minor==null){this.announce(prefix+(t("reward_motion.all_chores_are_excused_agree_the_amount_with_an_adult")));return}
    this.animateCount('allowance',pid,event.from.earned_minor??0,event.to.earned_minor??0,currency)
-   this.animateCount('percent',pid,event.from.completion_percent,event.to.completion_percent,n=>new Intl.NumberFormat('da-DK',{maximumFractionDigits:1}).format(n)+' %')
+   this.animateCount('percent',pid,event.from.completion_percent,event.to.completion_percent,n=>formatNumber(n,{maximumFractionDigits:1})+' %')
    this.animateProgress('month',pid,event.from.completion_percent,event.to.completion_percent,100)
-   this.announce(prefix+event.to.completion_percent+' % · '+currency(event.to.earned_minor)+' optjent')
+   this.announce(prefix+event.to.completion_percent+' % · '+currency(event.to.earned_minor)+(" "+t("reward_motion.earned")))
    if(event.milestone){const scope=this.scope;void this.claimMilestone(pid,event.to.period_start||`${event.to.year}-${String(event.to.month).padStart(2,'0')}-01`).then(ok=>{if(ok&&scope===this.scope)this.showMilestone(pid,event.to.earned_minor)}).catch(()=>{})}
   }else if(event.kind==='balance')this.animateCount('stars',pid,event.from,event.to,n=>String(Math.round(n)))
-  else if(event.kind==='stars'){this.clearChecks(pid);this.showTransientDelta({...event,text:(event.delta>0?'+':'')+event.delta+' ⭐',announcement:prefix+(event.delta>0?'+':'')+event.delta+' bonusstjerner'})}
+  else if(event.kind==='stars'){this.clearChecks(pid);this.showTransientDelta({...event,text:(event.delta>0?'+':'')+event.delta+' ⭐',announcement:prefix+(event.delta>0?'+':'')+event.delta+(" "+t("rewards.bonus_stars"))})}
   else if(event.kind==='goal'){
    this.animateCount('goal',pid,event.from,event.to,n=>String(Math.round(n)))
    this.animateProgress('goal',pid,event.from,event.to,event.max)
-   if(event.unlocked)this.showTransientDelta({...event,text:'Du har nok ⭐ til '+event.title+'!',shine:true})
+   if(event.unlocked)this.showTransientDelta({...event,text:(t("reward_motion.you_have_enough_for")+" ")+event.title+'!',shine:true})
   }else if(event.kind==='task'){
    if(['completed','approved'].includes(event.status)&&['allowance','stars'].includes(event.mode)){this.pendingChecks.delete(event.taskId+':'+pid);this.clearChecks(pid);return}
    const pendingKey=event.taskId+':'+pid
    if(this.pendingChecks.delete(pendingKey))return
    this.taskCheck(event.taskId,event.status,pid,false)
-  }else if(event.kind==='redemption')this.showTransientDelta({...event,text:event.status==='pending'?'Sendt til godkendelse':event.title+' · Klar 🎟️',shine:event.status==='approved'})
+  }else if(event.kind==='redemption')this.showTransientDelta({...event,text:event.status==='pending'?(t("reward_motion.sent_for_approval")):event.title+(" "+t("reward_motion.ready")),shine:event.status==='approved'})
  }
  announce(text){this.live.textContent=text}
  animateCount(kind,pid,from,to,format){this.number('count:'+kind+':'+pid,()=>select('data-reward-count',kind+':'+pid),from,to,(el,n)=>{el.textContent=format(n);el.dataset.motionValue=String(n)})}
@@ -53,10 +54,10 @@ export class RewardMotion {
  taskCheck(taskId,status,pid='',local=true){
   if(local)this.emit({kind:'task-check',key:'check:'+taskId+':'+pid,taskId,pid,status,local:true})
   if(local&&pid)this.pendingChecks.add(taskId+':'+pid)
-  const text=status==='pending'?'Sendt til godkendelse':status==='completed'?'Udført ✓':status==='approved'?'Godkendt ✓':status==='open'?'Genåbnet':'Prøv igen'
+  const text=status==='pending'?(t("reward_motion.sent_for_approval")):status==='completed'?(t("reward_motion.completed")):status==='approved'?(t("reward_motion.approved")):status==='open'?(t("reward_motion.reopened")):(t("app.try_again"))
   this.showTransientDelta({key:'check:'+taskId+':'+pid,taskId,pid,text,check:true,duration:650})
  }
- showMilestone(pid,minor){this.emit({kind:'milestone',key:'milestone:'+pid,pid});this.showTransientDelta({key:'milestone:'+pid,pid,text:'Du klarede periodens opgaver! '+currency(minor)+' optjent',milestone:true,duration:1500})}
+ showMilestone(pid,minor){this.emit({kind:'milestone',key:'milestone:'+pid,pid});this.showTransientDelta({key:'milestone:'+pid,pid,text:(t("reward_motion.you_completed_this_period_s_tasks")+" ")+currency(minor)+(" "+t("reward_motion.earned")),milestone:true,duration:1500})}
  clearChecks(pid){for(const [key,effect] of this.effects)if(effect.check&&effect.pid===pid){effect.node?.remove();effect.anchor?.classList.remove('reward-motion-check');this.effects.delete(key)}}
  anchor(effect){
   const panels=(effect.pid?select('data-reward-person-panel',effect.pid):[]).filter(visible).sort((a,b)=>Number(!!b.closest('.reward-modal'))-Number(!!a.closest('.reward-modal')))

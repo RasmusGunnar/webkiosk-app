@@ -1,3 +1,4 @@
+import {t} from '../i18n/index.js'
 import { addDays, parseDate, weekDates } from './calendar-dates.js'
 import { milestonesForDates } from './milestones.js'
 import {eventInterval,eventOverlapsDate,shiftInterval,daysBetween} from './calendar-interval.js'
@@ -8,9 +9,10 @@ export function imported(item) { return Boolean(item && (['aula','google','ics']
 export function sourceLabel(item) { const source=String(value(item,'source')).toLowerCase(); return imported(item)?({aula:'Aula',google:'Google'}[source]||'ICS'):'' }
 export function birthday(item) { return ['Fødselsdag','FÃ¸dselsdag'].includes(value(item,'type')) || Boolean(value(item,'birthYear')) }
 export function displayTitle(item) {
-  const title=value(item,'title')||'(uden titel)', year=Number(value(item,'birthYear'))
+  if(item.isVirtualMilestone)return t('milestones.'+item.id.split('|')[1])
+  const title=value(item,'title')||(t("calendar_semantics.untitled")), year=Number(value(item,'birthYear'))
   const age=Number(value(item,'date').slice(0,4))-year
-  return birthday(item)&&year&&age>0 ? title+' bliver '+age+' år' : title
+  return birthday(item)&&year&&age>0 ? title+(" "+t("calendar_semantics.turns")+" ")+age+(" "+t("native_family.years")) : title
 }
 export function weekly(item) { return !imported(item) && Boolean(value(item,'repeatWeekly')) && !value(item,'overrideOf') }
 export function repeatContext(item) { return !imported(item) && Boolean(weekly(item)||value(item,'overrideOf')||item?.isRepeatOccurrence) }
@@ -82,9 +84,9 @@ function putOverride(p,rows,base,occurrence,values,uuid) {
     repeatUntil:'',exceptions:[],weekdays:false,seriesId:seriesId(base),overrideOf:seriesId(base),overrideBaseId:base.id,originalDate:original})
 }
 export function planEdit(rows,item,values,scope='one',uuid=()=>crypto.randomUUID()) {
-  if (imported(item)||item.isVirtualMilestone) throw new Error('Aftalen styres af sin kilde.')
+  if (imported(item)||item.isVirtualMilestone) throw new Error((t("calendar_semantics.this_event_is_managed_by_its_source")))
   const p=planner(rows), base=baseFor(rows,item)
-  if (!base) throw new Error('Aftalen findes ikke længere. Luk og åbn kalenderen igen.')
+  if (!base) throw new Error((t("calendar_semantics.this_event_no_longer_exists_close_and_reopen_the_calendar")))
   if (!repeatContext(item)) {
     // A yearly virtual occurrence edits its base, retaining Feb 29 and the original year by default.
     if(value(base,'rewardOriginId')&&value(base,'type')==='Opgave'&&values.date!==base.date)values={...values,originalDate:value(base,'originalDate')||base.date}
@@ -120,13 +122,13 @@ export function planEdit(rows,item,values,scope='one',uuid=()=>crypto.randomUUID
       // A done checkbox always refers to the selected occurrence, even with whole-series scope.
       putOverride(p,rows,{...base,data:{...base.data,...next}},item,{...values,date:value(item,'date')},uuid)
     }
-  } else throw new Error('Ugyldigt serievalg')
+  } else throw new Error((t("calendar_semantics.invalid_series_scope")))
   return p.finish()
 }
 export function planDelete(rows,item,scope='one') {
-  if (imported(item)||item.isVirtualMilestone) throw new Error('Aftalen styres af sin kilde.')
+  if (imported(item)||item.isVirtualMilestone) throw new Error((t("calendar_semantics.this_event_is_managed_by_its_source")))
   const p=planner(rows), base=baseFor(rows,item)
-  if (!base) throw new Error('Aftalen findes ikke længere.')
+  if (!base) throw new Error((t("calendar_semantics.this_event_no_longer_exists")))
   if (!repeatContext(item)) {p.remove(base);return p.finish()}
   const related=seriesRows(rows,base), original=occurrenceDate(item)
   related.forEach(p.touch)
@@ -137,7 +139,7 @@ export function planDelete(rows,item,scope='one') {
   } else if (scope==='one') {
     p.put(base.id,{exceptions:[...new Set([...exceptions(base),original])]})
     related.filter(row=>row.id!==base.id&&occurrenceDate(row)===original).forEach(p.remove)
-  } else throw new Error('Ugyldigt serievalg')
+  } else throw new Error((t("calendar_semantics.invalid_series_scope")))
   return p.finish()
 }
-export const taskSuggestions=['Tøm opvaskemaskine','Lektier','Tøm vaskemaskine','Rydde op på værelset','Handle ind','Dæk bordet','Tøm tasker']
+export const taskSuggestions=()=>[(t("calendar_semantics.empty_the_dishwasher")),(t("calendar_semantics.homework")),(t("calendar_semantics.empty_the_washing_machine")),(t("calendar_semantics.tidy_your_room")),(t("calendar_semantics.go_shopping")),(t("calendar_semantics.set_the_table")),(t("calendar_semantics.empty_bags"))]

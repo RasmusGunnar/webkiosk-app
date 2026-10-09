@@ -25,8 +25,16 @@ Deno.test('Responses contract uses configurable model, strict schema, page order
   body=JSON.parse(String(init?.body));auth=new Headers(init?.headers).get('Authorization')||'';return Response.json({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify(output)}]}]});
  }) as typeof fetch});
  assert(body.model==='configured-vision'&&body.store===false&&body.text.format.strict);assert(JSON.stringify(body.text.format.schema)===JSON.stringify(visionSchema));
+ assert(body.instructions.includes('Danish and English')&&body.instructions.includes('never translate recipe content'));
  assert(body.input[0].content[1].image_url.endsWith(image.base64)&&body.input[0].content[2].image_url.endsWith(second.base64));
  assert(auth==='Bearer provider-contract-fixture');assert(!JSON.stringify(result).includes('provider-contract-fixture'));
+});
+Deno.test('Danish and English recipe content is unchanged; only stable warning codes cross the UI boundary',()=>{
+ for(const [title,ingredient,step]of [['Æblegrød','2 æbler','Kog æblerne.'],['Apple crumble','2 apples','Bake the apples.']]){
+  const r=visionResult({...output,title,ingredients:[{raw_text:ingredient}],instructions:[{text:step}],warnings:['RECIPE_SCAN_PARTIAL','unknown provider text']});
+  assert(r.title===title&&r.ingredients[0].raw_text===ingredient&&r.instructions[0].text===step);
+  assert(JSON.stringify(r.warnings)===JSON.stringify(['RECIPE_SCAN_PARTIAL','RECIPE_SCAN_UNCERTAIN']));
+ }
 });
 for(const outcome of ['success','missing','provider','rate','invalid'] as const)Deno.test('Private temporary pages cleaned after '+outcome,async()=>{
  let calls=0,removed:string[]=[];

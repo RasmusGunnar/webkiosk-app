@@ -27,7 +27,7 @@ const cache=page=>page.evaluate(async()=>{
 const state=async(page,id=hid)=>(await cache(page)).find(row=>row.household_id===id)
 const countQueue=async page=>(await state(page))?.queue.length
 async function newPage(width) {
- const context=await browser.newContext({viewport:{width,height:900},timezoneId:'Europe/Copenhagen'})
+ const context=await browser.newContext({locale:'da-DK',viewport:{width,height:900},timezoneId:'Europe/Copenhagen'})
  const page=await context.newPage();page.on('console',msg=>{if(msg.type()==='error')console.log('CONSOLE',msg.text().slice(0,220))});page.on('requestfailed',req=>console.log('REQUEST_FAILED',new URL(req.url()).pathname,req.failure()?.errorText));page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept())
  await page.goto('http://127.0.0.1:5179')
  await expect(page.locator('#login-form')).toBeVisible()

@@ -1,3 +1,4 @@
+import {t} from '../i18n/index.js'
 import {emptyRewards, optimisticReward} from './rewards-model.js'
 import { scopeKey, safeFeedMetadata, safePeopleCache } from './local-store.js'
 import { readAllRows } from './rows.js'
@@ -62,7 +63,7 @@ export class OfflineSync {
     await this.change(state=>({...state,snapshot:{...state.snapshot,...clean},cached_at:new Date().toISOString()}))
   }
   async enqueue(payload,{action='edit',entityId=payload.p_upserts[0]?.id||payload.p_delete_ids[0]}={}) {
-    if(!this.alive)return {error:new Error('Sessionen er afsluttet.')}
+    if(!this.alive)return {error:new Error((t("offline_sync.the_session_has_ended")))}
     const entry={id:crypto.randomUUID(),user_id:this.userId,household_id:this.householdId,action,table:'calendar_items',
       entity_id:entityId,row_id:payload.p_upserts[0]?.id||payload.p_delete_ids[0],payload,queued_at:new Date().toISOString(),status:'pending',optimistic:true}
     this.writeGeneration++
@@ -96,14 +97,14 @@ export class OfflineSync {
         catch(error){result={error}}
         if(!this.alive)return
         if(result.error) {
-          const network=isNetworkError(result.error)||!this.online(), conflict=result.error.message?.includes('ændret på en anden enhed')
+          const network=isNetworkError(result.error)||!this.online(), conflict=result.error.message?.includes((t("offline_sync.changed_on_another_device")))
           this.networkFailed=network
           if (!network) {
             const fresh = await readAllRows(() => this.client.from('calendar_items').select('*').eq('household_id', this.householdId).order('id'))
             if (!fresh.error && this.alive) await this.snapshot({items:fresh.data})
           }
           await this.change(state=>({...state,queue:state.queue.map(row=>row.id!==entry.id?row:{...row,status:network?'pending':conflict?'conflict':'error',
-            optimistic:network,error:network?'Forbindelsen er afbrudt. Ændringen er gemt lokalt.':result.error.message})}))
+            optimistic:network,error:network?(t("offline_sync.the_connection_was_interrupted_your_change_is_saved_locally")):result.error.message})}))
           break
         }
         let currentServer = null

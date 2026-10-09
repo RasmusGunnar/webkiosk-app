@@ -1,3 +1,4 @@
+import {t} from '../i18n/index.js'
 // The transaction commits before a write is reported as safely stored.
 export const DATABASE_NAME='familiekalender-offline-v1'
 export class LocalStore {
@@ -8,7 +9,7 @@ export class LocalStore {
       request.onupgradeneeded=()=>request.result.createObjectStore('records',{keyPath:'key'})
       request.onerror=()=>{this.connection=null;reject(request.error)}
       request.onsuccess=()=>{const db=request.result;db.onversionchange=()=>{db.close();this.connection=null};resolve(db)}
-      request.onblocked=()=>reject(new Error('Luk andre gamle appfaner og prøv igen.'))
+      request.onblocked=()=>reject(new Error((t("local_store.close_other_old_app_tabs_and_try_again"))))
     })
     return this.connection
   }
@@ -22,7 +23,7 @@ export class LocalStore {
     return new Promise((resolve,reject)=>{
       const tx=db.transaction('records','readwrite'),store=tx.objectStore('records'),request=store.get(key);let result,error
       request.onsuccess=()=>{try{result=transform(request.result);if(result===undefined)store.delete(key);else store.put({...result,key})}catch(cause){error=cause;tx.abort()}}
-      tx.oncomplete=()=>resolve(result);tx.onabort=()=>reject(error||tx.error||new Error('Lokallagring mislykkedes'))
+      tx.oncomplete=()=>resolve(result);tx.onabort=()=>reject(error||tx.error||new Error((t("local_store.local_storage_failed"))))
       tx.onerror=()=>{error=tx.error}
     })
   }

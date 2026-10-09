@@ -1,3 +1,4 @@
+import {t,dateFormatter} from '../i18n/index.js'
 // Calendar dates are local civil dates, never UTC timestamps (including DST boundaries).
 export function dateIso(date) {
   return [date.getFullYear(), String(date.getMonth()+1).padStart(2,'0'), String(date.getDate()).padStart(2,'0')].join('-')
@@ -9,7 +10,7 @@ export function parseDate(value) {
 }
 export function addDays(value, amount) {
   const date = parseDate(value)
-  if (!date) throw new Error('Ugyldig dato')
+  if (!date) throw new Error((t("calendar_dates.invalid_date")))
   date.setDate(date.getDate()+amount)
   return dateIso(date)
 }
@@ -24,14 +25,10 @@ export function isoWeek(value) {
   return { year:utc.getUTCFullYear(), week:Math.ceil((((utc-new Date(Date.UTC(utc.getUTCFullYear(),0,1)))/86400000)+1)/7) }
 }
 export function calendarHeading(value, mode, today=dateIso(new Date())) {
-  if (mode==='day') return new Intl.DateTimeFormat('da-DK',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(parseDate(value))
+  if (mode==='day') return dateFormatter({weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(parseDate(value))
   const dates=weekDates(value), start=parseDate(dates[0]), end=parseDate(dates[6]), {week}=isoWeek(value)
-  const month=date=>new Intl.DateTimeFormat('da-DK',{month:'long'}).format(date)
-  const range = start.getFullYear()!==end.getFullYear()
-    ? start.getDate()+'. '+month(start)+' '+start.getFullYear()+' – '+end.getDate()+'. '+month(end)+' '+end.getFullYear()
-    : start.getMonth()===end.getMonth() ? start.getDate()+'.–'+end.getDate()+'. '+month(end)
-    : start.getDate()+'. '+month(start)+' – '+end.getDate()+'. '+month(end)
-  return (dates.includes(today) ? 'Denne uge · uge ' : 'Uge ')+week+' · '+range
+  const range=dateFormatter({day:'numeric',month:'long',...(start.getFullYear()!==end.getFullYear()?{year:'numeric'}:{})}).formatRange(start,end)
+  return t(dates.includes(today)?'calendar.current_week':'calendar.week',{week})+' · '+range
 }
 export const VIEW_KEY='familiekalender.calendar-view'
 export function preferredView(storage, width) {
@@ -41,7 +38,7 @@ export function preferredView(storage, width) {
 
 export function monthDates(value) {
   const date=parseDate(value)
-  if(!date)throw new Error("Ugyldig dato")
+  if(!date)throw new Error((t("calendar_dates.invalid_date")))
   const year=date.getFullYear(),month=date.getMonth(),count=new Date(year,month+1,0,12).getDate()
   return Array.from({length:count},(_,i)=>dateIso(new Date(year,month,i+1,12)))
 }

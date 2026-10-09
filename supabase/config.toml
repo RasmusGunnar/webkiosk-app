@@ -2,13 +2,13 @@
 project_id = "familiekalender"
 [api]
 enabled = true
-port = 59321
+port = 47321
 schemas = ["public", "graphql_public"]
 extra_search_path = ["public", "extensions"]
 max_rows = 1000
 [db]
-port = 59322
-shadow_port = 59320
+port = 47322
+shadow_port = 47320
 major_version = 17
 [db.migrations]
 enabled = true
@@ -17,17 +17,19 @@ schema_paths = []
 enabled = false
 [studio]
 enabled = true
-port = 59323
+port = 47323
 api_url = "http://127.0.0.1"
 [local_smtp]
 enabled = true
-port = 59324
+port = 47324
 [auth]
 enabled = true
 site_url = "http://127.0.0.1:5178"
 additional_redirect_urls = ["http://localhost:5173/**", "http://127.0.0.1:5178/**", "http://127.0.0.1:5179/**", "familiekalender://auth/callback"]
 enable_signup = true
 minimum_password_length = 8
+# Local-only wall-device acceptance; hosted Auth settings are unchanged.
+enable_anonymous_sign_ins = true
 [auth.email]
 enable_signup = true
 enable_confirmations = true
@@ -47,4 +49,12 @@ verify_jwt = false
 
 [functions.sync-calendar-feeds]
 # Dedicated server secret, never a frontend key.
+verify_jwt = false
+
+[functions.subscription-verify]
+# Explicit Auth user validation and owner/admin membership before server-key use.
+verify_jwt = false
+
+[functions.revenuecat-webhook]
+# Dedicated server-to-server Authorization secret is checked first.
 verify_jwt = false

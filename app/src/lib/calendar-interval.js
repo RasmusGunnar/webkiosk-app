@@ -1,3 +1,4 @@
+import {t,dateFormatter} from '../i18n/index.js'
 import {addDays, parseDate} from './calendar-dates.js'
 
 // Stored all-day ends are inclusive. Timed ends are exclusive instants in the
@@ -31,29 +32,29 @@ export function eventInterval(item){
 }
 export function validateEventInterval(values){
  if(!supportsInterval(values))return ''
- if(!parseDate(values.date)||!parseDate(values.endDate||values.date))return 'Vælg en gyldig start- og slutdato.'
- if(values.endDate<values.date)return 'Slutdatoen skal være på eller efter startdatoen.'
- if(!values.allDay&&(values.endDate||values.date)===values.date&&values.time&&values.endTime&&values.endTime<values.time)return 'Sluttiden skal være på eller efter starttiden.'
+ if(!parseDate(values.date)||!parseDate(values.endDate||values.date))return (t("calendar_interval.choose_valid_start_and_end_dates"))
+ if(values.endDate<values.date)return (t("calendar_interval.the_end_date_must_be_on_or_after_the_start_date"))
+ if(!values.allDay&&(values.endDate||values.date)===values.date&&values.time&&values.endTime&&values.endTime<values.time)return (t("calendar_interval.the_end_time_must_be_at_or_after_the_start_time"))
  return ''
 }
 export function eventOverlapsDate(item,date){const i=eventInterval(item);return date>=i.startDate&&date<=i.lastDate}
 export function shiftInterval(item,date){const i=eventInterval(item);return {date,...(supportsInterval(item)?{endDate:addDays(i.endDate,daysBetween(i.startDate,date)),endTime:i.endTime,allDay:i.allDay}:{})}}
-const shortDate=date=>new Intl.DateTimeFormat('da-DK',{weekday:'short',day:'numeric',month:'short',year:'numeric'}).format(parseDate(date))
-export function eventDisplayRange(item){const i=eventInterval(item);if(!parseDate(i.startDate))return '';return shortDate(i.startDate)+(i.startTime?' kl. '+i.startTime:'')+(i.endDate!==i.startDate?' – '+shortDate(i.endDate)+(i.endTime?' kl. '+i.endTime:''):i.endTime?'–'+i.endTime:'')+(i.allDay?' · Heldag':'')}
+const shortDate=date=>dateFormatter({weekday:'short',day:'numeric',month:'short',year:'numeric'}).format(parseDate(date))
+export function eventDisplayRange(item){const i=eventInterval(item);if(!parseDate(i.startDate))return '';return shortDate(i.startDate)+(i.startTime?(" "+t("calendar_interval.at")+" ")+i.startTime:'')+(i.endDate!==i.startDate?' – '+shortDate(i.endDate)+(i.endTime?(" "+t("calendar_interval.at")+" ")+i.endTime:''):i.endTime?'–'+i.endTime:'')+(i.allDay?(" "+t("calendar_interval.all_day")):'')}
 export function eventDayState(item,date){
  const i=eventInterval(item)
  return !i.multiDay?'SINGLE':date===i.startDate?'START':date===i.lastDate?'END':'MIDDLE'
 }
 export function eventDayLabel(item,date,{compact=false}={}){
  const i=eventInterval(item),state=eventDayState(item,date)
- if(state==='SINGLE')return i.startTime||'Heldag'
- const endDay=new Intl.DateTimeFormat('da-DK',{weekday:compact?'short':'long'}).format(parseDate(i.lastDate))
- if(state==='END')return i.endTime?'Slutter '+i.endTime:'Slutter i dag'
- if(state==='START')return (i.startTime?i.startTime:compact?'Starter':'Starter i dag')+' · '+(i.startTime&&!compact?'fortsætter til ':'til ')+endDay
- return (compact?(daysBetween(i.startDate,date)+1)+'/'+(daysBetween(i.startDate,i.lastDate)+1):'Fortsætter')+' · til '+endDay
+ if(state==='SINGLE')return i.startTime||(t("calendar.all_day"))
+ const endDay=dateFormatter({weekday:compact?'short':'long'}).format(parseDate(i.lastDate))
+ if(state==='END')return i.endTime?(t("calendar_interval.ends")+" ")+i.endTime:(t("calendar_interval.ends_today"))
+ if(state==='START')return (i.startTime?i.startTime:compact?(t("calendar_interval.starts")):(t("calendar_interval.starts_today")))+' · '+(i.startTime&&!compact?(t("calendar_interval.continues_until")+" "):(t("calendar_interval.until")+" "))+endDay
+ return (compact?(daysBetween(i.startDate,date)+1)+'/'+(daysBetween(i.startDate,i.lastDate)+1):(t("calendar_interval.continues")))+(" "+t("calendar_interval.until__til")+" ")+endDay
 }
 export function eventDateRange(item){
  const i=eventInterval(item);if(!parseDate(i.startDate))return ''
- const format=new Intl.DateTimeFormat('da-DK',{day:'numeric',month:'short',...(i.startDate.slice(0,4)!==i.lastDate.slice(0,4)?{year:'numeric'}:{})})
+ const format=dateFormatter({day:'numeric',month:'short',...(i.startDate.slice(0,4)!==i.lastDate.slice(0,4)?{year:'numeric'}:{})})
  return format.formatRange(parseDate(i.startDate),parseDate(i.lastDate))
 }

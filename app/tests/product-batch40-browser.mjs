@@ -9,7 +9,7 @@ import {rewardToday} from '../src/lib/rewards-model.js'
 const local=localSupabase(),opts={auth:{persistSession:false,autoRefreshToken:false}},admin=createClient(local.API_URL,local.SERVICE_ROLE_KEY,opts),client=createClient(local.API_URL,local.ANON_KEY,opts)
 const out='supabase/.temp/product-batch40',shots=[],checks=[],errors=[],paths=[];mkdirSync(out,{recursive:true})
 const must=async q=>{const r=await q;if(r.error)throw Error(r.error.message);return r.data},pass=s=>{checks.push(s);console.log('PASS '+checks.length+': '+s)}
-const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true}),context=await browser.newContext({viewport:{width:1440,height:1000},timezoneId:'Europe/Copenhagen'}),page=await context.newPage()
+const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true}),context=await browser.newContext({locale:'da-DK',viewport:{width:1440,height:1000},timezoneId:'Europe/Copenhagen'}),page=await context.newPage()
 page.setDefaultTimeout(18000);page.on('pageerror',e=>errors.push(e.message))
 await context.route('**/*',r=>['127.0.0.1','localhost'].includes(new URL(r.request().url()).hostname)?r.continue():r.abort())
 const shot=async name=>{await page.screenshot({path:out+'/'+name+'.png',fullPage:false});shots.push(name)}
@@ -24,7 +24,7 @@ try{
  people=await must(client.from('household_people').insert([{name:'Jakob',role:'child',color:'#72957b',reward_enabled:true},{name:'Freja',role:'child',color:'#bd8268',reward_enabled:true},{name:'Mor',role:'adult',color:'#967da7'},{name:'Far',role:'adult',color:'#688cab'}].map(p=>({...p,household_id:hid}))).select())
  const child=people[0],second=people[1],images=[await fixture(1),await fixture(2)]
  await call('allowance_save',{person_id:second.id,cadence:'month',amount_minor:10000,start_today:true,duties:[{title:'Dæk bord',schedule:'daily',approval:false}]})
- const response={title:'Tomatsuppe med basilikum',description:'En varm suppe til familiens hverdag.',servings:4,prep_minutes:10,cook_minutes:20,total_minutes:30,ingredients:[{raw_text:'2 dåser hakkede tomater',ingredient_name:'tomater',quantity:2,unit:'dåser',note:null},{raw_text:'1 løg',ingredient_name:'løg',quantity:1,unit:null,note:null},{raw_text:'2 spsk olivenolie',ingredient_name:'olivenolie',quantity:2,unit:'spsk',note:null}],instructions:[{position:0,text:'Hak løget og steg det i olien.'},{position:1,text:'Tilsæt tomaterne og kog i 20 minutter.'}],warnings:['Mængden af basilikum er ikke synlig. Tilføj den selv.'],incomplete:true,cover_page_index:0}
+ const response={title:'Tomatsuppe med basilikum',description:'En varm suppe til familiens hverdag.',servings:4,prep_minutes:10,cook_minutes:20,total_minutes:30,ingredients:[{raw_text:'2 dåser hakkede tomater',ingredient_name:'tomater',quantity:2,unit:'dåser',note:null},{raw_text:'1 løg',ingredient_name:'løg',quantity:1,unit:null,note:null},{raw_text:'2 spsk olivenolie',ingredient_name:'olivenolie',quantity:2,unit:'spsk',note:null}],instructions:[{position:0,text:'Hak løget og steg det i olien.'},{position:1,text:'Tilsæt tomaterne og kog i 20 minutter.'}],warnings:['RECIPE_SCAN_UNCERTAIN'],incomplete:true,cover_page_index:0}
  await page.route('**/functions/v1/recipe-preview',async r=>{
   const body=r.request().postDataJSON();if(body.action!=='scan')return r.continue();scanRequests.push(body);paths.push(...body.paths)
   await new Promise(resolve=>{scanRelease=resolve});await r.fulfill({contentType:'application/json',body:JSON.stringify({recipe:response,review_required:true})})
@@ -41,7 +41,7 @@ try{
  expect(scanRequests[0].paths).toHaveLength(2);expect(scanRequests[0].images).toBeUndefined();scanRelease()
  await expect(page.locator('#recipe-title')).toHaveValue(response.title);await shot('05-editable-preview')
  await page.setViewportSize({width:1440,height:1000});await shot('06-warning-and-missing-field')
- await expect(page.locator('.recipe-scan-warnings')).toContainText('basilikum');await expect(page.locator('#recipe-image-preview img')).toHaveCount(0)
+ await expect(page.locator('.recipe-scan-warnings')).toContainText('Noget tekst er usikker');await expect(page.locator('#recipe-image-preview img')).toHaveCount(0)
  await page.locator('[data-scan-cover="0"]').click();await shot('07-explicit-cover-selection')
  for(const path of scanRequests[0].paths){expect((await admin.storage.from('recipe-images').download(path)).error).toBeTruthy()}
  pass('Camera/upload, processed multipage order, analysing, warnings and explicit cover; temp cleanup after fixture analysis')

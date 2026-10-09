@@ -7,6 +7,6 @@ export function localSupabase() {
   try {
     config = JSON.parse(execFileSync(command[0], command[1], { encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] }))
   } catch { throw new Error('Start the local Familiekalender Supabase stack first.') }
-  if (config.API_URL !== 'http://127.0.0.1:59321') throw new Error('Refusing to use any database except the local Familiekalender stack.')
+  if (config.API_URL !== 'http://127.0.0.1:47321') throw new Error('Refusing to use any database except the local Familiekalender stack.')
   return config
 }

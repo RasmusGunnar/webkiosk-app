@@ -3,6 +3,7 @@ import {createRequire} from 'node:module'
 import {fileURLToPath} from 'node:url'
 import assert from 'node:assert/strict'
 import sharp from 'sharp'
+import {nodes} from './i18n-source.mjs'
 const require=createRequire(import.meta.url),plist=require('plist'),xcode=require('xcode')
 process.chdir(fileURLToPath(new URL('../',import.meta.url)))
 const checks=[],pass=name=>{checks.push(name);console.log('PASS '+checks.length+': '+name)}
@@ -14,11 +15,12 @@ assert.match(manifest,/usesCleartextTraffic="false"/);assert.match(manifest,/all
 assert.match(gradle,/if \(hasReleaseSigning\) signingConfig signingConfigs.release/);assert.match(gradle,/throw new GradleException/);pass('Release signing fails closed without the four environment values')
 const info=plist.parse(readFileSync('ios/App/App/Info.plist','utf8'))
 assert.equal(info.CFBundleDisplayName,'Familiekalender');assert(info.CFBundleURLTypes[0].CFBundleURLSchemes.includes('familiekalender'));assert.equal(info.NSAppTransportSecurity.NSAllowsArbitraryLoads,false);pass('iOS plist parses with correct display name, URL scheme and ATS')
-assert.match(manifest,/<queries>[\s\S]*android.media.action.IMAGE_CAPTURE/);assert.match(info.NSCameraUsageDescription,/opskrift/);assert.match(info.NSPhotoLibraryUsageDescription,/opskrift/);assert.match(readFileSync('src/lib/recipe-ui.js','utf8'),/id="scan-camera" type="file" accept="image\/\*" capture="environment"/);pass('Recipe camera uses Capacitor-compatible capture input, Android intent visibility and iOS purpose strings')
+assert.match(manifest,/<queries>[\s\S]*android.media.action.IMAGE_CAPTURE/);assert.match(info.NSCameraUsageDescription,/opskrift/);assert.match(info.NSPhotoLibraryUsageDescription,/opskrift/);assert.match(nodes(readFileSync('src/lib/recipe-ui.js','utf8')).map(n=>n.value).join(''),/id="scan-camera" type="file" accept="image\/\*" capture="environment"/);pass('Recipe camera uses Capacitor-compatible capture input, Android intent visibility and iOS purpose strings')
 const privacy=plist.parse(readFileSync('ios/App/App/PrivacyInfo.xcprivacy','utf8'))
 assert.equal(privacy.NSPrivacyTracking,false);assert(privacy.NSPrivacyAccessedAPITypes.some(t=>t.NSPrivacyAccessedAPITypeReasons.includes('C617.1')));pass('iOS privacy manifest declares filesystem reason without tracking')
 const project=xcode.project('ios/App/App.xcodeproj/project.pbxproj');project.parseSync()
-const projectText=readFileSync(project.filepath,'utf8');assert.match(projectText,/PrivacyInfo.xcprivacy in Resources/);assert(!projectText.includes('undefined'));assert.match(projectText,/MARKETING_VERSION = 1.0.0/);assert.match(projectText,/IPHONEOS_DEPLOYMENT_TARGET = 15.0/);pass('Xcode project parses, includes privacy resource, iOS 15 minimum and release version')
+const projectText=readFileSync(project.filepath,'utf8');assert.match(projectText,/PrivacyInfo.xcprivacy in Resources/);assert(!projectText.includes('undefined'));assert.match(projectText,/MARKETING_VERSION = 1.0.0/);assert.match(projectText,/IPHONEOS_DEPLOYMENT_TARGET = 15.0/);for(const locale of ['da','en-GB'])assert.match(readFileSync('ios/App/App/'+locale+'.lproj/InfoPlist.strings','utf8'),/NSCameraUsageDescription/);assert.match(projectText,/InfoPlist.strings in Resources/);
+pass('Xcode project parses, includes privacy resource, iOS 15 minimum and release version')
 const scene=readFileSync('ios/App/App/SceneDelegate.swift','utf8'),delegate=readFileSync('ios/App/App/AppDelegate.swift','utf8')
 assert.match(scene,/rootViewController = FamilyViewController/);assert.match(scene,/registerPluginInstance\(DeviceScreenPlugin\(\)\)/);assert.match(scene,/SceneDelegateProxy.shared.scene/);assert.match(delegate,/capacitorDidRegisterForRemoteNotifications/);pass('iOS SceneDelegate forwards cold/warm links and registers native wake and push callbacks')
 const icon=await sharp('ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png').metadata();assert.equal(icon.width,1024);assert.equal(icon.height,1024);assert.equal(icon.hasAlpha,false)
@@ -29,4 +31,9 @@ pass('All Android adaptive foreground densities exist and decode')
 const pwa=JSON.parse(readFileSync('public/manifest.webmanifest','utf8'));assert.equal(pwa.display,'standalone');assert.equal(pwa.start_url,'/')
 for(const icon of pwa.icons){const m=await sharp('public'+icon.src).metadata();assert.equal(icon.sizes,m.width+'x'+m.height)}
 pass('PWA manifest and install icons have correct sizes')
+assert.match(manifest,/android:launchMode="singleTop"/)
+assert.match(readFileSync('android/capacitor.settings.gradle','utf8'),/revenuecat-purchases-capacitor/)
+assert.match(readFileSync('ios/App/CapApp-SPM/Package.swift','utf8'),/RevenuecatPurchasesCapacitor/)
+assert.match(projectText,/com.apple.InAppPurchase/)
+pass('RevenueCat native dependency, billing-compatible Android launchMode and iOS In-App Purchase capability')
 console.log('NATIVE STRUCTURAL PASS '+checks.length+'/'+checks.length+'; physical device build/runtime NOT tested')

@@ -35,7 +35,7 @@ test('native implicit recovery and PKCE code are parsed without trusting arbitra
 })
 test('platform classification is independent of product kiosk/mobile mode',()=>{
  const bridge={isNativePlatform:()=>true,getPlatform:()=>'ios'}
- assert.deepEqual(platformInfo(bridge,{}),{native:true,os:'ios',ios:true,android:false,pwa:false})
+ assert.deepEqual(platformInfo(bridge,{}),{native:true,os:'ios',ios:true,android:false,isNative:true,isIOS:true,isAndroid:false,isWeb:false,pwa:false})
  assert.equal(platformInfo({isNativePlatform:()=>false},{matchMedia:()=>({matches:true})}).pwa,true)
 })
 const storage=()=>{const values=new Map();return {getItem:k=>values.get(k),setItem:(k,v)=>values.set(k,v)}}

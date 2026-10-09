@@ -1,0 +1,3 @@
+"CFBundleDisplayName" = "Familiekalender";
+"NSCameraUsageDescription" = "Take photos of a recipe or a family profile when you choose to use the camera.";
+"NSPhotoLibraryUsageDescription" = "Choose photos for family profiles or to read and save a recipe.";

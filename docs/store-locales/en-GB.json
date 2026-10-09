@@ -1,0 +1,11 @@
+{
+  "name": "Familiekalender",
+  "subtitle": "Family life in one place",
+  "short_description": "Share your family calendar, tasks, recipes and shopping.",
+  "description": "Bring together your family's events, tasks, meal plans and shopping. Share recipes and an overview on personal devices and the family wall display. Choose Danish or English without changing your family's own text. Adults manage family profiles, invitations, allowance and bonus stars. Saved data is available offline; imports and administration need a connection. Data export and account deletion are available in the app.",
+  "keywords": "family,calendar,tasks,mealplan,recipes,shopping,wall,allowance",
+  "privacy_summary": "Family data is shared with household members. Photo scanning sends selected images to a server-side AI provider when you choose to analyse them. See the privacy page for details.",
+  "privacy_url": "TODO_FINAL_PUBLIC_URL/privacy",
+  "support_url": "TODO_FINAL_PUBLIC_URL/support",
+  "review_status": "Local draft. Legal entity, final subscription terms and real native screenshots pending."
+}

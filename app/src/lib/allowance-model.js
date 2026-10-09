@@ -1,3 +1,4 @@
+import {t,dateFormatter} from '../i18n/index.js'
 // Allowance is a server-confirmed period contract, layered over task_reward_occurrences.
 export function allowanceTasks(rows,state,dates){
  const days=[...new Set(dates)].sort();if(!days.length)return rows;
@@ -12,8 +13,8 @@ export function allowanceTasks(rows,state,dates){
  }).filter(t=>t.date)].sort((a,b)=>a.date.localeCompare(b.date));
 }
 export const currentAgreement=(state,pid)=>[...(state?.agreements||[])].filter(a=>a.person_id===pid).sort((a,b)=>b.effective_from.localeCompare(a.effective_from))[0]||null;
-export const periodLabel=p=>p?.period_start?new Intl.DateTimeFormat('da-DK',{day:'numeric',month:'short'}).format(new Date(p.period_start+'T12:00:00'))+' – '+new Intl.DateTimeFormat('da-DK',{day:'numeric',month:'short'}).format(new Date(p.period_end+'T12:00:00')):'Næste periode';
-export const dutyLabel=d=>({daily:'Hver dag',weekdays:'Alle hverdage',weekly:'Én gang om ugen',selected:(d.weekdays||[]).map(n=>['','Man','Tir','Ons','Tor','Fre','Lør','Søn'][n]).join(' · ')})[d.schedule]||'';
+export const periodLabel=p=>p?.period_start?dateFormatter({day:'numeric',month:'short'}).format(new Date(p.period_start+'T12:00:00'))+' – '+dateFormatter({day:'numeric',month:'short'}).format(new Date(p.period_end+'T12:00:00')):(t("allowance.next_period"));
+export const dutyLabel=d=>({daily:(t("allowance.every_day")),weekdays:(t("app.all_weekdays")),weekly:(t("allowance.once_a_week")),selected:(d.weekdays||[]).map(n=>['',(t("allowance.mon")),(t("allowance.tue")),(t("allowance.wed")),(t("allowance.thu")),(t("allowance.fri")),(t("allowance.sat")),(t("allowance.sun"))][n]).join(' · ')})[d.schedule]||'';
 
 // Display-only estimate; the database still creates and freezes every real period.
 export function allowancePreview(duties,start,cadence){

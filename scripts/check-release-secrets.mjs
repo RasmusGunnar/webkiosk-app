@@ -12,7 +12,7 @@ for(const path of files){
  if(buffer.includes(0)||buffer.length>8*1024*1024)continue
  const text=buffer.toString('utf8')
  if(/(^|\/)\.env(?:\.|$)/.test(path)&&!path.endsWith('.env.example'))findings.push({path,kind:'env-file-tracked'})
- for(const match of text.matchAll(/(?:sb_secret_[A-Za-z0-9_-]{24,}|sbp_(?:oauth_|v0_)?[a-f0-9]{40}|ghp_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----)/g))findings.push({path,kind:'credential-pattern',line:text.slice(0,match.index).split('\n').length})
+ for(const match of text.matchAll(/(?<![A-Za-z0-9_])(?:sb_secret_[A-Za-z0-9_-]{24,}|sk-(?:proj-)?[A-Za-z0-9_-]{24,}|sk_[A-Za-z0-9_-]{24,}|sbp_(?:oauth_|v0_)?[a-f0-9]{40}|ghp_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----)/g))findings.push({path,kind:'credential-pattern',line:text.slice(0,match.index).split('\n').length})
  for(const match of text.matchAll(/eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g)){
   try{if(JSON.parse(Buffer.from(match[0].split('.')[1],'base64url')).role==='service_role')findings.push({path,kind:'service-role-JWT',line:text.slice(0,match.index).split('\n').length})}catch{}
  }

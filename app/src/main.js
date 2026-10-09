@@ -1,3 +1,5 @@
+import {typeLabel,personRoleLabel} from './i18n/domain-labels.js'
+import {t,userError,dateFormatter,LanguagePreference,setHouseholdFormat,locale,errorText} from './i18n/index.js'
 import {allowanceTasks} from './lib/allowance-model.js'
 import {RewardsUI} from './lib/rewards-ui.js'
 import {emptyRewards,rewardRule,managedTask,taskComplete,actionPayload,rewardOrigin,rewardConfig,rewardToday} from './lib/rewards-model.js'
@@ -10,6 +12,12 @@ import './polish.css'
 import './recipes.css'
 import './multiday.css'
 import './imported-scopes.css'
+import './native-family.css'
+import {RevenueCatProvider} from './lib/subscription-provider.js'
+import {SubscriptionAccessService} from './lib/subscription-access.js'
+import {localReviewEnabled} from './lib/subscription-model.js'
+import {NativeFamilyUI} from './lib/native-family-ui.js'
+import {WallDeviceService,pairingValue} from './lib/wall-device.js'
 import {hiddenImportLabel} from './lib/imported-scopes.js'
 import {eventInterval,eventOverlapsDate,eventDisplayRange,eventDayLabel,eventDayState,eventDateRange,validateEventInterval,supportsInterval,daysBetween} from './lib/calendar-interval.js'
 import {RecipeService,imageBlob} from './lib/recipe-service.js'
@@ -49,7 +57,7 @@ import { installDialogAccessibility } from './lib/dialog-accessibility.js'
 const app = document.querySelector('#app')
 const publicUrl=publicBase(import.meta.env,location)
 const accountPath=location.pathname==='/delete-account'
-const isPublicPage=['/privacy','/support'].includes(location.pathname)
+const isPublicPage=['/privacy','/support','/terms'].includes(location.pathname)
 const callback=()=>authCallback({native:platform.native,base:publicUrl})
 const devices=supabase&&platform.native?new DeviceRegistration({client:supabase,push:PushNotifications,storage:localStorage,platform,enabled:import.meta.env.VITE_NATIVE_PUSH_ENABLED==='true',onStatus:text=>{const target=document.querySelector('#push-status');if(target)target.textContent=text}}):null
 let pendingCalendarLink=parseAppLink(location.href,{base:publicUrl,localOrigin:location.origin})
@@ -84,7 +92,7 @@ let householdPeopleHouseholdId = null
 let calendarFeeds = []
 let calendarFeedsHouseholdId = null
 let activePersonFilter = 'Alle'
-let initialAuthError=parseAppLink(location.href,{base:publicUrl,localOrigin:location.origin})?.kind==='auth-error'?'Linket er udløbet eller ugyldigt. Bed om et nyt link.':''
+let initialAuthError=parseAppLink(location.href,{base:publicUrl,localOrigin:location.origin})?.kind==='auth-error'?(t("app.this_link_has_expired_or_is_invalid_request_a_new_link")):''
 let message=initialAuthError
 let isCreatingHousehold = false
 let isLoadingCalendar = false
@@ -112,7 +120,7 @@ let editingRowsSnapshot = []
 const realtime = calendarRealtime(supabase, async () => { await refreshHousehold() }, state => {
   const indicator = document.querySelector('#calendar-sync-status')
   if (indicator) {
-    indicator.textContent = state === 'SUBSCRIBED' ? '' : 'Forbindelsen genoprettes…'
+    indicator.textContent = state === 'SUBSCRIBED' ? '' : (t("app.reconnecting"))
     indicator.dataset.state = state
   }
 })
@@ -120,6 +128,25 @@ const realtime = calendarRealtime(supabase, async () => { await refreshHousehold
 
 const deviceKey=DEVICE_KEY+':'+cacheNamespace
 let device=readDevice(localStorage,deviceKey)
+const languagePrefs=new LanguagePreference({client:supabase,onChange:()=>{renderPreservingSettingsScroll();if(nativeFamily.view)void nativeFamily.open(nativeFamily.view)}})
+const nativeReview=localReviewEnabled(import.meta.env,location)
+let wallRevoked=false,wallNaming=false,nativeBootReady=false,reviewModule=null
+const subscriptionAccess=new SubscriptionAccessService({client:supabase,provider:new RevenueCatProvider()})
+const isWall=()=>session?.user?.is_anonymous===true
+const wallService=new WallDeviceService({client:supabase,onSnapshot:snapshot=>{
+ const first=activeHousehold?.id!==snapshot.household.id
+ languagePrefs.wall(snapshot.device,snapshot.household);
+ activeHousehold=snapshot.household;householdRole='device';households=[activeHousehold]
+ householdPeople=(snapshot.people||[]).map(p=>({...p,role:mapPersonRoleToUi(p.role)}));calendarItems=snapshot.items||[];calendarFeeds=[];libraryRecipes=[];liveFeedMetadata=[]
+ rewardState={...emptyRewards(),...snapshot.rewards};calendarItemsHouseholdId=householdPeopleHouseholdId=calendarFeedsHouseholdId=activeHousehold.id
+ subscriptionAccess.context={userId:session?.user.id,householdId:activeHousehold.id,role:'device',wall:true};subscriptionAccess.apply(snapshot.access)
+ applyNativeReviewState()
+ if(first){productRoute='calendar';calendarViewMode='week';calendarCursorDate=new Date()}
+ wallRevoked=false;void wakeScreen.set(true)
+ if(!wallNaming&&!document.querySelector('#wall-name-form'))render({preserveDialogs:true})
+},onRevoked:()=>{wallRevoked=true;activeHousehold=null;households=[];calendarItems=[];householdPeople=[];rewardState=emptyRewards();void wakeScreen.set(false);render()},onStatus:text=>{message=text}})
+const nativeFamily=new NativeFamilyUI({client:supabase,access:subscriptionAccess,wall:wallService,review:nativeReview,
+ getContext:()=>({householdId:activeHousehold?.id,admin:canManageFeeds(),platform:platform.os}),chooseMode:chooseDeviceMode,onRender:()=>{wallNaming=false;render()}})
 let shoppingDraft={title:'',note:''},shoppingBusy=false,shoppingOpen=false
 let foodRoute='meals'
 let productRoute='calendar',settingsTab='people',taskRange='today',newCalendarType='Aktivitet'
@@ -133,7 +160,7 @@ const detailRoot=document.createElement('div');document.body.append(detailRoot)
 detailRoot.addEventListener('dismiss-dialog',()=>{detailRoot.innerHTML=''})
 const importedRoot=document.createElement('div');document.body.append(importedRoot)
 const importedEditor=new ImportedEditor({root:importedRoot,getContext:()=>sessionEpoch+':'+activeHousehold?.id,getPeople:()=>householdPeople.filter(isActiveHouseholdPerson),
- save:async(item,patch,{scope='occurrence',hide=false})=>{if(!navigator.onLine||syncStatus.offline)throw Error('Forbind til internettet for at gemme ændringer i importerede aftaler.');const engine=syncEngine;engine.writeGeneration++;const {error}=await supabase.rpc('edit_imported_calendar_scope',{p_id:item.id,p_expected:item.updated_at,p_patch:patch,p_scope:scope,p_hide:hide});if(error)throw error;if(engine===syncEngine){engine.writeGeneration++;await refreshHousehold()}},onSaved:()=>updateCalendarSurface()})
+ save:async(item,patch,{scope='occurrence',hide=false})=>{if(!navigator.onLine||syncStatus.offline)throw Error((t("app.connect_to_the_internet_to_save_changes_to_imported_events")));const engine=syncEngine;engine.writeGeneration++;const {error}=await supabase.rpc('edit_imported_calendar_scope',{p_id:item.id,p_expected:item.updated_at,p_patch:patch,p_scope:scope,p_hide:hide});if(error)throw error;if(engine===syncEngine){engine.writeGeneration++;await refreshHousehold()}},onSaved:()=>updateCalendarSurface()})
 const recipeRoot=document.createElement('div');document.body.append(recipeRoot)
 const recipeContext=()=>({key:sessionEpoch+':'+activeHousehold?.id,householdId:activeHousehold?.id,recipes:libraryRecipes,people:householdPeople,items:calendarItems,mode:mode(),error:recipeLoadError})
 const recipeService=new RecipeService({client:supabase,getContext:recipeContext})
@@ -151,7 +178,7 @@ const planEditor=new PlanEditor({getRecipes:()=>libraryRecipes,chooseRecipe:date
  },
  save:(values,existing)=>runCalendarMutation(()=>existing?planEdit([existing],existing,values):planCreate(values)),
  remove:existing=>runCalendarMutation(()=>({upserts:[],deleteIds:[existing.id],expected:[{id:existing.id,updated_at:existing.updated_at}]})),
- onSaved:()=>{message='Gemt til familien.';updateCalendarSurface()}
+ onSaved:()=>{message=(t("app.saved_for_the_family"));updateCalendarSurface()}
 })
 let pendingInvite=consumeInvite(location,history,sessionStorage)
 let authScreen=location.hash.includes('type=recovery')||sessionStorage.getItem('familiekalender.recovery')?'recovery':'login'
@@ -160,9 +187,9 @@ let lastClockMinute=''
 const clock=new DeviceClock({
  onTick:now=>{
    const time=document.querySelector('#device-clock'),date=document.querySelector('#device-date')
-   const text=new Intl.DateTimeFormat('da-DK',{hour:'2-digit',minute:'2-digit'}).format(now)
+   const text=dateFormatter({hour:'2-digit',minute:'2-digit'}).format(now)
    if(time&&time.textContent!==text)time.textContent=text
-   const dateText=new Intl.DateTimeFormat('da-DK',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(now)
+   const dateText=dateFormatter({weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(now)
    if(date&&date.textContent!==dateText)date.textContent=dateText
    const minute=toDateIso(now)+text
    if(lastClockMinute!==minute){lastClockMinute=minute;if(session&&productRoute==='today')scheduleCalendarSurface()}
@@ -177,24 +204,53 @@ function preferredHousehold(fallback) {
  return households.find(h=>device.kiosk?.userId===session?.user.id&&h.id===device.kiosk?.householdId)||fallback
 }
 
+async function chooseDeviceMode(usage){
+ if(usage==='wall'&&session&&!isWall()){
+  if(!window.confirm((t("app.sign_out_on_this_device_and_connect_it_using_a_code_from_an_adult_s_phone"))))return
+  await handleLogout();await supabase.auth.signOut({scope:'local'})
+ }
+ if(usage==='personal'&&isWall()){
+  wallService.stop();wallService.device=null;await supabase.auth.signOut({scope:'local'});clearSessionState();wallRevoked=false
+ }
+ // A revoked anonymous identity cannot be rebound; discard only this device's local session.
+ if(usage==='wall'&&wallRevoked){await supabase.auth.signOut({scope:'local'});clearSessionState();wallService.device=null;wallRevoked=false}
+ device.usage=usage;persistDevice();render()
+}
+function applyNativeReviewState(){
+ if(!nativeReview||!reviewModule||!subscriptionAccess.context)return
+ const state=sessionStorage.getItem('native50.state')||'monthly',role=sessionStorage.getItem('native50.role')||householdRole
+ const snapshot=reviewModule.reviewAccess(state,role);snapshot.enabled=sessionStorage.getItem('native50.enforce')==='true'
+ subscriptionAccess.apply(snapshot)
+}
+
 async function init() {
   installProductRuntime()
   void clearNativeExports().catch(()=>{})
   if (!platform.native && import.meta.env.PROD && 'serviceWorker' in navigator) navigator.serviceWorker.register(import.meta.env.BASE_URL + 'sw.js').catch(() => {})
   if(isPublicPage){app.innerHTML=renderPublicPage(location.pathname);return}
   if (configurationError) { app.innerHTML = '<main class="app-shell"><p>' + escapeHtml(configurationError) + '</p></main>'; return }
+  app.innerHTML=("<main class=\"app-shell native-onboarding\"><p class=\"eyebrow\">Familiekalender</p><h1>"+t("app.just_a_moment")+"</h1><p role=\"status\">"+t("app.finding_your_family_and_this_device_s_settings")+"</p></main>")
+  if(import.meta.env.DEV&&nativeReview){
+   reviewModule=await import('./lib/native-review.js');subscriptionAccess.provider=reviewModule.reviewProvider()
+   const refresh=subscriptionAccess.refresh.bind(subscriptionAccess)
+   subscriptionAccess.refresh=async()=>{await refresh();applyNativeReviewState();return subscriptionAccess.state}
+   const transact=subscriptionAccess.transact.bind(subscriptionAccess)
+   subscriptionAccess.transact=async(...args)=>{const result=await transact(...args);if(result.entitled)sessionStorage.setItem('native50.state','monthly');return result}
+   const banner=document.createElement('div');banner.className='native-review-banner';banner.textContent=(t("app.local_review_simulated_subscriptions_no_purchases"));document.body.append(banner)
+  }
+  nativeBootReady=true
 
   if(devices){try{const info=await App.getInfo();devices.appVersion=info.version+' ('+info.build+')'}catch{}}
   try {
     const remembered = await localStore.get('last-session')
-    if (remembered) await applySession({ user: { id: remembered.user_id }, offlineOnly: true }, 'OFFLINE')
-  } catch { message = 'Lokallagring er utilgængelig. Offlineændringer kan ikke gemmes.' }
+    if (remembered&&device.usage!=='wall') await applySession({ user: { id: remembered.user_id }, offlineOnly: true }, 'OFFLINE')
+  } catch { message = (t("app.local_storage_is_unavailable_offline_changes_cannot_be_saved")) }
   observeSession(supabase, async (next, event) => {
     if(event==='PASSWORD_RECOVERY'){authScreen='recovery';sessionStorage.setItem('familiekalender.recovery','1')}
     if (!next && !navigator.onLine && session) return
     await applySession(next, event)
     if(event==='PASSWORD_RECOVERY')render()
-  }, error => { message = 'Login kunne ikke indlæses: ' + error.message; if (!session) render() })
+  }, error => { message = (t("app.sign_in_could_not_be_loaded")+" ") + userError(error); if (!session) render() })
   await installNativeRuntime({onUrl:handleAppUrl,onResume:async()=>{
     nativeActive=true;clock.tick();await wakeScreen.visibility()
     supabase.auth.startAutoRefresh()
@@ -203,6 +259,7 @@ async function init() {
   },onPause:async()=>{nativeActive=false;realtime.stop();supabase.auth.stopAutoRefresh();await wakeScreen.visibility()},onBack:handleNativeBack})
   window.addEventListener('offline', () => { syncEngine?.emit(); realtime.stop(); updateCalendarSurface() })
   window.addEventListener('online', reconnectCalendar)
+  window.addEventListener('online',async()=>{if(session&&!isWall()){const before=locale();await languagePrefs.attach(session.user);if(locale()!==before)render({preserveDialogs:true})}})
   document.addEventListener('visibilitychange', () => { if (!document.hidden) reconnectCalendar() })
   window.matchMedia('(max-width: 699px)').addEventListener('change', () => { if (session) render({ preserveDialogs: true }) })
   setInterval(() => { if (session && navigator.onLine && syncEngine?.state.queue.some(row => ['pending','sending'].includes(row.status))) reconnectCalendar() }, 15000)
@@ -228,8 +285,10 @@ async function applySession(nextSession) {
   clearSessionState()
   if (previousId && nextSession && previousId !== nextSession.user.id) await localStore.clearUser(previousId)
   session = nextSession
+  await languagePrefs.attach(session?.user,{offline:session?.offlineOnly})
   const epoch = sessionEpoch
   if (!session) { if(initialAuthError){message=initialAuthError;initialAuthError='';history.replaceState(null,'','/')} render(); return }
+  if(isWall()){device.usage='wall';persistDevice();if(!wallService.pairing)await wallService.restore();render();return}
   try {
     const cached = await localStore.get('user:' + session.user.id)
     households = cached?.households || []
@@ -242,13 +301,15 @@ async function applySession(nextSession) {
     else if (!chosen) { activeHousehold = null; syncEngine?.stop(); syncEngine = null }
     render()
     if (activeHousehold && navigator.onLine) await refreshHousehold()
-  } catch (error) { message = error.message; render() }
+  } catch (error) { message = userError(error); render() }
 }
 async function activateHousehold(household) {
   rewardsUI.close(true);rewardState=emptyRewards();
   realtime.stop(); syncEngine?.stop(); rewardMotion.reset()
   syncPanelOpen = false; syncPanelRoot.innerHTML = ''
-  activeHousehold = household; householdRole = household.memberRole; rewardMotion.reset(household.id)
+  setHouseholdFormat(household);activeHousehold = household; householdRole = household.memberRole; rewardMotion.reset(household.id)
+  await subscriptionAccess.attach({userId:session.user.id,householdId:household.id,role:householdRole})
+  applyNativeReviewState()
   members=[];invitations=[];kioskUnlocked=false;pinRoot.innerHTML=''
   createRoot.innerHTML='';foodRoute='meals';planEditor.close(true);importedEditor.close(true);recipeUI.close(true);libraryRecipes=[];recipeImages.clear();recipeLoadVersion++;recipeLoadError='';detailRoot.innerHTML='';shoppingDraft={title:'',note:''};shoppingOpen=false
   const rememberedRoute=settingsForDevice().lastRoute
@@ -285,6 +346,7 @@ async function rememberHouseholds() {
   await localStore.put('last-session', { user_id: session.user.id })
 }
 async function refreshHousehold() {
+  if(isWall()){await wallService.refresh();return}
   if (!session || !activeHousehold || !navigator.onLine) return
   const engine = syncEngine
   await Promise.all([loadCalendarItems(), loadHouseholdPeople(), loadCalendarFeeds(), loadRewardsV2(), loadRecipes()])
@@ -293,6 +355,7 @@ async function refreshHousehold() {
   if (engine === syncEngine) {updateCalendarSurface();applyCalendarLink()}
 }
 async function reconnectCalendar() {
+  if(isWall()){if(navigator.onLine&&nativeActive)await wallService.refresh();return}
   if (!nativeActive || !navigator.onLine || !session || session.offlineOnly || !activeHousehold) return
   const id=activeHousehold.id,epoch=sessionEpoch,userId=session.user.id
   if(reconnectInFlight?.id===id)return reconnectInFlight.promise
@@ -306,6 +369,7 @@ async function reconnectCalendar() {
 }
 
 function clearSessionState() {
+  wallService.stop();nativeFamily.close();void subscriptionAccess.detach()
   rewardsUI.close(true);rewardState=emptyRewards();rewardLoadVersion++
   void wakeScreen.set(false);pinRoot.innerHTML='';createRoot.innerHTML='';foodRoute='meals';planEditor.close(true);importedEditor.close(true);recipeUI.close(true);libraryRecipes=[];recipeImages.clear();recipeLoadVersion++;recipeLoadError='';detailRoot.innerHTML='';shoppingDraft={title:'',note:''};shoppingOpen=false;kioskUnlocked=false;members=[];invitations=[]
   realtime.stop(); syncEngine?.stop(); syncEngine = null; rewardMotion.reset()
@@ -333,6 +397,15 @@ function canManageFeeds() { return ['owner', 'admin'].includes(householdRole) }
 function render({ preserveDialogs = false } = {}) {
   if(isPublicPage){app.innerHTML=renderPublicPage(location.pathname);return}
   if(accountPath&&session&&authScreen!=='recovery'){renderAccountPage();return}
+  if(nativeBootReady&&authScreen!=='recovery'&&!pendingInvite){
+   if((platform.isNative||nativeReview)&&!device.usage){nativeFamily.choice(app);return}
+   if(device.usage==='wall'||isWall()){
+    if(wallService.pairing)return
+    if(!wallService.device||!activeHousehold){nativeFamily.pairing(app,{revoked:wallRevoked,message});return}
+    if(wallNaming)return
+    if(!subscriptionAccess.state.canUsePremium){nativeFamily.renewal(app);return}
+   }
+  }
   applyDeviceAppearance()
   if(authScreen==='recovery'&&document.querySelector('#recovery-form'))return
   if (!session || authScreen==='recovery') {
@@ -341,6 +414,9 @@ function render({ preserveDialogs = false } = {}) {
   }
 
   if (activeHousehold) {
+    if(!subscriptionAccess.state.canUsePremium&&!isWall()){
+     app.innerHTML='<main class="app-shell native-onboarding"><h1>'+ (canManageFeeds()?(t("app.give_your_family_access")):(t("app.an_adult_needs_to_activate_the_subscription")))+("</h1><p>"+t("app.one_family_subscription_covers_everyone_and_all_your_devices")+"</p>")+(canManageFeeds()?("<button data-native-page=\"subscription\">"+t("app.view_subscription")+"</button>"):'')+("<button id=\"subscription-retry\" class=\"text-button\">"+t("app.check_access_again")+"</button><button id=\"logout-button\" class=\"text-button\">"+t("app.sign_out")+"</button></main>");nativeFamily.bind(app);app.querySelector('#subscription-retry').onclick=async()=>{await subscriptionAccess.refresh();render()};app.querySelector('#logout-button').onclick=handleLogout;return
+    }
     renderDashboard(preserveDialogs)
     return
   }
@@ -365,36 +441,36 @@ function renderPreservingSettingsScroll() {
 
 function renderLogin() {
  const recovery=authScreen==='recovery',reset=authScreen==='reset',signup=authScreen==='signup'
- const heading=recovery?'Vælg ny adgangskode':reset?'Glemt adgangskode?':signup?'Opret din konto':'Velkommen hjem'
- app.innerHTML='<main class="app-shell auth-shell"><section class="panel auth-panel"><p class="eyebrow">Familiekalender</p><h1>'+heading+'</h1>'+
- (pendingInvite?'<p class="hint">Log ind med invitationens email for at blive en del af familien.</p>':'')+
- (recovery?'<form id="recovery-form" class="stack-form"><label for="new-password">Ny adgangskode</label><input id="new-password" name="password" type="password" minlength="8" required autocomplete="new-password"><label for="repeat-password">Gentag adgangskode</label><input id="repeat-password" name="repeat" type="password" minlength="8" required autocomplete="new-password"><button type="submit">Gem adgangskode</button></form>':
- reset?'<form id="reset-form" class="stack-form"><p>Vi sender et link, så du kan vælge en ny adgangskode.</p><label for="email">Email</label><input id="email" name="email" type="email" required autocomplete="email"><button type="submit">Send nulstillingslink</button></form>':
- '<div class="auth-tabs"><button data-auth-screen="login" aria-pressed="'+!signup+'">Har en konto</button><button data-auth-screen="signup" aria-pressed="'+signup+'">Ny bruger</button></div><form id="login-form" class="stack-form"><label for="email">Email</label><input id="email" name="email" type="email" required autocomplete="email"><label for="password">Adgangskode</label><div class="password-field"><input id="password" name="password" type="password" required '+(signup?'minlength="8" autocomplete="new-password"':'autocomplete="current-password"')+'><button id="show-password" type="button" aria-label="Vis adgangskode">Vis</button></div><button type="submit" name="authAction" value="'+(signup?'signup':'login')+'">'+(signup?'Opret bruger':'Log ind')+'</button></form><button class="text-button" data-auth-screen="reset">Glemt adgangskode?</button>')+
- '<p id="message" class="message" role="status">'+escapeHtml(message)+'</p>'+((reset||recovery)?'<button data-auth-screen="login" class="text-button">'+(session?'Tilbage til kalender':'Tilbage til login')+'</button>':'')+'<p class="legal-links"><a href="/privacy">Privatliv</a> · <a href="/support">Support</a></p></section></main>'
+ const heading=recovery?(t("app.choose_a_new_password")):reset?(t("app.forgot_password")):signup?(t("app.create_your_account")):(t("app.welcome_home"))
+ app.innerHTML='<main class="app-shell auth-shell"><section class="panel auth-panel">'+languageControl()+'<p class="eyebrow">Familiekalender</p><h1>'+heading+'</h1>'+
+ (pendingInvite?("<p class=\"hint\">"+t("app.sign_in_with_the_invitation_email_to_join_the_family")+"</p>"):'')+
+ (recovery?("<form id=\"recovery-form\" class=\"stack-form\"><label for=\"new-password\">"+t("app.new_password")+"</label><input id=\"new-password\" name=\"password\" type=\"password\" minlength=\"8\" required autocomplete=\"new-password\"><label for=\"repeat-password\">"+t("app.repeat_password")+"</label><input id=\"repeat-password\" name=\"repeat\" type=\"password\" minlength=\"8\" required autocomplete=\"new-password\"><button type=\"submit\">"+t("app.save_password")+"</button></form>"):
+ reset?("<form id=\"reset-form\" class=\"stack-form\"><p>"+t("app.we_will_send_a_link_so_you_can_choose_a_new_password")+"</p><label for=\"email\">"+t("app.email")+"</label><input id=\"email\" name=\"email\" type=\"email\" required autocomplete=\"email\"><button type=\"submit\">"+t("app.send_reset_link")+"</button></form>"):
+ '<div class="auth-tabs"><button data-auth-screen="login" aria-pressed="'+!signup+("\">"+t("app.have_an_account")+"</button><button data-auth-screen=\"signup\" aria-pressed=\"")+signup+("\">"+t("app.new_user")+"</button></div><form id=\"login-form\" class=\"stack-form\"><label for=\"email\">"+t("app.email")+"</label><input id=\"email\" name=\"email\" type=\"email\" required autocomplete=\"email\"><label for=\"password\">"+t("app.password")+"</label><div class=\"password-field\"><input id=\"password\" name=\"password\" type=\"password\" required ")+(signup?'minlength="8" autocomplete="new-password"':'autocomplete="current-password"')+("><button id=\"show-password\" type=\"button\" aria-label=\""+t("app.show_password")+"\">"+t("app.show")+"</button></div><button type=\"submit\" name=\"authAction\" value=\"")+(signup?'signup':'login')+'">'+(signup?(t("app.create_account")):(t("app.sign_in")))+("</button></form><button class=\"text-button\" data-auth-screen=\"reset\">"+t("app.forgot_password")+"</button>"))+
+ '<p id="message" class="message" role="status">'+escapeHtml(message)+'</p>'+((reset||recovery)?'<button data-auth-screen="login" class="text-button">'+(session?(t("app.back_to_calendar")):(t("app.back_to_sign_in")))+'</button>':'')+("<p class=\"legal-links\"><a href=\"/privacy\">"+t("app.privacy")+"</a> · <a href=\"/support\">"+t("app.support")+"</a></p></section></main>")
  document.querySelectorAll('[data-auth-screen]').forEach(button=>button.onclick=()=>{authScreen=button.dataset.authScreen;message='';render()})
  document.querySelector('#login-form')?.addEventListener('submit',handleLogin)
- document.querySelector('#show-password')?.addEventListener('click',event=>{const input=document.querySelector('#password');input.type=input.type==='password'?'text':'password';event.target.textContent=input.type==='password'?'Vis':'Skjul';event.target.setAttribute('aria-label',input.type==='password'?'Vis adgangskode':'Skjul adgangskode')})
+ document.querySelector('#show-password')?.addEventListener('click',event=>{const input=document.querySelector('#password');input.type=input.type==='password'?'text':'password';event.target.textContent=input.type==='password'?(t("app.show")):(t("app.hide"));event.target.setAttribute('aria-label',input.type==='password'?(t("app.show_password")):(t("app.hide_password")))})
  document.querySelector('#reset-form')?.addEventListener('submit',async event=>{
    event.preventDefault();const button=event.target.querySelector('button');button.disabled=true
    const {error}=await supabase.auth.resetPasswordForEmail(new FormData(event.target).get('email'),{redirectTo:callback()})
-   message=error?'Linket kunne ikke sendes. Prøv igen om lidt.':'Hvis emailen har en konto, har vi sendt et link. Tjek også spam.'
+   message=error?(t("app.the_link_could_not_be_sent_please_try_again_shortly")):(t("app.if_this_email_has_an_account_we_have_sent_a_link_check_your_spam_folder_too"))
    document.querySelector('#message').textContent=message;button.disabled=false
  })
  document.querySelector('#recovery-form')?.addEventListener('submit',async event=>{
    event.preventDefault();const data=new FormData(event.target),button=event.target.querySelector('button')
-   if(data.get('password')!==data.get('repeat')){document.querySelector('#message').textContent='Adgangskoderne er ikke ens.';return}
+   if(data.get('password')!==data.get('repeat')){document.querySelector('#message').textContent=(t("app.the_passwords_do_not_match"));return}
    button.disabled=true
    const {error}=await supabase.auth.updateUser({password:String(data.get('password'))})
-   if(error){document.querySelector('#message').textContent='Adgangskoden kunne ikke ændres. Linket kan være udløbet; bed om et nyt link.';button.disabled=false;return}
-   sessionStorage.removeItem('familiekalender.recovery');history.replaceState(null,'','/');authScreen='login';message='Adgangskode opdateret.';render()
+   if(error){document.querySelector('#message').textContent=(t("app.the_password_could_not_be_changed_the_link_may_have_expired_request_a_new_one"));button.disabled=false;return}
+   sessionStorage.removeItem('familiekalender.recovery');history.replaceState(null,'','/');authScreen='login';message=(t("app.password_updated"));render()
  })
 }
 
 
 function renderCreateFirstHousehold() {
   if (householdsLoadFailed) {
-    app.innerHTML = '<main class="app-shell"><p>' + escapeHtml(message) + '</p><button id="retry-households">Prøv igen</button><button id="logout-button">Log ud</button></main>'
+    app.innerHTML = '<main class="app-shell"><p>' + escapeHtml(message) + ("</p><button id=\"retry-households\">"+t("app.try_again")+"</button><button id=\"logout-button\">"+t("app.sign_out")+"</button></main>")
     document.querySelector('#retry-households').onclick = async () => { await loadHouseholds(); if (households[0]) await activateHousehold(households[0]); render(); await refreshHousehold() }
     document.querySelector('#logout-button').onclick = handleLogout
     return
@@ -404,24 +480,24 @@ function renderCreateFirstHousehold() {
       <header class="dashboard-header">
         <div>
           <h1>Familiekalender</h1>
-          <p>Logget ind som ${escapeHtml(session.user.email)}</p>
+          <p>${t("app.signed_in_as")} ${escapeHtml(session.user.email)}</p>
         </div>
-        <button id="logout-button" type="button">Log ud</button>
+        <button id="logout-button" type="button">${t("app.sign_out")}</button>
       </header>
 
       <section class="panel">
-        <h2>Din familie</h2>
+        <h2>${t("app.your_family")}</h2>
         <ul id="households-list">
-          <li>Du er endnu ikke tilknyttet en familie.</li>
+          <li>${t("app.you_have_not_joined_a_family_yet")}</li>
         </ul>
       </section>
 
       ${renderInvitation()}
       <form id="household-form" class="panel stack-form">
-        <h2>Opret familie</h2>
-        <label for="household-name">Navn</label>
+        <h2>${t("app.create_family")}</h2>
+        <label for="household-name">${t("app.name")}</label>
         <input id="household-name" name="name" type="text" required />
-        <button type="submit">Opret familie</button>
+        <button type="submit">${t("app.create_family")}</button>
       </form>
 
       <p id="message" class="message">${escapeHtml(message)}</p>
@@ -448,9 +524,9 @@ function renderDashboard(preserveDialogs = false) {
   syncDefaultCalendarViewMode()
 
   const householdId = getHouseholdId(activeHousehold)
-  if (navigator.onLine && !session.offlineOnly) realtime.start(householdId)
-  const toggleViewLabel = calendarViewMode === 'week' ? 'Vis dag' : 'Vis uge'
-  const navUnit = calendarViewMode === 'week' ? 'uge' : 'dag'
+  if (navigator.onLine && !session.offlineOnly && !isWall()) realtime.start(householdId)
+  const toggleViewLabel = calendarViewMode === 'week' ? (t("app.day_view")) : (t("app.week_view"))
+  const navUnit = calendarViewMode === 'week' ? t('units.week') : t('units.day')
 
   if (calendarItemsHouseholdId !== householdId && !isLoadingCalendar) {
     loadCalendarItems({ renderAfter: true })
@@ -471,7 +547,7 @@ ${renderProductHeader()}
       </header>
 
       <div id="sync-status" class="sync-status">${renderSyncStatus()}</div>
-      ${(mode()!=='kiosk'&&productRoute==='family') && households.length > 1 ? '<label class="household-switch">Familie <select id="household-switch">' + households.map(h => '<option value="' + h.id + '" ' + (h.id === activeHousehold.id ? 'selected' : '') + '>' + escapeHtml(h.name) + '</option>').join('') + '</select></label>' : ''}
+      ${(mode()!=='kiosk'&&productRoute==='family') && households.length > 1 ? ("<label class=\"household-switch\">"+t("nav.family")+" <select id=\"household-switch\">") + households.map(h => '<option value="' + h.id + '" ' + (h.id === activeHousehold.id ? 'selected' : '') + '>' + escapeHtml(h.name) + '</option>').join('') + '</select></label>' : ''}
       ${renderProductNav()}
       ${renderInvitation()}
       ${filterRoutes.includes(productRoute)?renderPersonChips():''}
@@ -479,25 +555,25 @@ ${renderProductHeader()}
       <section class="calendar-section">
         <div class="section-heading calendar-heading">
           <div>
-            <h2>${['meals','shopping','recipes'].includes(productRoute)?'Mad & indkøb':routeLabels[productRoute]||'Kalender'}</h2>
-            <p id="calendar-heading-label">${escapeHtml(['today','calendar','tasks'].includes(productRoute)?getCalendarHeaderLabel():({meals:'Planlæg ugens aftensmad',shopping:'Én fælles liste, uanset hvem der handler',family:'Menneskerne bag alle planerne'}[productRoute]||''))}</p>
+            <h2>${['meals','shopping','recipes'].includes(productRoute)?(t("nav.meals")):routeLabels[productRoute]||(t("nav.calendar"))}</h2>
+            <p id="calendar-heading-label">${escapeHtml(['today','calendar','tasks'].includes(productRoute)?getCalendarHeaderLabel():({meals:(t("app.plan_this_week_s_dinners")),shopping:(t("app.one_shared_list_whoever_does_the_shopping")),family:(t("app.the_people_behind_all_the_plans"))}[productRoute]||''))}</p>
             <small id="calendar-sync-status" role="status"></small>
           </div>
           <div class="calendar-toolbar" ${productRoute!=='calendar'?'hidden':''}>
             <div class="calendar-nav">
-              <button id="calendar-prev-button" type="button" aria-label="Forrige ${navUnit}">${mode()==='mobile'?'←':'Forrige '+navUnit}</button>
-              <button id="calendar-today-button" type="button">I dag</button>
-              <button id="calendar-next-button" type="button" aria-label="Næste ${navUnit}">${mode()==='mobile'?'→':'Næste '+navUnit}</button>
+              <button id="calendar-prev-button" type="button" aria-label="${t("app.previous")} ${navUnit}">${mode()==='mobile'?'←':(t("app.previous")+" ")+navUnit}</button>
+              <button id="calendar-today-button" type="button">${t("nav.today")}</button>
+              <button id="calendar-next-button" type="button" aria-label="${t("app.next")} ${navUnit}">${mode()==='mobile'?'→':(t("app.next")+" ")+navUnit}</button>
             </div>
-            ${mode()==='mobile'?'<div class="mobile-view-switch" aria-label="Kalendervisning">'+['day','week'].map(view=>'<button type="button" data-calendar-view="'+view+'" aria-pressed="'+(calendarViewMode===view)+'">'+(view==='day'?'Dag':'Uge')+'</button>').join('')+'</div>':'<button id="calendar-toggle-view-button" type="button">'+toggleViewLabel+'</button>'}
+            ${mode()==='mobile'?("<div class=\"mobile-view-switch\" aria-label=\""+t("app.calendar_view")+"\">")+['day','week'].map(view=>'<button type="button" data-calendar-view="'+view+'" aria-pressed="'+(calendarViewMode===view)+'">'+(view==='day'?(t("app.day")):(t("app.week")))+'</button>').join('')+'</div>':'<button id="calendar-toggle-view-button" type="button">'+toggleViewLabel+'</button>'}
           </div>
         </div>
         <div id="calendar-view">${renderCalendarView()}</div>
       </section>
 
-      <div class="ux-notice" ${message?'':'hidden'}><p id="message" class="message" role="status">${escapeHtml(message)}</p><button id="dismiss-message" type="button" aria-label="Luk besked">×</button></div>
-      <button id="new-calendar-button" class="floating-new-button" type="button" aria-label="Opret ny" ${mode()==='kiosk'?'hidden':''}>${icon('plus')}<span>Ny</span></button>
-      <button id="settings-button" class="floating-settings-button" type="button" ${mode()!=='kiosk'?'hidden':''} aria-label="Indstillinger" title="Indstillinger">${icon('settings')}</button>
+      <div class="ux-notice" ${message?'':'hidden'}><p id="message" class="message" role="status">${escapeHtml(message)}</p><button id="dismiss-message" type="button" aria-label="${t("app.dismiss_message")}">×</button></div>
+      <button id="new-calendar-button" class="floating-new-button" type="button" aria-label="${t("app.create_new")}" ${mode()==='kiosk'?'hidden':''}>${icon('plus')}<span>${t("app.new")}</span></button>
+      <button id="settings-button" class="floating-settings-button" type="button" ${mode()!=='kiosk'?'hidden':''} aria-label="${t("app.settings")}" title="${t("app.settings")}">${icon('settings')}</button>
       ${renderCalendarModal()}
       ${renderSettingsModal()}
     </main>
@@ -655,34 +731,34 @@ function bindCalendarSurface() {
 function renderSyncStatus() {
   const queue=syncEngine?.state.queue||[], problems=queue.filter(row=>['conflict','error'].includes(row.status)).length
   const offline=!navigator.onLine||syncStatus.offline
-  const label=problems?problems+' ændringer kræver dit valg':offline?'Offline · ændringer gemmes lokalt':syncStatus.syncing?'Synkroniserer…':queue.length?queue.length+' ændringer venter på synkronisering':''
-  return '<span role="status">'+escapeHtml(label)+'</span>'+(queue.length?'<button id="sync-details-button" class="sync-details-button">Se ændringer</button>':'')
+  const label=problems?problems+(" "+t("app.changes_need_your_choice")):offline?(t("app.offline_changes_saved_locally")):syncStatus.syncing?(t("app.syncing")):queue.length?queue.length+(" "+t("app.changes_waiting_to_sync")):''
+  return '<span role="status">'+escapeHtml(label)+'</span>'+(queue.length?("<button id=\"sync-details-button\" class=\"sync-details-button\">"+t("app.view_changes")+"</button>"):'')
 }
 function renderSyncPanel() {
   if(!syncPanelOpen){syncPanelRoot.innerHTML='';return}
   const rows=syncEngine?.state.queue||[]
-  syncPanelRoot.innerHTML='<div class="modal-backdrop" id="sync-panel-backdrop" role="dialog" aria-modal="true" aria-label="Synkronisering"><div class="calendar-modal"><header class="modal-header"><h2>Synkronisering</h2><button id="sync-panel-close" class="icon-button" aria-label="Luk">×</button></header>'+
+  syncPanelRoot.innerHTML=("<div class=\"modal-backdrop\" id=\"sync-panel-backdrop\" role=\"dialog\" aria-modal=\"true\" aria-label=\""+t("app.sync")+"\"><div class=\"calendar-modal\"><header class=\"modal-header\"><h2>"+t("app.sync")+"</h2><button id=\"sync-panel-close\" class=\"icon-button\" aria-label=\""+t("common.close")+"\">×</button></header>")+
     (rows.length?rows.map(row=>{
-      const title=row.payload.reward_action?.optimistic?.title||row.payload.p_upserts.at(-1)?.title||'Sletning af aftale'
+      const title=row.payload.reward_action?.optimistic?.title||row.payload.p_upserts.at(-1)?.title||(t("app.event_deletion"))
       const current=syncEngine.state.snapshot.items.find(item=>item.id===row.payload.p_upserts.at(-1)?.id)
-      return '<article class="sync-problem"><strong>'+escapeHtml(title)+'</strong><p>'+escapeHtml(row.error||'Venter på synkronisering')+'</p>'+
-        (row.status==='conflict'?'<p>Server: '+escapeHtml(current?.title||'Aftalen er slettet eller ændret')+'</p><p>Behold min version gemmer dine felter oven på den aktuelle serverversion. Brug serverversion kasserer også efterfølgende lokale ændringer, der afhænger af denne.</p><button data-sync-choice="local" data-sync-id="'+row.id+'">Behold min version</button><button data-sync-choice="server" data-sync-id="'+row.id+'">Brug serverversion</button>':
-          row.status==='error'?'<button data-sync-retry>Prøv igen</button><button data-sync-choice="server" data-sync-id="'+row.id+'">Brug serverversion</button>':'')+'</article>'
-    }).join(''):'<p>Alle ændringer er synkroniseret.</p>')+'</div></div>'
+      return '<article class="sync-problem"><strong>'+escapeHtml(title)+'</strong><p>'+escapeHtml(row.error||(t("app.waiting_to_sync")))+'</p>'+
+        (row.status==='conflict'?("<p>"+t("app.server")+" ")+escapeHtml(current?.title||(t("app.the_event_has_been_deleted_or_changed")))+("</p><p>"+t("app.keep_my_version_saves_your_fields_over_the_current_server_version_use_server_version_also_discards_later_local_changes_that_depend_on_this_one")+"</p><button data-sync-choice=\"local\" data-sync-id=\"")+row.id+("\">"+t("app.keep_my_version")+"</button><button data-sync-choice=\"server\" data-sync-id=\"")+row.id+("\">"+t("app.use_server_version")+"</button>"):
+          row.status==='error'?("<button data-sync-retry>"+t("app.try_again")+"</button><button data-sync-choice=\"server\" data-sync-id=\"")+row.id+("\">"+t("app.use_server_version")+"</button>"):'')+'</article>'
+    }).join(''):("<p>"+t("app.all_changes_are_synced")+"</p>"))+'</div></div>'
   syncPanelRoot.querySelector('#sync-panel-close').onclick=()=>{syncPanelOpen=false;renderSyncPanel()}
   syncPanelRoot.querySelector('#sync-panel-backdrop').onclick=event=>{if(event.target===event.currentTarget){syncPanelOpen=false;renderSyncPanel()}}
   syncPanelRoot.querySelectorAll('[data-sync-choice]').forEach(button=>button.onclick=async()=>{
     button.disabled=true
-    try{await syncEngine.resolve(button.dataset.syncId,button.dataset.syncChoice);await loadCalendarItems()}catch(error){message=error.message}
+    try{await syncEngine.resolve(button.dataset.syncId,button.dataset.syncChoice);await loadCalendarItems()}catch(error){message=userError(error)}
     updateCalendarSurface()
   })
   syncPanelRoot.querySelector('[data-sync-retry]')?.addEventListener('click',()=>syncEngine.retry())
 }
 function renderDayItems(section,items,date) {
-  if(section!=='Opgave'||!(mode()==='kiosk'||mode()==='mobile'))return items.length?items.map(renderCalendarItemCard).join(''):'<p class="empty-section">Ingen</p>'
+  if(section!=='Opgave'||!(mode()==='kiosk'||mode()==='mobile'))return items.length?items.map(renderCalendarItemCard).join(''):("<p class=\"empty-section\">"+t("app.none")+"</p>")
   const open=items.filter(item=>!taskComplete(item,householdPeople,rewardState,activePersonFilter)),completed=items.filter(item=>taskComplete(item,householdPeople,rewardState,activePersonFilter))
-  return (open.length?open.map(renderCalendarItemCard).join(''):'<p class="empty-section">Ingen åbne opgaver</p>')+
-    (completed.length?'<details class="completed-tasks" data-completed-date="'+date+'" '+(expandedTaskDays.has(date)?'open':'')+'><summary>'+completed.length+' udførte opgaver</summary>'+completed.map(renderCalendarItemCard).join('')+'</details>':'')
+  return (open.length?open.map(renderCalendarItemCard).join(''):("<p class=\"empty-section\">"+t("app.no_open_tasks")+"</p>"))+
+    (completed.length?'<details class="completed-tasks" data-completed-date="'+date+'" '+(expandedTaskDays.has(date)?'open':'')+'><summary>'+completed.length+(" "+t("app.completed_tasks")+"</summary>")+completed.map(renderCalendarItemCard).join('')+'</details>':'')
 }
 
 function renderCalendarView() {
@@ -693,7 +769,7 @@ function renderCalendarView() {
   if(productRoute==='shopping')return renderFoodTabs()+renderShopping(calendarItems,shoppingDraft,mode()==='mobile',mode()==='kiosk')
   if(productRoute==='family')return renderFamilyHome()
   if (isLoadingCalendar) {
-    return '<p class="calendar-status">Henter kalender...</p>'
+    return ("<p class=\"calendar-status\">"+t("app.loading_calendar")+"</p>")
   }
 
   if (calendarViewMode === 'day') {
@@ -715,8 +791,8 @@ function renderCalendarView() {
 }
 
 function renderPersonChips() {
-  const people = [{id:'Alle',name:'Alle',color:'#0f172a'},...householdPeople.filter(isActiveHouseholdPerson)]
-  return '<div id="person-chipbar" class="person-chipbar" aria-label="Personfilter">' + people.map(person => {
+  const people = [{id:'Alle',name:t('common.all'),color:'#0f172a'},...householdPeople.filter(isActiveHouseholdPerson)]
+  return ("<div id=\"person-chipbar\" class=\"person-chipbar\" aria-label=\""+t("app.person_filter")+"\">") + people.map(person => {
     return '<button class="person-chip '+(activePersonFilter===person.id?'active':'')+'" type="button" data-person-filter="'+escapeHtml(person.id)+'" style="border-color:'+escapeHtml(person.color||'#64748b')+'">'+
       renderPersonAvatar(person,'person-chip-avatar')+'<span>'+escapeHtml(person.name)+'</span>'+
       ''+'</button>'
@@ -733,9 +809,9 @@ function renderDayCard(date,full=false) {
   const meals=productRoute==='today'?[]:mealsOn(calendarItems,dateIso),shownMeals=compact?meals.slice(0,1):meals
   const hidden=visible.hidden+meals.length-shownMeals.length
   const sections = [
-    { key: 'Aktivitet', label: 'Aktiviteter' },
-    { key: 'Fritidsinteresse', label: mode()==='kiosk'?'Fritid':'Fritidsinteresser' },
-    { key: 'Opgave', label: 'Opgaver' },
+    { key: 'Aktivitet', label: (t("app.activities")) },
+    { key: 'Fritidsinteresse', label: mode()==='kiosk'?(t("app.leisure")):(t("app.hobbies")) },
+    { key: 'Opgave', label: (t("nav.tasks")) },
   ]
   if (calendarViewMode === 'day' && mode() === 'mobile') sections.sort((a,b) => Number(b.key==='Opgave')-Number(a.key==='Opgave'))
 
@@ -743,7 +819,7 @@ function renderDayCard(date,full=false) {
     <article class="day-card ${[0,6].includes(date.getDay())?'is-weekend':''} ${dateIso === toDateIso(new Date()) ? 'is-today' : ''}" data-day="${dateIso}">
       <header class="day-card-header">
         <strong>${escapeHtml(formatWeekday(date))}</strong>
-        <span>${escapeHtml(formatShortDate(date))}${dateIso === toDateIso(new Date()) ? ' · I dag' : ''}</span>
+        <span>${escapeHtml(formatShortDate(date))}${dateIso === toDateIso(new Date()) ? (" "+t("app.today")) : ''}</span>
 
       </header>
 
@@ -760,21 +836,21 @@ function renderDayCard(date,full=false) {
               </div>
             </section>
           `
-        }).join('') || (meals.length?'':'<p class="empty-section empty-day">'+'Ingen planer'+'</p>')}
-        ${hidden?'<button class="day-overflow" data-day-detail="'+dateIso+'">+ '+hidden+' flere</button>':''}
+        }).join('') || (meals.length?'':'<p class="empty-section empty-day">'+(t("app.no_plans"))+'</p>')}
+        ${hidden?'<button class="day-overflow" data-day-detail="'+dateIso+'">+ '+hidden+(" "+t("app.more")+"</button>"):''}
         ${compactMeals(shownMeals)}
       </div>
     </article>
   `
 }
 
-function renderWeekItem(item,day){if(eventInterval(item).multiDay)return renderDailyIntervalItem(item,day,true);return '<button class="compact-activity" data-calendar-item="'+escapeHtml(item.id)+'" style="--item-color:'+escapeHtml(getCalendarItemColor(item))+'"><strong>'+renderCalendarItemIcon(item)+escapeHtml(getCalendarItemTitle(item))+'</strong><span class="compact-activity-meta"><time>'+escapeHtml(item.time||'Heldag')+'</time><span>'+escapeHtml(getCalendarItemPeople(item).join(', '))+'</span>'+(sourceLabel(item)?'<small>'+escapeHtml(sourceLabel(item))+'</small>':'')+'</span></button>'}
+function renderWeekItem(item,day){if(eventInterval(item).multiDay)return renderDailyIntervalItem(item,day,true);return '<button class="compact-activity" data-calendar-item="'+escapeHtml(item.id)+'" style="--item-color:'+escapeHtml(getCalendarItemColor(item))+'"><strong>'+renderCalendarItemIcon(item)+escapeHtml(getCalendarItemTitle(item))+'</strong><span class="compact-activity-meta"><time>'+escapeHtml(item.time||(t("calendar.all_day")))+'</time><span>'+escapeHtml(calendarPeopleLabel(item))+'</span>'+(sourceLabel(item)?'<small>'+escapeHtml(sourceLabel(item))+'</small>':'')+'</span></button>'}
 function renderDailyIntervalItem(item,day,compact=false){
- const title=getCalendarItemTitle(item),people=getCalendarItemPeople(item).join(', '),range=eventDisplayRange(item),label=eventDayLabel(item,day,{compact})
+ const title=getCalendarItemTitle(item),people=calendarPeopleLabel(item),range=eventDisplayRange(item),label=eventDayLabel(item,day,{compact})
  return '<button class="compact-activity calendar-multiday" data-calendar-item="'+escapeHtml(item.id)+'" data-event-state="'+eventDayState(item,day)+'" aria-label="'+escapeHtml(title+' · '+range+' · '+people)+'" title="'+escapeHtml(range+' · '+people+(sourceLabel(item)?' · '+sourceLabel(item):''))+'" style="--item-color:'+escapeHtml(getCalendarItemColor(item))+'"><strong>'+renderCalendarItemIcon(item)+escapeHtml(title)+'</strong>'+(!compact?'<span class="event-range">'+escapeHtml(eventDateRange(item)+' · '+people)+'</span>':'')+'<span class="compact-activity-meta event-day-label">'+escapeHtml(label)+'</span></button>'
 }
-function renderCompactTask(item){return compactTask(item,{people:getCalendarItemPeople(item).join(', '),done:taskComplete(item,householdPeople,rewardState,activePersonFilter),reward:rewardRule(item)})}
-function openDayDetail(date){detailRoot.innerHTML='<div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="day-detail-title"><section class="calendar-modal full-day-detail"><header class="modal-header"><h2 id="day-detail-title">'+escapeHtml(formatDayHeaderDate(parseDateIso(date)))+'</h2><button data-day-close aria-label="Luk">×</button></header>'+renderDayCard(parseDateIso(date),true)+'</section></div>';detailRoot.querySelector('[data-day-close]').onclick=()=>{detailRoot.innerHTML=''};bindCalendarSurface();bindPlanningSurface()}
+function renderCompactTask(item){return compactTask(item,{people:calendarPeopleLabel(item),done:taskComplete(item,householdPeople,rewardState,activePersonFilter),reward:rewardRule(item)})}
+function openDayDetail(date){detailRoot.innerHTML='<div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="day-detail-title"><section class="calendar-modal full-day-detail"><header class="modal-header"><h2 id="day-detail-title">'+escapeHtml(formatDayHeaderDate(parseDateIso(date)))+("</h2><button data-day-close aria-label=\""+t("common.close")+"\">×</button></header>")+renderDayCard(parseDateIso(date),true)+'</section></div>';detailRoot.querySelector('[data-day-close]').onclick=()=>{detailRoot.innerHTML=''};bindCalendarSurface();bindPlanningSurface()}
 function renderCalendarItemCard(item,day=toDateIso(calendarCursorDate)) {
   if(managedTask(item))return rewardsUI.taskCard(item,activePersonFilter)
   if(eventInterval(item).multiDay)return renderDailyIntervalItem(item,day)
@@ -782,12 +858,12 @@ function renderCalendarItemCard(item,day=toDateIso(calendarCursorDate)) {
   const id = item.id
   const type = getCalendarSection(getCalendarValue(item, 'type'))
   const done = Boolean(getCalendarValue(item, 'done'))
-  const person = getCalendarItemPeople(item).join(', ') || 'Alle'
+  const person = calendarPeopleLabel(item) || 'Alle'
   const location = getCalendarValue(item, 'location')
   const note = getCalendarValue(item, 'note')
   const title = getCalendarItemTitle(item)
   const itemIcon = renderCalendarItemIcon(item)
-  const timeLabel = getCalendarValue(item, 'time') || 'Heldag'
+  const timeLabel = getCalendarValue(item, 'time') || (t("calendar.all_day"))
   const repeatMeta = renderCalendarRepeatMeta(item)
   const iconColumn = itemIcon
     ? `<div class="calendar-item-icon-column">${itemIcon}</div>`
@@ -800,7 +876,7 @@ function renderCalendarItemCard(item,day=toDateIso(calendarCursorDate)) {
           data-calendar-toggle="${escapeHtml(id)}"
           ${done ? 'checked' : ''}
         />
-        <span>${done ? 'Udført' : 'Markér udført'}</span>
+        <span>${done ? (t("app.completed")) : (t("app.mark_completed"))}</span>
       </label>
     `
     : ''
@@ -843,11 +919,11 @@ function renderCalendarItemCard(item,day=toDateIso(calendarCursorDate)) {
 function renderCalendarItemIcon(item) {
   if (getCalendarValue(item, 'type') === 'Opgave') return '<span class="task-emoji" aria-hidden="true">' + taskEmoji(getCalendarItemTitle(item)) + '</span>'
   if (isBirthdayItem(item)) {
-    return '<span class="calendar-item-icon calendar-birthday-flag" aria-label="Fødselsdag" title="Fødselsdag"></span>'
+    return ("<span class=\"calendar-item-icon calendar-birthday-flag\" aria-label=\""+t("app.birthday")+"\" title=\""+t("app.birthday")+"\"></span>")
   }
 
   if (isMilestoneItem(item)) {
-    return '<span class="calendar-item-icon calendar-milestone-star" aria-label="Mærkedag" title="Mærkedag"></span>'
+    return ("<span class=\"calendar-item-icon calendar-milestone-star\" aria-label=\""+t("app.milestone")+"\" title=\""+t("app.milestone")+"\"></span>")
   }
 
   return ''
@@ -857,7 +933,7 @@ function renderCalendarRepeatMeta(item) {
   const labels = []
 
   if (!imported(item) && (Boolean(getCalendarValue(item, 'repeatWeekly')) || item.isRepeatOccurrence)) {
-    labels.push('↻ uge')
+    labels.push((t("app.weekly")))
   }
 
   if (!imported(item) && getCalendarValue(item, 'overrideOf')) {
@@ -877,8 +953,8 @@ function renderCalendarModal() {
   const item = getEditingCalendarItem()
   const base = item ? baseFor(editingRowsSnapshot, item) : null
   const readOnly = imported(item) || item?.isVirtualMilestone || (managedTask(item)&&!rewardsUI.adult)
-  const mode = readOnly ? 'Kalenderaftale' : item ? 'Rediger aftale' : 'Ny aftale'
-  const submitText = item ? 'Gem ændringer' : 'Opret aftale'
+  const mode = readOnly ? (t("app.calendar_event")) : item ? (t("app.edit_event")) : (t("app.new_event"))
+  const submitText = item ? (t("app.save_changes")) : (t("app.create_event"))
   const values = {
     title: getCalendarValue(item || {}, 'title'),
     date: (item?.isYearlyOccurrence ? getCalendarValue(base || item, 'date') : getCalendarValue(item || {}, 'date')) || getDefaultCalendarItemDate(),
@@ -905,98 +981,98 @@ function renderCalendarModal() {
       <div class="calendar-modal">
         <header class="modal-header">
           <h2 id="calendar-modal-title">${mode}</h2>
-          <button id="calendar-modal-close" class="icon-button" type="button" aria-label="Luk">×</button>
+          <button id="calendar-modal-close" class="icon-button" type="button" aria-label="${t("common.close")}">×</button>
         </header>
 
         <form id="calendar-modal-form">
-          ${readOnly ? '<p class="source-notice">' + (managedTask(item)&&!rewardsUI.adult?'Belønningsopgaver redigeres af en voksen.':item.isVirtualMilestone ? 'Automatisk mærkedag fra kalenderens traditionsliste.' : 'Importeret fra ' + sourceLabel(item) + '. Redigér aftalen i kildekalenderen; ændringer kommer med ved næste import.') + '</p>' : ''}
-          ${item?.isYearlyOccurrence ? '<p class="source-notice">Ændringer gælder fødselsdagen i alle år. Datoen her er den oprindelige dato.</p>' : ''}
+          ${readOnly ? '<p class="source-notice">' + (managedTask(item)&&!rewardsUI.adult?(t("app.reward_tasks_are_edited_by_an_adult")):item.isVirtualMilestone ? (t("app.automatic_milestone_from_the_calendar_s_list_of_traditions")) : (t("app.imported_from")+" ") + sourceLabel(item) + t('calendar.edit_source')) + '</p>' : ''}
+          ${item?.isYearlyOccurrence ? ("<p class=\"source-notice\">"+t("app.changes_apply_to_the_birthday_in_every_year_the_date_here_is_the_original_date")+"</p>") : ''}
           <fieldset class="calendar-fields" ${readOnly ? 'disabled' : ''}>
           <div class="form-grid">
             <div class="full">
-              <label for="calendar-title">Titel</label>
+              <label for="calendar-title">${t("app.title")}</label>
               <input id="calendar-title" name="title" type="text" value="${escapeHtml(values.title)}" maxlength="1000" required />
-              <datalist id="task-suggestions">${[...new Set([...taskSuggestions, ...calendarItems.filter(row => row.type === 'Opgave').map(row => row.title)])].map(title => '<option value="' + escapeHtml(title) + '"></option>').join('')}</datalist>
+              <datalist id="task-suggestions">${[...new Set([...taskSuggestions(), ...calendarItems.filter(row => row.type === 'Opgave').map(row => row.title)])].map(title => '<option value="' + escapeHtml(title) + '"></option>').join('')}</datalist>
             </div>
 
             <div>
-              <label for="calendar-date">Startdato</label>
+              <label for="calendar-date">${t("app.start_date")}</label>
               <input id="calendar-date" name="date" type="date" value="${escapeHtml(values.date)}" required />
             </div>
 
             <div>
-              <label for="calendar-time">Starttid</label>
+              <label for="calendar-time">${t("app.start_time")}</label>
               <input id="calendar-time" name="time" type="time" value="${escapeHtml(values.time)}" />
             </div>
 
             <div class="interval-field">
-              <label for="calendar-end-date">Slutdato</label>
+              <label for="calendar-end-date">${t("app.end_date")}</label>
               <input id="calendar-end-date" name="endDate" type="date" value="${escapeHtml(interval.endDate)}" required />
             </div>
             <div class="interval-field">
-              <label for="calendar-end-time">Sluttid</label>
+              <label for="calendar-end-time">${t("app.end_time")}</label>
               <input id="calendar-end-time" name="endTime" type="time" value="${escapeHtml(interval.endTime)}" />
             </div>
-            <label class="interval-field full interval-all-day"><input id="calendar-all-day" name="allDay" type="checkbox" ${interval.allDay?'checked':''}> Heldag</label>
+            <label class="interval-field full interval-all-day"><input id="calendar-all-day" name="allDay" type="checkbox" ${interval.allDay?'checked':''}> ${t("calendar.all_day")}</label>
             <div class="full">
-              <label>Personer</label>
+              <label>${t("app.people")}</label>
               <div class="calendar-person-pills">
                 ${renderCalendarPersonPills(values.people)}
               </div>
             </div>
 
             <div>
-              <label for="calendar-type">Type</label>
+              <label for="calendar-type">${t("app.type")}</label>
               <select id="calendar-type" name="type">
                 ${renderTypeOption('Aktivitet', values.type)}
                 ${renderTypeOption('Opgave', values.type)}
                 ${renderTypeOption('Fritidsinteresse', values.type)}
                 ${renderTypeOption('Fødselsdag', values.type)}
-                ${renderTypeOption('Mærkedag', values.type)}
+                ${renderTypeOption((t("app.milestone")), values.type)}
               </select>
             </div>
 
             <div>
-              <label for="calendar-duration">Varighed</label>
+              <label for="calendar-duration">${t("app.duration")}</label>
               <input id="calendar-duration" name="durationMin" type="number" min="0" step="5" value="${escapeHtml(values.durationMin)}" />
             </div>
 
             <div class="full">
-              <label for="calendar-location">Lokation</label>
+              <label for="calendar-location">${t("app.location")}</label>
               <input id="calendar-location" name="location" type="text" value="${escapeHtml(values.location)}" />
             </div>
 
             <div id="birthday-fields" class="full ${isBirthday ? '' : 'hidden'}">
-              <label for="calendar-birth-year">Fødselsår</label>
+              <label for="calendar-birth-year">${t("app.year_of_birth")}</label>
               <input id="calendar-birth-year" name="birthYear" type="number" min="1900" max="2100" step="1" value="${escapeHtml(values.birthYear)}" />
             </div>
 
             <div class="full">
-              <label for="calendar-note">Note</label>
+              <label for="calendar-note">${t("app.note")}</label>
               <textarea id="calendar-note" name="note">${escapeHtml(values.note)}</textarea>
             </div>
 
             <div id="calendar-options" class="full repeat-options ${isBirthday || readOnly ? 'hidden' : ''}">
               <label id="repeat-weekly-option" class="checkbox-label ${isBirthday ? 'hidden' : ''}">
                 <input name="repeatWeekly" type="checkbox" ${values.repeatWeekly && !isBirthday ? 'checked' : ''} ${isBirthday ? 'disabled' : ''} />
-                Gentag hver uge
+                ${t("app.repeat_every_week")}
               </label>
               <label id="weekdays-option" class="checkbox-label ${canUseWeekdays ? '' : 'hidden'}">
                 <input name="weekdays" type="checkbox" ${values.weekdays && canUseWeekdays ? 'checked' : ''} ${canUseWeekdays ? '' : 'disabled'} />
-                Alle hverdage
+                ${t("app.all_weekdays")}
               </label>
               <label id="done-option" class="checkbox-label ${isTask ? '' : 'hidden'}">
                 <input name="done" type="checkbox" ${values.done && isTask ? 'checked' : ''} ${isTask ? '' : 'disabled'} />
-                Marker som udført
+                ${t("app.mark_as_completed")}
               </label>
             </div>
             ${hasRepeatScope ? `
               <div class="full repeat-scope-options">
-                <label>Ændringen gælder for</label>
+                <label>${t("app.apply_changes_to")}</label>
                 <div class="repeat-scope-row">
-                  <label class="checkbox-label"><input type="radio" name="repeatScope" value="one" checked /> Kun denne</label>
-                  <label class="checkbox-label"><input type="radio" name="repeatScope" value="future" /> Denne og frem</label>
-                  <label class="checkbox-label"><input type="radio" name="repeatScope" value="series" /> Hele serien</label>
+                  <label class="checkbox-label"><input type="radio" name="repeatScope" value="one" checked /> ${t("calendar.scope.single")}</label>
+                  <label class="checkbox-label"><input type="radio" name="repeatScope" value="future" /> ${t("calendar.scope.future")}</label>
+                  <label class="checkbox-label"><input type="radio" name="repeatScope" value="series" /> ${t("calendar.scope.series")}</label>
                 </div>
                 <p id="calendar-scope-help" class="source-notice"></p>
               </div>
@@ -1006,8 +1082,8 @@ function renderCalendarModal() {
           </fieldset>
           <p id="calendar-editor-message" class="message" role="status"></p>
           <footer class="modal-actions">
-            ${item && !readOnly ? '<button id="calendar-modal-delete" class="danger-button" type="button">Slet</button>' : ''}
-            <button id="calendar-modal-cancel" type="button">Annuller</button>
+            ${item && !readOnly ? ("<button id=\"calendar-modal-delete\" class=\"danger-button\" type=\"button\">"+t("app.delete")+"</button>") : ''}
+            <button id="calendar-modal-cancel" type="button">${t("common.cancel")}</button>
             ${readOnly ? '' : `<button type="submit">${submitText}</button>`}
           </footer>
         </form>
@@ -1025,8 +1101,8 @@ function renderSettingsModal() {
     <div id="settings-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
       <div class="settings-modal">
         <header class="modal-header">
-          <h2 id="settings-modal-title">Indstillinger</h2>
-          <button id="settings-modal-close" class="icon-button" type="button" aria-label="Luk">×</button>
+          <h2 id="settings-modal-title">${t("app.settings")}</h2>
+          <button id="settings-modal-close" class="icon-button" type="button" aria-label="${t("common.close")}">×</button>
         </header>
 
         ${renderSettingsNavigation()}
@@ -1034,26 +1110,26 @@ function renderSettingsModal() {
         <section class="settings-block" data-settings-panel="people" ${settingsTab==='people'?'':'hidden'}>
           <div class="settings-block-header">
             <div>
-              <h3>Personer</h3>
-              <p>Opdater navne, farver og avatarer</p>
+              <h3>${t("app.people")}</h3>
+              <p>${t("app.update_names_colours_and_avatars")}</p>
             </div>
           </div>
 
           ${renderSettingsPeopleList()}
 
           <form id="people-settings-form" class="people-settings-form">
-            <h3>+ Tilf&oslash;j person</h3>
+            <h3>${t("app.add_person")}</h3>
             <div class="settings-add-person-grid">
               <div class="person-avatar-preview" data-avatar-preview="new">
                 ${renderPersonAvatar({ name: '', color: '#64748b', avatar_url: '' }, 'person-settings-avatar')}
               </div>
               <input type="hidden" name="avatar_url" value="" data-person-avatar-value="new" />
               <div>
-                <label for="person-name">Navn</label>
+                <label for="person-name">${t("app.name")}</label>
                 <input id="person-name" name="name" type="text" data-person-name-input="new" />
               </div>
               <div>
-                <label for="person-role">Rolle</label>
+                <label for="person-role">${t("app.role")}</label>
                 <select id="person-role" name="role">
                   ${renderRoleOption('voksen', 'barn')}
                   ${renderRoleOption('barn', 'barn')}
@@ -1061,19 +1137,19 @@ function renderSettingsModal() {
                 </select>
               </div>
               <div>
-                <label for="person-color">Farve</label>
+                <label for="person-color">${t("app.colour")}</label>
                 <input id="person-color" name="color" type="color" value="#64748b" data-person-color-input="new" />
               </div>
               <div>
-                <label for="person-avatar-file">Avatar</label>
+                <label for="person-avatar-file">${t("app.avatar")}</label>
                 <input id="person-avatar-file" name="avatar_file" type="file" accept="image/png,image/jpeg,image/webp" data-person-avatar-file="new" />
               </div>
               <span class="person-settings-swatch" style="background:#64748b" data-person-color-swatch="new"></span>
             </div>
-            <label class="reward-setting"><input id="person-reward-enabled" name="reward_enabled" type="checkbox" checked />Deltager i belønningssystemet</label>
-            <p class="hint">Avatar kan tilføjes senere.</p>
+            <label class="reward-setting"><input id="person-reward-enabled" name="reward_enabled" type="checkbox" checked />${t("app.participates_in_tasks_and_rewards")}</label>
+            <p class="hint">${t("app.an_avatar_can_be_added_later")}</p>
             <footer class="modal-actions">
-              <button type="submit" ${isCreatingPerson ? 'disabled' : ''}>${isCreatingPerson ? 'Gemmer...' : 'Gem personer'}</button>
+              <button type="submit" ${isCreatingPerson ? 'disabled' : ''}>${isCreatingPerson ? (t("app.saving")) : (t("app.save_people"))}</button>
             </footer>
           </form>
 
@@ -1083,15 +1159,15 @@ function renderSettingsModal() {
         <section class="settings-block" data-settings-panel="feeds" ${settingsTab==='feeds'?'':'hidden'}>
           <div class="settings-block-header">
             <div>
-              <h3>Kalender-import</h3>
-              <p>Aktive kalendere synkroniseres automatisk hvert 5. minut.</p>
+              <h3>${t("app.calendar_import")}</h3>
+              <p>${t("app.active_calendars_sync_automatically_every_5_minutes")}</p>
             </div>
-            <button id="add-calendar-feed-button" class="btn small" type="button" ${canManageFeeds() ? '' : 'disabled'}>+ Tilf&oslash;j feed</button>
+            <button id="add-calendar-feed-button" class="btn small" type="button" ${canManageFeeds() ? '' : 'disabled'}>${t("app.add_feed")}</button>
           </div>
 
           ${renderCalendarFeedsList()}
           ${renderCalendarFeedForm()}
-          <button type="button" id="hidden-imports-open">Skjulte importerede aftaler</button>
+          <button type="button" id="hidden-imports-open">${t("app.hidden_imported_events")}</button>
           ${renderHiddenImports()}
           ${calendarImportMessage ? `<p class="message subtle-message">${escapeHtml(calendarImportMessage)}</p>` : ''}
         </section>
@@ -1102,11 +1178,11 @@ function renderSettingsModal() {
 
 function renderSettingsPeopleList() {
   if (isLoadingPeople) {
-    return '<p class="empty-state">Henter personer...</p>'
+    return ("<p class=\"empty-state\">"+t("app.loading_people")+"</p>")
   }
 
   if (!householdPeople.length) {
-    return '<p class="empty-state">Ingen personer endnu. Opret den første person herunder.</p>'
+    return ("<p class=\"empty-state\">"+t("app.no_people_yet_create_the_first_person_below")+"</p>")
   }
 
   return `
@@ -1117,13 +1193,13 @@ function renderSettingsPeopleList() {
 }
 
 function renderCalendarFeedsList() {
-  if (!canManageFeeds()) return '<p>Kun familiens ejer og administratorer kan administrere kalenderfeeds.</p>'
+  if (!canManageFeeds()) return ("<p>"+t("app.only_the_family_owner_and_administrators_can_manage_calendar_feeds")+"</p>")
   if (isLoadingCalendarFeeds) {
-    return '<p class="empty-state">Henter feeds...</p>'
+    return ("<p class=\"empty-state\">"+t("app.loading_feeds")+"</p>")
   }
 
   if (!calendarFeeds.length) {
-    return '<p class="empty-state">Ingen feeds endnu.</p>'
+    return ("<p class=\"empty-state\">"+t("app.no_feeds_yet")+"</p>")
   }
 
   return `
@@ -1134,8 +1210,8 @@ function renderCalendarFeedsList() {
 }
 
 function renderCalendarFeedRow(feed) {
-  const name = feed.name || 'Uden navn'
-  const assignedPerson = feedPerson(feed, householdPeople)?.name || feed.assigned_person_name || 'Ingen'
+  const name = feed.name || (t("app.unnamed"))
+  const assignedPerson = feedPerson(feed, householdPeople)?.name || feed.assigned_person_name || (t("app.none"))
   const source = getCalendarFeedSourceLabel(feed.source)
   const isActive = feed.is_active !== false
   const syncStatus = getCalendarFeedSyncStatus(feed)
@@ -1149,24 +1225,24 @@ function renderCalendarFeedRow(feed) {
         <div class="calendar-feed-title-row">
           <h4>${escapeHtml(name)}</h4>
           <span class="calendar-feed-badge">${escapeHtml(source)}</span>
-          <span class="calendar-feed-badge ${isActive ? 'active' : 'inactive'}">${isActive ? 'Aktiv' : 'Inaktiv'}</span>
+          <span class="calendar-feed-badge ${isActive ? 'active' : 'inactive'}">${isActive ? (t("app.active")) : (t("app.inactive"))}</span>
         </div>
-        <p class="calendar-feed-meta">Person: ${escapeHtml(assignedPerson)}</p>
+        <p class="calendar-feed-meta">${t("app.person")} ${escapeHtml(assignedPerson)}</p>
         <p class="calendar-feed-url" title="${escapeHtml(feedUrl)}">${escapeHtml(feedUrl)}</p>
         <p class="calendar-feed-status" data-feed-status="${escapeHtml(feed.id)}">${escapeHtml(syncStatus)}</p>
         ${importStatus ? `
           <p class="calendar-feed-status ${escapeHtml(importStatus.type || '')}">
             <span>${escapeHtml(importStatus.text)}</span>
             ${importStatus.dateText ? `<span>${escapeHtml(importStatus.dateText)}</span>` : ''}
-            ${importStatus.feedId ? `<button class="calendar-feed-next-button" type="button" data-go-to-imported-calendar-feed="${escapeHtml(importStatus.feedId)}">G&aring; til n&aelig;ste aftale</button>` : ''}
+            ${importStatus.feedId ? `<button class="calendar-feed-next-button" type="button" data-go-to-imported-calendar-feed="${escapeHtml(importStatus.feedId)}">${t("app.go_to_next_event")}</button>` : ''}
           </p>
         ` : ''}
       </div>
       <div class="calendar-feed-actions">
-        <button type="button" data-copy-calendar-feed="${escapeHtml(String(feed.id))}">Kopiér link</button>
-        <button type="button" data-edit-calendar-feed="${escapeHtml(String(feed.id))}">Rediger</button>
-        <button type="button" data-import-calendar-feed="${escapeHtml(String(feed.id))}" ${isImporting || !isActive ? 'disabled' : ''}>${isImporting ? 'Henter...' : 'Hent nu'}</button>
-        <button class="danger-button" type="button" data-delete-calendar-feed="${escapeHtml(String(feed.id))}">Slet</button>
+        <button type="button" data-copy-calendar-feed="${escapeHtml(String(feed.id))}">${t("app.copy_link")}</button>
+        <button type="button" data-edit-calendar-feed="${escapeHtml(String(feed.id))}">${t("app.edit")}</button>
+        <button type="button" data-import-calendar-feed="${escapeHtml(String(feed.id))}" ${isImporting || !isActive ? 'disabled' : ''}>${isImporting ? (t("app.loading")) : (t("app.fetch_now"))}</button>
+        <button class="danger-button" type="button" data-delete-calendar-feed="${escapeHtml(String(feed.id))}">${t("app.delete")}</button>
       </div>
     </article>
   `
@@ -1181,10 +1257,10 @@ function renderCalendarFeedForm() {
 
   return `
     <form id="calendar-feed-form" class="calendar-feed-form">
-      <h3>${isEditing ? 'Rediger feed' : '+ Tilf&oslash;j feed'}</h3>
+      <h3>${isEditing ? (t("app.edit_feed")) : (t("app.add_feed"))}</h3>
       <div class="calendar-feed-form-grid">
         <div>
-          <label for="calendar-feed-source">Kilde</label>
+          <label for="calendar-feed-source">${t("app.source")}</label>
           <select id="calendar-feed-source" name="source" data-calendar-feed-field>
             ${renderCalendarFeedSourceOption('aula', calendarFeedDraft.source)}
             ${renderCalendarFeedSourceOption('google', calendarFeedDraft.source)}
@@ -1192,17 +1268,17 @@ function renderCalendarFeedForm() {
           </select>
         </div>
         <div>
-          <label for="calendar-feed-person">Tilknyttet person</label>
+          <label for="calendar-feed-person">${t("app.assigned_person")}</label>
           <select id="calendar-feed-person" name="assigned_person_id" data-calendar-feed-field>
             ${renderCalendarFeedPersonOptions(calendarFeedDraft.assigned_person_id)}
           </select>
         </div>
         <label class="calendar-feed-active">
           <input name="is_active" type="checkbox" ${calendarFeedDraft.is_active ? 'checked' : ''} data-calendar-feed-field />
-          Aktiv
+          ${t("app.active")}
         </label>
         <div class="calendar-feed-url-field">
-          <label for="calendar-feed-url">Feed URL</label>
+          <label for="calendar-feed-url">${t("app.feed_url")}</label>
           <input id="calendar-feed-url" name="feed_url" type="url" placeholder="https://" value="${escapeHtml(calendarFeedDraft.feed_url)}" data-calendar-feed-field required />
         </div>
       </div>
@@ -1210,8 +1286,8 @@ function renderCalendarFeedForm() {
       <p id="calendar-import-help" class="calendar-import-help">${escapeHtml(getCalendarImportHelpText(calendarFeedDraft.source))}</p>
 
       <footer class="modal-actions">
-        <button id="calendar-feed-cancel" type="button">Annuller</button>
-        <button type="submit" ${isSavingCalendarFeed ? 'disabled' : ''}>${isSavingCalendarFeed ? 'Gemmer...' : 'Gem feed'}</button>
+        <button id="calendar-feed-cancel" type="button">${t("common.cancel")}</button>
+        <button type="submit" ${isSavingCalendarFeed ? 'disabled' : ''}>${isSavingCalendarFeed ? (t("app.saving")) : (t("app.save_feed"))}</button>
       </footer>
     </form>
   `
@@ -1313,7 +1389,7 @@ async function getEdgeFunctionErrorMessage(error) {
 
 function formatErrorMessage(value) {
   if (!value) {
-    return 'Ukendt fejl'
+    return (t("app.unknown_error"))
   }
 
   if (typeof value === 'string') {
@@ -1321,7 +1397,7 @@ function formatErrorMessage(value) {
   }
 
   if (value instanceof Error) {
-    return value.message || 'Ukendt fejl'
+    return value.message || (t("app.unknown_error"))
   }
 
   if (typeof value === 'object') {
@@ -1334,7 +1410,7 @@ function formatErrorMessage(value) {
     try {
       return JSON.stringify(value)
     } catch (_) {
-      return 'Ukendt fejl'
+      return (t("app.unknown_error"))
     }
   }
 
@@ -1345,24 +1421,24 @@ function getCalendarImportSuccessMessage(data) {
   const importedCount = data?.importedCount ?? data?.imported ?? data?.count ?? data?.items?.length ?? data?.events?.length
 
   if (Number.isFinite(Number(importedCount))) {
-    return `Importerede ${Number(importedCount)} aftaler. Gå til relevant uge manuelt.`
+    return `${t("app.imported")} ${Number(importedCount)} ${t("app.events_navigate_to_the_relevant_week_manually")}`
   }
 
   const preview = data?.preview || data?.previewText || data?.text || data?.raw
 
   if (typeof preview === 'string' && preview.length) {
-    return `Feed hentet OK. Preview: ${preview.length} tegn. Gå til relevant uge manuelt.`
+    return `${t("app.feed_fetched_preview")} ${preview.length} ${t("app.characters_navigate_to_the_relevant_week_manually")}`
   }
 
   if (Number.isFinite(Number(data?.previewLength))) {
-    return `Feed hentet OK. Preview: ${Number(data.previewLength)} tegn. Gå til relevant uge manuelt.`
+    return `${t("app.feed_fetched_preview")} ${Number(data.previewLength)} ${t("app.characters_navigate_to_the_relevant_week_manually")}`
   }
 
   if (data && Object.keys(data).length) {
-    return 'Feed hentet OK. Preview modtaget. Gå til relevant uge manuelt.'
+    return (t("app.feed_fetched_preview_received_navigate_to_the_relevant_week_manually"))
   }
 
-  return 'Feed hentet OK. Gå til relevant uge manuelt.'
+  return (t("app.feed_fetched_navigate_to_the_relevant_week_manually"))
 }
 
 function getCalendarImportResult(feed, data) {
@@ -1371,7 +1447,7 @@ function getCalendarImportResult(feed, data) {
 
   if (!summary.count) {
     return {
-      text: `${message}, men ingen matchende items blev fundet i appens load. Tjek household/source/feed-id.`,
+      text: `${message}${t("app.but_no_matching_events_were_loaded_check_the_family_source_and_feed")}`,
       dateText: '',
       feedId: '',
     }
@@ -1379,7 +1455,7 @@ function getCalendarImportResult(feed, data) {
 
   return {
     text: message,
-    dateText: `Datoer: ${formatCalendarImportDateRange(summary.firstDate, summary.lastDate)}`,
+    dateText: `${t("app.dates")} ${formatCalendarImportDateRange(summary.firstDate, summary.lastDate)}`,
     feedId: String(feed.id),
   }
 }
@@ -1394,7 +1470,7 @@ function getCalendarImportStatusText(data) {
   const importedCount = getImportedCalendarCount(data)
 
   if (Number.isFinite(importedCount)) {
-    return `Importerede ${importedCount} aftaler`
+    return `${t("app.imported")} ${importedCount} ${t("app.events")}`
   }
 
   return getCalendarImportSuccessMessage(data)
@@ -1465,7 +1541,7 @@ function formatCalendarImportDate(dateIso) {
     return dateIso
   }
 
-  return new Intl.DateTimeFormat('da-DK', {
+  return dateFormatter( {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -1487,11 +1563,11 @@ function renderPersonSettingsRow(person, { isNew = false } = {}) {
       </div>
       <input type="hidden" name="${prefix}-avatar" value="${escapeHtml(person.avatar_url || '')}" data-person-avatar-value="${escapeHtml(rowId)}" />
       <div>
-        <label for="${prefix}-name">Navn</label>
+        <label for="${prefix}-name">${t("app.name")}</label>
         <input id="${prefix}-name" name="${prefix}-name" type="text" value="${escapeHtml(name)}" data-person-name-input="${escapeHtml(rowId)}" ${isNew ? '' : 'required'} />
       </div>
       <div>
-        <label for="${prefix}-role">Rolle</label>
+        <label for="${prefix}-role">${t("app.role")}</label>
         <select id="${prefix}-role" name="${prefix}-role">
           ${renderRoleOption('voksen', role)}
           ${renderRoleOption('barn', role)}
@@ -1499,16 +1575,16 @@ function renderPersonSettingsRow(person, { isNew = false } = {}) {
         </select>
       </div>
       <div>
-        <label for="${prefix}-avatar-file">Avatar</label>
+        <label for="${prefix}-avatar-file">${t("app.avatar")}</label>
         <input id="${prefix}-avatar-file" name="${prefix}-avatar-file" type="file" accept="image/png,image/jpeg,image/webp" data-person-avatar-file="${escapeHtml(rowId)}" />
       </div>
       <div>
-        <label for="${prefix}-color">Farve</label>
+        <label for="${prefix}-color">${t("app.colour")}</label>
         <input id="${prefix}-color" name="${prefix}-color" type="color" value="${escapeHtml(color)}" data-person-color-input="${escapeHtml(rowId)}" />
       </div>
-      <label class="reward-setting"><input type="checkbox" id="${prefix}-reward-enabled" ${rewardEnabled(person) ? 'checked' : ''} />Deltager i belønningssystemet</label>
+      <label class="reward-setting"><input type="checkbox" id="${prefix}-reward-enabled" ${rewardEnabled(person) ? 'checked' : ''} />${t("app.participates_in_tasks_and_rewards")}</label>
       <span class="person-settings-swatch" style="background:${escapeHtml(color)}" data-person-color-swatch="${escapeHtml(rowId)}"></span>
-      ${isNew ? '' : `<div class="person-row-actions"><button class="btn small" type="button" data-save-person="${escapeHtml(rowId)}">Gem</button><button type="button" data-archive-person="${escapeHtml(rowId)}">${person.is_active===false?'Gendan':'Arkivér'}</button></div>`}
+      ${isNew ? '' : `<div class="person-row-actions"><button class="btn small" type="button" data-save-person="${escapeHtml(rowId)}">${t("common.save")}</button><button type="button" data-archive-person="${escapeHtml(rowId)}">${person.is_active===false?(t("app.restore")):(t("app.archive"))}</button></div>`}
     </fieldset>
   `
 }
@@ -1551,9 +1627,9 @@ function mapPersonRoleForDb(role) {
 
 function getPersonRoleLabel(role) {
   const labels = {
-    voksen: 'Voksen',
-    barn: 'Barn',
-    andet: 'Andet',
+    voksen: t('roles.adult'),
+    barn: t('roles.child'),
+    andet: t('types.other'),
   }
 
   return labels[mapPersonRoleToUi(role)] || 'Andet'
@@ -1584,21 +1660,22 @@ async function handleLogin(event) {
   form.querySelectorAll('button').forEach(button => { button.disabled = true })
   try {
     const { data, error } = signup
-      ? await supabase.auth.signUp({ email, password, options:{emailRedirectTo:callback()} })
+      ? await supabase.auth.signUp({ email, password, options:{emailRedirectTo:callback(),data:{preferred_locale:locale()}} })
       : await supabase.auth.signInWithPassword({ email, password })
     if (error) throw error
     if (data?.session) await applySession(data.session)
-    else { authScreen='login';message = 'Bruger oprettet. Tjek din email for bekræftelse.'; render() }
-  } catch (error) { message = 'Login kunne ikke gennemføres: ' + error.message; render() }
+    else { authScreen='login';message = (t("app.account_created_check_your_email_for_confirmation")); render() }
+  } catch (error) { message = errorText(error,'app.sign_in_could_not_be_completed'); render() }
   finally { authRequestInFlight = false; form.querySelectorAll('button').forEach(button => { button.disabled = false }) }
 }
 
 async function handleLogout() {
   const userId = session?.user.id
   const pending = syncEngine?.state.queue.length || 0
-  if (pending && !window.confirm(pending + ' ændringer er ikke synkroniseret. Log ud rydder dem fra denne enhed. Fortsæt?')) return
+  if (pending && !window.confirm(pending + (" "+t("app.changes_have_not_synced_signing_out_removes_them_from_this_device_continue")))) return
   syncEngine?.stop(); realtime.stop(); rewardMotion.reset()
   await devices?.detach().catch(()=>{})
+  await subscriptionAccess.detach()
   await clearNativeExports({all:true}).catch(()=>{})
   if (userId) await localStore.clearUser(userId)
   clearLocalAuth()
@@ -1618,7 +1695,7 @@ async function loadHouseholds() {
   if (epoch !== sessionEpoch) return
   const error = result.error || memberships.error
   householdsLoadFailed = Boolean(error) && !households.length
-  if (error) { message = households.length ? '' : 'Kunne ikke hente familie: ' + error.message; return }
+  if (error) { message = households.length ? '' : (t("app.could_not_load_family")+" ") + userError(error); return }
   const roles = new Map((memberships.data || []).map(row => [row.household_id,row.role]))
   households = (result.data || []).map(row => ({...row,memberRole:roles.get(row.id)}))
   await rememberHouseholds()
@@ -1658,8 +1735,8 @@ async function handleCreateHousehold(event) {
 
   isCreatingHousehold = true
   submitButton.disabled = true
-  submitButton.textContent = 'Opretter...'
-  messageElement.textContent = 'Opretter...'
+  submitButton.textContent = (t("app.creating"))
+  messageElement.textContent = (t("app.creating"))
 
   const { data, error } = await supabase.rpc('create_household', {
     p_name: name,
@@ -1668,7 +1745,7 @@ async function handleCreateHousehold(event) {
   isCreatingHousehold = false
 
   if (error) {
-    message = `Kunne ikke oprette familien: ${error.message}`
+    message = `${t("app.could_not_create_the_family")} ${userError(error)}`
     render()
     return
   }
@@ -1681,6 +1758,7 @@ async function handleCreateHousehold(event) {
 }
 
 async function loadCalendarItems() {
+  if(isWall())return
   if (!syncEngine || !navigator.onLine) return
   const engine = syncEngine, id = activeHousehold.id, version = ++calendarLoadVersion, writeGeneration = engine.writeGeneration
   const { data, error } = await readAllRows(() => supabase.from('calendar_items').select('*').eq('household_id',id).order('date').order('time').order('id').abortSignal(AbortSignal.timeout(6000)),
@@ -1693,6 +1771,7 @@ async function loadCalendarItems() {
 }
 
 async function loadHouseholdPeople() {
+  if(isWall())return
   if (!syncEngine || !navigator.onLine) return
   const engine = syncEngine, version = ++peopleLoadVersion
   const { data, error } = await supabase.from('household_people').select('*').eq('household_id',activeHousehold.id).order('sort_order').order('name').abortSignal(AbortSignal.timeout(6000))
@@ -1704,6 +1783,7 @@ async function loadHouseholdPeople() {
 }
 
 async function loadCalendarFeeds() {
+  if(isWall())return
   if (!syncEngine || !navigator.onLine) return
   const engine = syncEngine, version = ++feedsLoadVersion
   if (!canManageFeeds()) { liveFeedMetadata = []; await engine.snapshot({feeds:[]}); return }
@@ -1730,7 +1810,7 @@ async function handleSaveCalendarItem(event) {
     location: String(formData.get('location') || '').trim(), note: String(formData.get('note') || '').trim(),
     done: type === 'Opgave' && formData.has('done'),
     repeatWeekly: type !== 'Fødselsdag' && form.querySelector('[name=repeatWeekly]').checked,
-    weekdays: !editingItem && !['Fødselsdag','Mærkedag'].includes(type) && formData.has('weekdays'),
+    weekdays: !editingItem && !['Fødselsdag',(t("app.milestone"))].includes(type) && formData.has('weekdays'),
     repeatYearly: type === 'Fødselsdag', birthYear: type === 'Fødselsdag' ? String(formData.get('birthYear') || '') : '',
   }
   if(supportsInterval(itemData)){
@@ -1754,18 +1834,18 @@ async function handleSaveCalendarItem(event) {
   isCreatingCalendarItem = false
   if (result.error) {
     button.disabled = false
-    form.querySelector('#calendar-editor-message').textContent = result.error.message
+    form.querySelector('#calendar-editor-message').textContent = userError(result.error)
     return
   }
   isCalendarModalOpen = false; editingCalendarItemId = null; editingCalendarSnapshot = null; editingRowsSnapshot = []
-  message = editingItem ? 'Kalender-item opdateret.' : 'Kalender-item oprettet.'
+  message = editingItem ? (t("app.calendar_event_updated")) : (t("app.calendar_event_created"))
   await loadCalendarItems()
   render({ preserveDialogs: true })
 }
 async function runCalendarMutation(makePlan, options = {}) {
   try {
     const plan = makePlan()
-    if (!syncEngine) throw new Error('Kalenderen er endnu ikke klar.')
+    if (!syncEngine) throw new Error((t("app.the_calendar_is_not_ready_yet")))
     return await syncEngine.enqueue({
       p_expected: plan.expected, p_delete_ids: plan.deleteIds,
       p_upserts: plan.upserts.map(({id,values}) => ({id,...calendarPayload(values,householdPeople)})),
@@ -1776,10 +1856,11 @@ async function runCalendarMutation(makePlan, options = {}) {
 async function toggleCalendarItemDone(itemId, done) {
   const item = findRenderableCalendarItem(itemId)
   if (!item || imported(item)) return
+  if(isWall()){try{await wallService.complete({itemId:item.baseId||item.id,dueDate:item.date,done})}catch(e){message=e.message}updateCalendarSurface();return}
   rewardMotion.taskCheck(item.id,done?'completed':'open')
   const { error } = await runCalendarMutation(() => planEdit(calendarItems,item,{...itemValues(item),done},'one'),
     {action:'toggle_done',entityId:taskOccurrenceKey(item)})
-  if (error) message = 'Kunne ikke gemme udført-status: ' + error.message
+  if (error) message = (t("app.could_not_save_completion")+" ") + userError(error)
   updateCalendarSurface()
 }
 
@@ -1791,9 +1872,9 @@ async function handleDeleteCalendarItem() {
   const button = document.querySelector('#calendar-modal-delete'); button.disabled = true
   const { error } = await runCalendarMutation(() => planDelete(editingRowsSnapshot, item, scope), {action:'delete', entityId:item.id})
   isCreatingCalendarItem = false
-  if (error) { button.disabled = false; form.querySelector('#calendar-editor-message').textContent = error.message; return }
+  if (error) { button.disabled = false; form.querySelector('#calendar-editor-message').textContent = userError(error); return }
   isCalendarModalOpen = false; editingCalendarItemId = null; editingCalendarSnapshot = null; editingRowsSnapshot = []
-  message = 'Kalender-item slettet.'
+  message = (t("app.calendar_event_deleted"))
   await loadCalendarItems()
   render({ preserveDialogs: true })
 }
@@ -1804,43 +1885,43 @@ async function handleCreatePerson(event) {
 
 async function handleSavePeopleSettings(event) {
   event.preventDefault()
-  if (!navigator.onLine || syncStatus.offline) { settingsMessage = 'Person- og feedindstillinger kræver forbindelse.'; render({preserveDialogs:true}); return }
+  if (!navigator.onLine || syncStatus.offline) { settingsMessage = (t("app.person_and_feed_settings_require_a_connection")); render({preserveDialogs:true}); return }
   if (isCreatingPerson || !activeHousehold) return
   const householdId = getHouseholdId(activeHousehold)
   const epoch = sessionEpoch
   const newPerson = getNewPersonFormValues(event.target)
   const updates = householdPeople.map(person => ({ existing: person, values: getPersonRowValues(String(person.id)), file: pendingAvatarFiles.get(String(person.id)) }))
   if (newPerson.name) updates.push({ values: newPerson, file: pendingAvatarFiles.get('new') })
-  isCreatingPerson = true; settingsMessage = 'Gemmer personer...'; render()
+  isCreatingPerson = true; settingsMessage = (t("app.saving_people")); render()
   const errors = []
   for (const update of updates) {
     if (!update.values.name || epoch !== sessionEpoch) continue
     const result = await savePerson(supabase, householdId, update.values, update)
-    if (result.error) errors.push(result.error.message)
+    if (result.error) errors.push(userError(result.error))
     else pendingAvatarFiles.delete(update.existing?.id || 'new')
   }
   if (epoch !== sessionEpoch) return
   await loadHouseholdPeople()
   isCreatingPerson = false
-  settingsMessage = errors.length ? 'Kunne ikke gemme alle personer: ' + errors.join(', ') : 'Personer gemt.'
+  settingsMessage = errors.length ? (t("app.could_not_save_all_people")+" ") + errors.join(', ') : (t("app.people_saved"))
   render()
 }
 
 async function handleSavePersonRow(personId) {
-  if (!navigator.onLine || syncStatus.offline) { settingsMessage = 'Person- og feedindstillinger kræver forbindelse.'; render({preserveDialogs:true}); return }
+  if (!navigator.onLine || syncStatus.offline) { settingsMessage = (t("app.person_and_feed_settings_require_a_connection")); render({preserveDialogs:true}); return }
   if (isCreatingPerson || !activeHousehold) return
   const existing = householdPeople.find(person => person.id === personId)
   if (!existing) return
   const values = getPersonRowValues(personId)
-  if (!values.name) { settingsMessage = 'Personen mangler navn.'; render(); return }
+  if (!values.name) { settingsMessage = (t("app.the_person_needs_a_name")); render(); return }
   const epoch = sessionEpoch
-  isCreatingPerson = true; settingsMessage = 'Gemmer person...'; render()
+  isCreatingPerson = true; settingsMessage = (t("app.saving_person")); render()
   const { error } = await savePerson(supabase, getHouseholdId(activeHousehold), values, { existing, file: pendingAvatarFiles.get(personId) })
   if (epoch !== sessionEpoch) return
   if (!error) pendingAvatarFiles.delete(personId)
   await loadHouseholdPeople()
   isCreatingPerson = false
-  settingsMessage = error ? 'Kunne ikke gemme person: ' + error.message : 'Person gemt.'
+  settingsMessage = error ? (t("app.could_not_save_person")+" ") + userError(error) : (t("app.person_saved"))
   render()
 }
 
@@ -1877,7 +1958,7 @@ function handlePersonAvatarPreview(event) {
     return
   }
 
-  try { validateAvatar(file) } catch (error) { settingsMessage = error.message; render(); return }
+  try { validateAvatar(file) } catch (error) { settingsMessage = userError(error); render(); return }
   pendingAvatarFiles.set(rowId, file)
   const reader = new FileReader()
   reader.addEventListener('load', () => {
@@ -1941,10 +2022,10 @@ function getAvatarValue(rowId) {
 
 function getPersonPreviewName(rowId) {
   if (rowId === 'new') {
-    return getInputValue('person-name') || 'Person'
+    return getInputValue('person-name') || (t("app.person_person"))
   }
 
-  return getInputValue(`person-${rowId}-name`) || 'Person'
+  return getInputValue(`person-${rowId}-name`) || (t("app.person_person"))
 }
 
 function getPersonPreviewColor(rowId) {
@@ -1968,7 +2049,7 @@ function openEditCalendarModal(itemId) {
   detailRoot.innerHTML=''
   rewardsUI.close()
 
-  if(mode()==='kiosk'){const item=findRenderableCalendarItem(itemId);if(item)planEditor.view({title:getCalendarItemTitle(item),date:formatDayHeaderDate(parseDateIso(item.date)),time:item.time,note:getCalendarValue(item,'note'),location:getCalendarValue(item,'location'),people:getCalendarItemPeople(item).join(', '),source:sourceLabel(item)});return}
+  if(mode()==='kiosk'){const item=findRenderableCalendarItem(itemId);if(item)planEditor.view({title:getCalendarItemTitle(item),date:formatDayHeaderDate(parseDateIso(item.date)),time:item.time,note:getCalendarValue(item,'note'),location:getCalendarValue(item,'location'),people:calendarPeopleLabel(item),source:sourceLabel(item)});return}
   const item = findRenderableCalendarItem(itemId)
   if (!item) return
   if(imported(item)&&canEditImported(item)){importedEditor.open(item);return}
@@ -1987,6 +2068,7 @@ function closeCalendarModal() {
 }
 
 function openSettingsModal(tab='people') {
+  if(isWall()){nativeFamily.shell((t("app.this_wall_display")),("<p>"+t("app.this_display_shows_the_family_overview_manage_settings_on_an_adult_s_phone")+"</p><p>"+t("app.the_screen_stays_awake_while_the_family_overview_is_open")+"</p>"));return}
   tab=typeof tab==='string'?tab:'people'
   if(mode()==='kiosk'&&!kioskUnlocked){requestKioskAccess(tab);return}
   settingsTab=tab
@@ -2010,7 +2092,7 @@ function closeSettingsModal() {
 }
 
 async function handleImportCalendarFeed(event) {
-  if (!navigator.onLine || syncStatus.offline) { settingsMessage = 'Person- og feedindstillinger kræver forbindelse.'; render({preserveDialogs:true}); return }
+  if (!navigator.onLine || syncStatus.offline) { settingsMessage = (t("app.person_and_feed_settings_require_a_connection")); render({preserveDialogs:true}); return }
   event?.preventDefault()
 
   if (importingCalendarFeedId) {
@@ -2021,14 +2103,14 @@ async function handleImportCalendarFeed(event) {
   const feed = calendarFeeds.find((item) => String(item.id) === String(feedId))
 
   if (!feed || !canManageFeeds() || feed.is_active === false) {
-    calendarImportMessage = 'Feed er inaktivt eller utilgængeligt.'
+    calendarImportMessage = (t("app.the_feed_is_inactive_or_unavailable"))
     renderPreservingSettingsScroll()
     return
   }
 
   importingCalendarFeedId = String(feed.id)
   calendarImportMessage = ''
-  setCalendarFeedImportMessage(feed.id, 'Henter feed...', 'loading')
+  setCalendarFeedImportMessage(feed.id, (t("app.fetching_feed")), 'loading')
   renderPreservingSettingsScroll()
 
   let result
@@ -2039,7 +2121,7 @@ async function handleImportCalendarFeed(event) {
     })
   } catch (error) {
     importingCalendarFeedId = null
-    setCalendarFeedImportMessage(feed.id, `Fejl: ${formatErrorMessage(error?.message || error)}`, 'error')
+    setCalendarFeedImportMessage(feed.id, `${t("app.error")} ${formatErrorMessage(error?.message || error)}`, 'error')
     renderPreservingSettingsScroll()
     return
   }
@@ -2049,13 +2131,13 @@ async function handleImportCalendarFeed(event) {
   importingCalendarFeedId = null
 
   if (error) {
-    setCalendarFeedImportMessage(feed.id, `Fejl: ${await getEdgeFunctionErrorMessage(error)}`, 'error')
+    setCalendarFeedImportMessage(feed.id, `${t("app.error")} ${await getEdgeFunctionErrorMessage(error)}`, 'error')
     renderPreservingSettingsScroll()
     return
   }
 
   if (data?.success === false) {
-    setCalendarFeedImportMessage(feed.id, `Fejl: ${formatErrorMessage(data.error || data.message || data)}`, 'error')
+    setCalendarFeedImportMessage(feed.id, `${t("app.error")} ${formatErrorMessage(data.error || data.message || data)}`, 'error')
     renderPreservingSettingsScroll()
     return
   }
@@ -2097,7 +2179,7 @@ function openCreateCalendarFeedForm() {
 }
 
 function openEditCalendarFeedForm(feedId) {
-  if (!navigator.onLine || syncStatus.offline) { settingsMessage = 'Person- og feedindstillinger kræver forbindelse.'; render({preserveDialogs:true}); return }
+  if (!navigator.onLine || syncStatus.offline) { settingsMessage = (t("app.person_and_feed_settings_require_a_connection")); render({preserveDialogs:true}); return }
   const feed = calendarFeeds.find((item) => String(item.id) === String(feedId))
 
   if (!feed) {
@@ -2146,7 +2228,7 @@ function updateCalendarImportHelpText(source) {
 
 async function handleSaveCalendarFeed(event) {
   event.preventDefault()
-  if (!navigator.onLine || syncStatus.offline) { settingsMessage = 'Person- og feedindstillinger kræver forbindelse.'; render({preserveDialogs:true}); return }
+  if (!navigator.onLine || syncStatus.offline) { settingsMessage = (t("app.person_and_feed_settings_require_a_connection")); render({preserveDialogs:true}); return }
 
   if (!activeHousehold || isSavingCalendarFeed || !editingCalendarFeedId) {
     return
@@ -2154,16 +2236,16 @@ async function handleSaveCalendarFeed(event) {
 
   if (!canManageFeeds()) return
   let values
-  try { values = getCalendarFeedDraftValues() } catch (error) { calendarImportMessage = error.message; render(); return }
+  try { values = getCalendarFeedDraftValues() } catch (error) { calendarImportMessage = userError(error); render(); return }
 
   if (!values.feed_url) {
-    calendarImportMessage = 'Feed mangler URL.'
+    calendarImportMessage = (t("app.the_feed_needs_a_url"))
     render()
     return
   }
 
   isSavingCalendarFeed = true
-  calendarImportMessage = 'Gemmer feed...'
+  calendarImportMessage = (t("app.saving_feed"))
   render()
 
   const householdId = getHouseholdId(activeHousehold)
@@ -2183,7 +2265,7 @@ async function handleSaveCalendarFeed(event) {
   isSavingCalendarFeed = false
 
   if (saveResult.error) {
-    calendarImportMessage = `Kunne ikke gemme feed: ${saveResult.error.message}`
+    calendarImportMessage = `${t("app.could_not_save_feed")} ${userError(saveResult.error)}`
     render()
     return
   }
@@ -2191,23 +2273,23 @@ async function handleSaveCalendarFeed(event) {
   await loadCalendarFeeds()
   editingCalendarFeedId = null
   calendarFeedDraft = createEmptyCalendarFeedDraft()
-  calendarImportMessage = 'Feed gemt.'
+  calendarImportMessage = (t("app.feed_saved"))
   render()
 }
 
 async function handleDeleteCalendarFeed(feedId) {
-  if (!navigator.onLine || syncStatus.offline) { settingsMessage = 'Person- og feedindstillinger kræver forbindelse.'; render({preserveDialogs:true}); return }
+  if (!navigator.onLine || syncStatus.offline) { settingsMessage = (t("app.person_and_feed_settings_require_a_connection")); render({preserveDialogs:true}); return }
   if (!activeHousehold || !feedId) {
     return
   }
 
   const feed = calendarFeeds.find((item) => String(item.id) === String(feedId))
 
-  if (!feed || !window.confirm(`Slet feedet "${feed.name || 'Uden navn'}"?`)) {
+  if (!feed || !window.confirm(`Slet feedet "${feed.name || (t("app.unnamed"))}"?`)) {
     return
   }
 
-  calendarImportMessage = 'Sletter feed...'
+  calendarImportMessage = (t("app.deleting_feed"))
   render()
 
   const { error } = await supabase
@@ -2217,7 +2299,7 @@ async function handleDeleteCalendarFeed(feedId) {
     .eq('household_id', getHouseholdId(activeHousehold))
 
   if (error) {
-    calendarImportMessage = `Kunne ikke slette feed: ${error.message}`
+    calendarImportMessage = `${t("app.could_not_delete_feed")} ${userError(error)}`
     render()
     return
   }
@@ -2229,16 +2311,16 @@ async function handleDeleteCalendarFeed(feedId) {
     calendarFeedDraft = createEmptyCalendarFeedDraft()
   }
 
-  calendarImportMessage = 'Feed slettet.'
+  calendarImportMessage = (t("app.feed_deleted"))
   render()
 }
 
 function getCalendarImportHelpText(source = calendarFeedDraft.source) {
   if (source === 'aula') {
-    return 'Aula bruger ét kalenderlink pr. barn. Vælg barnet/personen her, og indsæt barnets Aula-link.'
+    return (t("app.aula_uses_one_calendar_link_per_child_choose_the_child_person_here_and_paste_their_aula_link"))
   }
 
-  return 'Brug kalenderens offentlige iCal-/ICS-link.'
+  return (t("app.use_the_calendar_s_public_ical_ics_link"))
 }
 
 function navigateCalendar(direction) {
@@ -2262,7 +2344,7 @@ function getEditingCalendarItem() { return editingCalendarSnapshot }
 function renderTypeOption(type, currentType) {
   return `
     <option value="${escapeHtml(type)}" ${type === currentType ? 'selected' : ''}>
-      ${escapeHtml(type)}
+      ${escapeHtml(typeLabel(type))}
     </option>
   `
 }
@@ -2291,13 +2373,13 @@ function renderPersonOptions(currentPerson) {
 
 function renderCalendarPersonPills(selectedPeople) {
   const selection = selectPeople(selectedPeople, householdPeople)
-  const options = [{ id: 'Alle', name: 'Alle', color: '#0f172a' }, ...householdPeople.filter(person => isActiveHouseholdPerson(person) || selection.personIds.includes(person.id))]
+  const options = [{ id: 'Alle', name: t('common.all'), color: '#0f172a' }, ...householdPeople.filter(person => isActiveHouseholdPerson(person) || selection.personIds.includes(person.id))]
   selection.unresolvedPeople.forEach(name => options.push({ id: name, name, color: '#64748b' }))
   return options.map(person => {
     const checked = person.id === 'Alle' ? selection.people.includes('Alle') : selection.personIds.includes(person.id) || selection.unresolvedPeople.includes(person.id)
     return '<label class="calendar-person-pill ' + (checked ? 'selected' : '') + '" style="--person-color:' + escapeHtml(person.color || '#64748b') +
       '"><input type="checkbox" name="people" value="' + escapeHtml(person.id) + '" data-calendar-person-choice ' + (checked ? 'checked' : '') +
-      ' /><span>' + escapeHtml(person.name) + '</span></label>'
+      ' /><span>' + escapeHtml(person.id==='Alle'?t('common.all'):person.name) + '</span></label>'
   }).join('')
 }
 
@@ -2412,10 +2494,10 @@ function updateModalScopeFields() {
   input.disabled = scope !== 'one'
   weeklyInput.disabled = scope === 'one' || form.querySelector('#calendar-type').value === 'Fødselsdag'
   form.querySelector('#calendar-scope-help').textContent = scope === 'one'
-    ? 'Tilpas kun denne forekomst. Den ugentlige serie fortsætter.'
+    ? (t("app.change_only_this_occurrence_the_weekly_series_continues"))
     : scope === 'future'
-      ? 'Ny serie fra denne forekomst. Senere individuelle tilpasninger og udførte opgaver bevares. Datoen er seriens skæringspunkt.'
-      : 'Seriens oprindelige startdato bevares. Individuelle tilpasninger bevares. Udført gælder stadig kun denne forekomst.'
+      ? (t("app.new_series_from_this_occurrence_later_individual_changes_and_completed_tasks_are_preserved_this_date_is_the_series_cut_off"))
+      : (t("app.the_series_keeps_its_original_start_date_individual_changes_are_preserved_completion_still_applies_only_to_this_occurrence"))
 }
 
 function setCheckboxOptionEnabled(option, enabled) {
@@ -2439,9 +2521,9 @@ function normalizeTypeValue(type) {
   const normalized = String(type || '').trim()
   const aliases = {
     'FÃ¸dselsdag': 'Fødselsdag',
-    'MÃ¦rkedag': 'Mærkedag',
+    'MÃ¦rkedag': (t("app.milestone")),
     Fritidsinteresser: 'Fritidsinteresse',
-    Mærkedage: 'Mærkedag',
+    Mærkedage: (t("app.milestone")),
   }
 
   return aliases[normalized] || normalized || 'Aktivitet'
@@ -2490,6 +2572,7 @@ function getCreatedHouseholdId(rpcData) {
 }
 
 function getDefaultCalendarViewMode() {
+  if(session?.user?.is_anonymous)return window.innerHeight>window.innerWidth?'day':'week'
   return preferredView(localStorage, window.innerWidth)
 }
 
@@ -2504,9 +2587,9 @@ function syncDefaultCalendarViewMode() {
 
 function getCalendarHeaderLabel() {
   if(mode()==='mobile'){
-    if(calendarViewMode==='day')return new Intl.DateTimeFormat('da-DK',{weekday:'long',day:'numeric',month:'long'}).format(calendarCursorDate)
-    const dates=weekDates(toDateIso(calendarCursorDate)),first=parseDateIso(dates[0]),last=parseDateIso(dates[6]),format=new Intl.DateTimeFormat('da-DK',{day:'numeric',month:'short',...(first.getFullYear()!==last.getFullYear()?{year:'numeric'}:{})})
-    return 'Uge '+isoWeek(dates[0]).week+' · '+format.format(first)+' – '+format.format(last)
+    if(calendarViewMode==='day')return dateFormatter({weekday:'long',day:'numeric',month:'long'}).format(calendarCursorDate)
+    const dates=weekDates(toDateIso(calendarCursorDate)),first=parseDateIso(dates[0]),last=parseDateIso(dates[6]),format=dateFormatter({day:'numeric',month:'short',...(first.getFullYear()!==last.getFullYear()?{year:'numeric'}:{})})
+    return (t("app.week")+" ")+isoWeek(dates[0]).week+' · '+format.format(first)+' – '+format.format(last)
   }
   return calendarHeading(toDateIso(calendarCursorDate), calendarViewMode)
 }
@@ -2543,15 +2626,15 @@ function toDateIso(date) {
 }
 
 function formatWeekday(date) {
-  return new Intl.DateTimeFormat('da-DK', { weekday: 'long' }).format(date)
+  return dateFormatter( { weekday: 'long' }).format(date)
 }
 
 function formatShortDate(date) {
-  return new Intl.DateTimeFormat('da-DK', { day: '2-digit', month: '2-digit' }).format(date)
+  return dateFormatter( { day: '2-digit', month: '2-digit' }).format(date)
 }
 
 function formatDayHeaderDate(date) {
-  return new Intl.DateTimeFormat('da-DK', {
+  return dateFormatter( {
     weekday: 'long',
     day: '2-digit',
     month: 'long',
@@ -2606,6 +2689,7 @@ function getCalendarItemColor(item) {
   return person?.color || getPersonColor(getCalendarItemPeople(item)[0])
 }
 
+function calendarPeopleLabel(item){const names=getCalendarItemPeople(item);return names.length===1&&names[0]==='Alle'&&!itemPersonIds(item,householdPeople).length?t('common.all'):names.join(', ')}
 function getCalendarItemPeople(item) { return itemPeople(item, householdPeople) }
 
 function getPrimaryCalendarPerson(item) {
@@ -2654,7 +2738,7 @@ function escapeHtml(value) {
 }
 
 
-function mode() { return resolveMode(window.innerWidth,device,session?.user.id,activeHousehold?.id) }
+function mode() { return isWall()&&activeHousehold?'kiosk':resolveMode(window.innerWidth,device,session?.user.id,activeHousehold?.id) }
 function settingsForDevice() { return deviceSettings(device,session?.user.id,activeHousehold?.id) }
 function applyDeviceAppearance() {
   const config=settingsForDevice(), current=mode()
@@ -2670,7 +2754,7 @@ function setProductRoute(route) {
   if(!routeLabels[route]||mode()==='kiosk'&&!['today','calendar','meals','shopping','tasks'].includes(route))return
   productRoute=route;calendarCursorDate=new Date();activePersonFilter='Alle';message=''
   if(route==='today')calendarViewMode='day'
-  if(route==='calendar')calendarViewMode=mode()==='kiosk'?'week':getDefaultCalendarViewMode()
+  if(route==='calendar')calendarViewMode=mode()==='kiosk'&&!isWall()?'week':getDefaultCalendarViewMode()
   if(mode()!=='kiosk')updateDeviceProfile({lastRoute:route})
   if(route==='tasks')calendarViewMode='day'
   hasUserSelectedCalendarView=true
@@ -2678,31 +2762,31 @@ function setProductRoute(route) {
 }
 function renderProductNav() { return renderNavigation(productRoute,mode()==='kiosk',mode()==='mobile') }
 function renderProductHeader() {
- if(mode()==='mobile')return '<div class="mobile-brand"><span class="mobile-brand-icon" aria-label="Familiekalender">'+icon('calendar')+'</span><h1>'+escapeHtml(['meals','shopping','recipes'].includes(productRoute)?'Mad & indkøb':routeLabels[productRoute])+'</h1></div>'
- if(mode()==='kiosk')return '<div class="kiosk-heading"><div><p class="eyebrow">'+escapeHtml(getHouseholdName(activeHousehold))+'</p><time id="device-clock"></time><p id="device-date"></p></div><div class="kiosk-label"><span class="ux-live-dot"></span> Et hjem. Alle vores planer.</div></div>'
+ if(mode()==='mobile')return '<div class="mobile-brand"><span class="mobile-brand-icon" aria-label="Familiekalender">'+icon('calendar')+'</span><h1>'+escapeHtml(['meals','shopping','recipes'].includes(productRoute)?(t("nav.meals")):routeLabels[productRoute])+'</h1></div>'
+ if(mode()==='kiosk')return '<div class="kiosk-heading"><div><p class="eyebrow">'+escapeHtml(getHouseholdName(activeHousehold))+("</p><time id=\"device-clock\"></time><p id=\"device-date\"></p></div><div class=\"kiosk-label\"><span class=\"ux-live-dot\"></span> "+t("app.one_home_all_our_plans")+"</div></div>")
  return '<div class="ux-brand"><span class="ux-brand-icon">'+icon('calendar')+'</span><div><p class="eyebrow">Familiekalender</p><h1>'+escapeHtml(getHouseholdName(activeHousehold))+'</h1></div></div>'
 }
 function renderHome() {
- if(mode()==='mobile'){const now=new Date(),greeting=now.getHours()<10?'Godmorgen':now.getHours()<17?'Goddag':'God aften';return '<div class="mobile-today"><header class="mobile-today-heading"><h2>'+escapeHtml(new Intl.DateTimeFormat('da-DK',{weekday:'long',day:'numeric',month:'long'}).format(now))+'</h2><p>'+greeting+', familien</p></header>'+renderMobileDay(now,{heading:false})+'</div>'}
+ if(mode()==='mobile'){const now=new Date(),greeting=now.getHours()<10?(t("app.good_morning")):now.getHours()<17?(t("app.hello")):(t("app.good_evening"));return '<div class="mobile-today"><header class="mobile-today-heading"><h2>'+escapeHtml(dateFormatter({weekday:'long',day:'numeric',month:'long'}).format(now))+'</h2><p>'+greeting+' · '+escapeHtml(getHouseholdName(activeHousehold))+'</p></header>'+renderMobileDay(now,{heading:false})+'</div>'}
  const now=new Date(),today=toDateIso(now),upcoming=upcomingItems(calendarItems,householdPeople,activePersonFilter)
  const next=upcoming[0],later=upcoming.filter(item=>item.date>today).slice(0,4),kiosk=mode()==='kiosk'
  const daily=allowanceTasks(materialize(calendarOnly(calendarItems),[today]),rewardState,[today]).filter(doesItemMatchPersonFilter)
  const tasks=daily.filter(item=>item.type==='Opgave'),completed=tasks.filter(item=>taskComplete(item,householdPeople,rewardState,activePersonFilter)).length,meals=mealsOn(calendarItems,today),shopping=shoppingItems(calendarItems).filter(item=>!item.done)
- const eventButton=item=>'<button class="upcoming-event" data-upcoming="'+escapeHtml(item.id)+'" style="border-left-color:'+escapeHtml(getCalendarItemColor(item))+'"><span class="upcoming-date">'+escapeHtml(formatShortDate(parseDateIso(item.date)))+' · '+escapeHtml(item.time||'Heldag')+'</span><strong>'+escapeHtml(getCalendarItemTitle(item))+'</strong><span>'+escapeHtml(getCalendarItemPeople(item).join(', '))+'</span></button>'
- const mealCard='<section class="ux-dinner"><div class="ux-dinner-top"><span>'+icon('meals')+'</span><p class="eyebrow">På menuen i aften</p></div>'+(meals.length?meals.map(meal=>'<button data-plan-edit="'+meal.id+'" class="ux-dinner-name"><strong>'+escapeHtml(meal.title)+'</strong>'+(meal.time||!kiosk?'<small>'+escapeHtml(meal.time||'God appetit, allesammen')+'</small>':'')+'</button>').join(''):'<h3>Hvad har I lyst til?</h3><p>'+(kiosk?'Planlæg aftensmaden fra familiens mobil.':'En lille plan gør eftermiddagen lettere.')+'</p>')+(!kiosk?'<button class="ux-link" data-go-route="meals">'+(meals.length?'Se ugens madplan':'Planlæg aftensmad')+' '+icon('arrow')+'</button>':'')+'</section>'
- const greeting=now.getHours()<10?'Godmorgen':now.getHours()<17?'Hej med jer':'God aften'
- return (!kiosk?'<section class="ux-welcome"><div><p class="eyebrow">'+escapeHtml(formatDayHeaderDate(now))+'</p><h3>'+greeting+' <span>— her er jeres dag.</span></h3><p>'+ (daily.length?'Der er '+daily.filter(item=>item.type!=='Opgave').length+' aftaler og '+(tasks.length-completed)+' åbne opgaver i dag.':'En dag med plads til nye planer.')+'</p></div><span class="ux-welcome-sun">'+icon('sun')+'</span></section><div class="ux-day-stats"><button data-go-route="calendar">'+icon('calendar')+'<span><strong>'+daily.filter(item=>item.type!=='Opgave').length+'</strong> aftaler i dag</span>'+icon('arrow')+'</button><button data-go-route="tasks">'+icon('tasks')+'<span><strong>'+completed+' / '+tasks.length+'</strong> opgaver klaret</span>'+icon('arrow')+'</button><button data-go-route="shopping">'+icon('shopping')+'<span><strong>'+shopping.length+'</strong> varer på listen</span>'+icon('arrow')+'</button></div>':'')+
- (!kiosk&&next?'<button class="ux-next-inline" data-upcoming="'+escapeHtml(next.id)+'"><span>'+icon('calendar')+'<small>Næste aftale · '+escapeHtml(next.date===today?(next.time||'I dag'):formatShortDate(parseDateIso(next.date)))+'</small></span><strong>'+escapeHtml(getCalendarItemTitle(next))+'</strong>'+icon('arrow')+'</button>':'')+
- '<div class="home-layout"><div class="day-view">'+renderDayCard(calendarCursorDate)+'</div><aside class="home-aside">'+mealCard+(kiosk?renderKioskProgress(tasks,completed,today):'')+'<section class="panel next-panel"><p class="eyebrow">Næste aftale</p>'+(next?eventButton(next):'<div class="ux-quiet-empty">'+icon('sun')+'<p>Der er ro på kalenderen.</p></div>')+'</section>'+
- (kiosk?(later.filter(item=>item.id!==next?.id).length?'<section class="panel upcoming-panel"><h3>De kommende dage</h3>'+later.filter(item=>item.id!==next?.id).slice(0,2).map(eventButton).join('')+'</section>':'')+renderShortcuts():'')+'</aside></div>'
+ const eventButton=item=>'<button class="upcoming-event" data-upcoming="'+escapeHtml(item.id)+'" style="border-left-color:'+escapeHtml(getCalendarItemColor(item))+'"><span class="upcoming-date">'+escapeHtml(formatShortDate(parseDateIso(item.date)))+' · '+escapeHtml(item.time||(t("calendar.all_day")))+'</span><strong>'+escapeHtml(getCalendarItemTitle(item))+'</strong><span>'+escapeHtml(calendarPeopleLabel(item))+'</span></button>'
+ const mealCard='<section class="ux-dinner"><div class="ux-dinner-top"><span>'+icon('meals')+("</span><p class=\"eyebrow\">"+t("app.on_the_menu_tonight")+"</p></div>")+(meals.length?meals.map(meal=>'<button data-plan-edit="'+meal.id+'" class="ux-dinner-name"><strong>'+escapeHtml(meal.title)+'</strong>'+(meal.time||!kiosk?'<small>'+escapeHtml(meal.time||(t("app.enjoy_your_meal_everyone")))+'</small>':'')+'</button>').join(''):("<h3>"+t("app.what_would_you_like")+"</h3><p>")+(kiosk?(t("app.plan_dinner_from_the_family_s_phone")):(t("app.a_little_planning_makes_afternoons_easier")))+'</p>')+(!kiosk?'<button class="ux-link" data-go-route="meals">'+(meals.length?(t("app.view_this_week_s_meal_plan")):(t("app.plan_dinner")))+' '+icon('arrow')+'</button>':'')+'</section>'
+ const greeting=now.getHours()<10?(t("app.good_morning")):now.getHours()<17?(t("app.hello_everyone")):(t("app.good_evening"))
+ return (!kiosk?'<section class="ux-welcome"><div><p class="eyebrow">'+escapeHtml(formatDayHeaderDate(now))+'</p><h3>'+greeting+(" <span>"+t("app.here_is_your_day")+"</span></h3><p>")+ (daily.length?(t("app.there_are")+" ")+daily.filter(item=>item.type!=='Opgave').length+(" "+t("app.events_and")+" ")+(tasks.length-completed)+(" "+t("app.open_tasks_today")):(t("app.a_day_with_room_for_new_plans")))+'</p></div><span class="ux-welcome-sun">'+icon('sun')+'</span></section><div class="ux-day-stats"><button data-go-route="calendar">'+icon('calendar')+'<span><strong>'+daily.filter(item=>item.type!=='Opgave').length+("</strong> "+t("app.events_today")+"</span>")+icon('arrow')+'</button><button data-go-route="tasks">'+icon('tasks')+'<span><strong>'+completed+' / '+tasks.length+("</strong> "+t("app.tasks_completed")+"</span>")+icon('arrow')+'</button><button data-go-route="shopping">'+icon('shopping')+'<span><strong>'+shopping.length+("</strong> "+t("app.items_on_the_list")+"</span>")+icon('arrow')+'</button></div>':'')+
+ (!kiosk&&next?'<button class="ux-next-inline" data-upcoming="'+escapeHtml(next.id)+'"><span>'+icon('calendar')+("<small>"+t("app.next_event")+" ")+escapeHtml(next.date===today?(next.time||(t("nav.today"))):formatShortDate(parseDateIso(next.date)))+'</small></span><strong>'+escapeHtml(getCalendarItemTitle(next))+'</strong>'+icon('arrow')+'</button>':'')+
+ '<div class="home-layout"><div class="day-view">'+renderDayCard(calendarCursorDate)+'</div><aside class="home-aside">'+mealCard+(kiosk?renderKioskProgress(tasks,completed,today):'')+("<section class=\"panel next-panel\"><p class=\"eyebrow\">"+t("app.next_event_n_ste_aftale")+"</p>")+(next?eventButton(next):'<div class="ux-quiet-empty">'+icon('sun')+("<p>"+t("app.the_calendar_is_quiet")+"</p></div>"))+'</section>'+
+ (kiosk?(later.filter(item=>item.id!==next?.id).length?("<section class=\"panel upcoming-panel\"><h3>"+t("app.the_coming_days")+"</h3>")+later.filter(item=>item.id!==next?.id).slice(0,2).map(eventButton).join('')+'</section>':'')+renderShortcuts():'')+'</aside></div>'
 }
-function renderKioskProgress(tasks,completed,today){return '<section class="kiosk-progress"><button data-go-route="tasks"><span>'+icon('tasks')+' Dagens opgaver</span><strong>'+completed+' / '+tasks.length+' klaret</strong></button>'+rewardsUI.summary(true)+'</section>'}
+function renderKioskProgress(tasks,completed,today){return '<section class="kiosk-progress"><button data-go-route="tasks"><span>'+icon('tasks')+(" "+t("app.today_s_tasks")+"</span><strong>")+completed+' / '+tasks.length+(" "+t("app.completed_klaret")+"</strong></button>")+rewardsUI.summary(true)+'</section>'}
 function renderFamilyHome(){
  const people=householdPeople.filter(isActiveHouseholdPerson)
- return '<div class="family-view"><section class="ux-family-intro"><div><p class="eyebrow">Sammen om hverdagen</p><h3>'+escapeHtml(getHouseholdName(activeHousehold))+'</h3><p>'+people.length+' familieprofiler · din rolle er '+escapeHtml(roleLabel(householdRole)).toLocaleLowerCase('da')+'</p></div>'+icon('family')+'</section><div class="ux-family-grid">'+people.map(person=>'<article class="ux-family-person" style="--person-color:'+escapeHtml(person.color||'#64748b')+'">'+renderPersonAvatar(person,'ux-family-avatar')+'<h4>'+escapeHtml(person.name)+'</h4><p>'+escapeHtml({barn:'Barn',voksen:'Voksen',andet:'Familie',child:'Barn',adult:'Voksen'}[person.role]||'Familie')+'</p>'+(rewardEnabled(person)?'<button data-child-day="'+person.id+'">Min dag</button>':'')+(rewardsUI.adult?'<button data-reward-config="'+person.id+'">Opgaver & belønning</button>':'')+'<button data-open-settings="people">Se profil '+icon('arrow')+'</button></article>').join('')+'<button class="ux-add-person" data-open-settings="people">'+icon('plus')+'<strong>Tilføj en person</strong><span>Også børn uden eget login</span></button></div><div class="ux-family-tools">'+[['family','Medlemmer og invitationer','Giv andre adgang til familien.','family'],['feeds','Kalender-import','Saml Aula, Google og andre kalendere.','calendar'],['device','Vægskærm og enhed','Indret denne skærm til jeres hjem.','today'],['appearance','Udseende','Farver og tæthed på denne enhed.','sun'],['account','Din konto','Log ud, eksport og privatliv.','settings']].map(([tab,title,description,i])=>'<button data-open-settings="'+tab+'">'+icon(i)+'<span><strong>'+title+'</strong><small>'+description+'</small></span>'+icon('arrow')+'</button>').join('')+'</div></div>'
+ return ("<div class=\"family-view\"><section class=\"ux-family-intro\"><div><p class=\"eyebrow\">"+t("app.everyday_life_together")+"</p><h3>")+escapeHtml(getHouseholdName(activeHousehold))+'</h3><p>'+people.length+(" "+t("app.family_profiles_your_role_is")+" ")+escapeHtml(roleLabel(householdRole)).toLocaleLowerCase('da')+'</p></div>'+icon('family')+'</section><div class="ux-family-grid">'+people.map(person=>'<article class="ux-family-person" style="--person-color:'+escapeHtml(person.color||'#64748b')+'">'+renderPersonAvatar(person,'ux-family-avatar')+'<h4>'+escapeHtml(person.name)+'</h4><p>'+escapeHtml(personRoleLabel(person.role))+'</p>'+(rewardEnabled(person)?'<button data-child-day="'+person.id+("\">"+t("app.my_day")+"</button>"):'')+(rewardsUI.adult?'<button data-reward-config="'+person.id+("\">"+t("app.tasks_rewards")+"</button>"):'')+("<button data-open-settings=\"people\">"+t("app.view_profile")+" ")+icon('arrow')+'</button></article>').join('')+'<button class="ux-add-person" data-open-settings="people">'+icon('plus')+("<strong>"+t("app.add_a_person")+"</strong><span>"+t("app.children_do_not_need_their_own_login")+"</span></button></div><div class=\"ux-family-tools\">")+nativeFamily.links()+[['family',(t("app.members_and_invitations")),(t("app.give_others_access_to_the_family")),'family'],['feeds',(t("app.calendar_import")),(t("app.bring_together_aula_google_and_other_calendars")),'calendar'],['device',(t("app.wall_display_and_device")),(t("app.set_up_this_screen_for_your_home")),'today'],['appearance',(t("app.appearance")),(t("app.colours_and_density_on_this_device")),'sun'],['account',(t("app.your_account")),(t("app.sign_out_export_and_privacy")),'settings']].map(([tab,title,description,i])=>'<button data-open-settings="'+tab+'">'+icon(i)+'<span><strong>'+title+'</strong><small>'+description+'</small></span>'+icon('arrow')+'</button>').join('')+'</div></div>'
 }
 function renderShortcuts() {
-  const config=settingsForDevice().shortcuts,links=[['Homey',config.homey],['Sonos',config.sonos],[config.label||'Genvej',config.custom]]
+  const config=settingsForDevice().shortcuts,links=[['Homey',config.homey],['Sonos',config.sonos],[config.label||(t("app.shortcut")),config.custom]]
   return '<div class="kiosk-shortcuts">'+links.filter(([,url])=>url).map(([name,url])=>{
     try{return '<a href="'+escapeHtml(safeShortcut(url,{sonos:name==='Sonos'}))+'" target="_blank" rel="noopener noreferrer">'+escapeHtml(name)+' ↗</a>'}catch{return ''}
   }).join('')+'</div>'
@@ -2716,12 +2800,13 @@ function renderTaskView() {
     const daily=items.filter(item=>item.date===date)
     return daily.length?'<section class="task-date-group"><h3>'+escapeHtml(formatDayHeaderDate(parseDateIso(date)))+'</h3>'+daily.map(renderCalendarItemCard).join('')+'</section>':''
   }).join('')
-  return '<div class="task-view rewards-task-view"><p id="reward-message" role="status"></p>'+(activePersonFilter==='Alle'?rewardsUI.summary():rewardsUI.dashboard(activePersonFilter))+rewardsUI.approvals()+(activePersonFilter==='Alle'?renderTaskCapture(tasks,done):'')+'<div class="segmented-control"><button data-task-range="today" aria-pressed="'+(taskRange==='today')+'">I dag</button><button data-task-range="week" aria-pressed="'+(taskRange==='week')+'">Denne uge</button>'+(mode()!=='kiosk'?'<button data-task-range="month" aria-pressed="'+(taskRange==='month')+'">Måned</button><button data-task-range="rewards" aria-pressed="'+(taskRange==='rewards')+'">Belønninger</button>':'')+'</div>'+
+  return '<div class="task-view rewards-task-view"><p id="reward-message" role="status"></p>'+(activePersonFilter==='Alle'?rewardsUI.summary():rewardsUI.dashboard(activePersonFilter))+rewardsUI.approvals()+(activePersonFilter==='Alle'?renderTaskCapture(tasks,done):'')+'<div class="segmented-control"><button data-task-range="today" aria-pressed="'+(taskRange==='today')+("\">"+t("nav.today")+"</button><button data-task-range=\"week\" aria-pressed=\"")+(taskRange==='week')+("\">"+t("app.this_week")+"</button>")+(mode()!=='kiosk'?'<button data-task-range="month" aria-pressed="'+(taskRange==='month')+("\">"+t("app.month")+"</button><button data-task-range=\"rewards\" aria-pressed=\"")+(taskRange==='rewards')+("\">"+t("app.rewards")+"</button>"):'')+'</div>'+
     (taskRange==='rewards'?rewardsUI.shop(activePersonFilter):
-    (open.length?group(open):'<div class="panel empty-state">Ingen åbne opgaver. Godt gået.</div>')+
-    (done.length?'<details class="completed-tasks" data-completed-date="task-view" '+(expandedTaskDays.has('task-view')?'open':'')+'><summary>'+done.length+' udførte opgaver</summary>'+group(done)+'</details>':'')+rewardsUI.bonus(activePersonFilter)+rewardsUI.history(activePersonFilter))+'</div>'
+    (open.length?group(open):("<div class=\"panel empty-state\">"+t("app.no_open_tasks_well_done")+"</div>"))+
+    (done.length?'<details class="completed-tasks" data-completed-date="task-view" '+(expandedTaskDays.has('task-view')?'open':'')+'><summary>'+done.length+(" "+t("app.completed_tasks")+"</summary>")+group(done)+'</details>':'')+rewardsUI.bonus(activePersonFilter)+rewardsUI.history(activePersonFilter))+'</div>'
 }
 function bindProductSurface() {
+  nativeFamily.bind()
   document.querySelectorAll('[data-day-detail]').forEach(b=>b.onclick=()=>openDayDetail(b.dataset.dayDetail))
 
   rewardsUI.bind()
@@ -2731,20 +2816,21 @@ function bindProductSurface() {
   bindPlanningSurface()
 }
 function bindProductControls(freshSettings=true) {
+  nativeFamily.bind()
   document.querySelectorAll('[data-product-route]').forEach(button=>button.onclick=()=>setProductRoute(button.dataset.productRoute))
   document.querySelector('#accept-invite')?.addEventListener('click',acceptInvitation)
   document.querySelectorAll('[data-settings-tab]').forEach(button=>button.onclick=()=>selectSettingsTab(button.dataset.settingsTab))
   if(freshSettings){
   document.querySelectorAll('[data-archive-person]').forEach(button=>button.onclick=()=>archivePerson(button.dataset.archivePerson))
   document.querySelectorAll('[data-copy-calendar-feed]').forEach(button=>button.onclick=async()=>{
-    try{await navigator.clipboard.writeText(calendarFeeds.find(f=>f.id===button.dataset.copyCalendarFeed)?.feed_url||'');button.textContent='Kopieret'}catch{calendarImportMessage='Kunne ikke kopiere. Brug Rediger for at se linket.';render({preserveDialogs:true})}
+    try{await navigator.clipboard.writeText(calendarFeeds.find(f=>f.id===button.dataset.copyCalendarFeed)?.feed_url||'');button.textContent=(t("app.copied"))}catch{calendarImportMessage=(t("app.could_not_copy_choose_edit_to_see_the_link"));render({preserveDialogs:true})}
   })
   document.querySelector('#device-settings-form')?.addEventListener('submit',saveDeviceSettings)
   document.querySelector('#exit-kiosk')?.addEventListener('click',()=>{delete device.kiosk;persistDevice();void wakeScreen.set(false);kioskUnlocked=false;closeSettingsModal();setProductRoute('calendar')})
   document.querySelector('#appearance-form')?.addEventListener('submit',event=>{
     event.preventDefault();const data=new FormData(event.target)
     updateDeviceProfile({accent:data.get('accent'),tone:data.get('tone'),density:data.get('density')});applyDeviceAppearance()
-    document.querySelector('#appearance-message').textContent='Udseende gemt på denne enhed.'
+    document.querySelector('#appearance-message').textContent=(t("app.appearance_saved_on_this_device"))
   })
   bindAccountControls()
   document.querySelector('#account-logout')?.addEventListener('click',handleLogout)
@@ -2760,25 +2846,41 @@ function selectSettingsTab(tab) {
   if(tab==='family')void loadMemberships()
 }
 function renderSettingsNavigation() {
-  return '<nav class="settings-nav" aria-label="Indstillingssektioner">'+[['family','Familie'],['people','Personer'],['feeds','Kalender-import'],['device','Enhed / Kiosk'],['appearance','Udseende'],['account','Konto']].map(([id,label])=>'<button type="button" data-settings-tab="'+id+'" aria-pressed="'+(settingsTab===id)+'">'+label+'</button>').join('')+'</nav>'
+  return ("<nav class=\"settings-nav\" aria-label=\""+t("app.settings_sections")+"\">")+[['family',t('nav.family')],['people',(t("app.people"))],['feeds',(t("app.calendar_import"))],['device',(t("app.device_kiosk"))],['appearance',(t("app.appearance"))],['account',(t("app.account"))]].map(([id,label])=>'<button type="button" data-settings-tab="'+id+'" aria-pressed="'+(settingsTab===id)+'">'+label+'</button>').join('')+'</nav>'
 }
+function languageControl(){
+ return '<label class="language-control">'+t('language.label')+'<select data-personal-locale><option value="da-DK" '+(locale()==='da-DK'?'selected':'')+'>Dansk</option><option value="en-GB" '+(locale()==='en-GB'?'selected':'')+'>English</option></select></label>'
+}
+function householdFormatControl(){
+ if(!canManageFeeds())return ''
+ return '<form id="household-format" class="stack-form"><label>'+t('language.family')+'<select name="default_locale">'+[['da-DK','Dansk'],['en-GB','English']].map(([v,label])=>'<option value="'+v+'" '+(activeHousehold.default_locale===v?'selected':'')+'>'+label+'</option>').join('')+'</select></label><label>'+t('currency.label')+'<select name="currency_code">'+['DKK','EUR','SEK','NOK','GBP','USD'].map(v=>'<option '+(activeHousehold.currency_code===v?'selected':'')+'>'+v+'</option>').join('')+'</select></label><p class="hint">'+t('currency.note')+'</p><button>'+t('common.save')+'</button><p role="status" id="household-format-status"></p></form>'
+}
+document.addEventListener('change',event=>{if(event.target.matches('[data-personal-locale]'))void languagePrefs.select(event.target.value)})
+document.addEventListener('submit',async event=>{
+ if(event.target.id!=='household-format')return
+ event.preventDefault();const form=event.target,householdId=activeHousehold?.id,values=Object.fromEntries(new FormData(form));form.querySelector('button').disabled=true
+ const {error}=await supabase.from('households').update(values).eq('id',householdId)
+ if(error){form.querySelector('button').disabled=false;form.querySelector('[role=status]').textContent=errorText(error);return}
+ if(activeHousehold?.id!==householdId)return
+ Object.assign(activeHousehold,values);setHouseholdFormat(activeHousehold);renderPreservingSettingsScroll()
+})
 function renderOtherSettings() {
  const config=settingsForDevice(),kiosk=mode()==='kiosk'
  const panel=(id,html)=>'<section class="settings-block" data-settings-panel="'+id+'" '+(settingsTab===id?'':'hidden')+'>'+html+'</section>'
- return panel('family','<h3>Familiemedlemmer med login</h3><p class="hint">Børneprofiler behøver ikke et login. Personer i kalenderen administreres under Personer.</p><div id="family-admin-content">'+renderMembers()+'</div>'+
- (canManageFeeds()?'<form id="invite-form" class="stack-form"><h4>Invitér via email</h4><label for="invite-email">Email</label><input id="invite-email" name="email" type="email" required autocomplete="email"><label for="invite-role">Rolle</label><select id="invite-role" name="role"><option value="adult">Voksen</option>'+(householdRole==='owner'?'<option value="admin">Administrator</option>':'')+'</select><p class="hint">Opret et personligt link, og del det via email. Modtageren skal logge ind med denne email.</p><button type="submit">Opret invitation</button><p id="invite-message" class="message" role="status"></p><div id="invite-result"></div></form>':'<p>Kun ejer og administrator kan invitere.</p>'))+
- panel('device','<h3>Denne enhed</h3><p>Indstillingerne gælder kun her og for '+escapeHtml(getHouseholdName(activeHousehold))+'.</p><form id="device-settings-form" class="stack-form"><label class="checkbox-label"><input id="device-kiosk" name="kiosk" type="checkbox" '+(kiosk?'checked':'')+'>Brug som vægskærm</label>'+
- (!kiosk?'<label for="device-pin">Vælg en enheds-PIN (4–8 cifre)</label><input id="device-pin" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" autocomplete="new-password"><p class="hint">PIN beskytter mod utilsigtet administration på skærmen.</p>':'<p>Administration er beskyttet af enhedens PIN.</p>')+
- '<label class="checkbox-label"><input id="device-wake" name="wake" type="checkbox" '+(config.wake?'checked':'')+'>Hold skærmen vågen</label><p id="wake-status" class="hint">'+escapeHtml(wakeScreen.status)+'</p><label for="device-idle">Tilbage til I dag efter inaktivitet</label><select id="device-idle" name="inactivity">'+[10,15,20,30].map(n=>'<option value="'+n+'" '+(n===config.inactivity?'selected':'')+'>'+n+' minutter</option>').join('')+'</select><h4>Genveje på vægskærm</h4>'+
- [['homey','Homey URL'],['sonos','Sonos URL / app-link'],['custom','Andet link'],['label','Navn på andet link']].map(([key,label])=>'<label for="shortcut-'+key+'">'+label+'</label><input id="shortcut-'+key+'" name="'+key+'" value="'+escapeHtml(config.shortcuts[key])+'" '+(key==='label'?'maxlength="40"':'type="text" placeholder="https://"')+'>').join('')+
- '<button type="submit">Gem enhed</button><p id="device-message" class="message" role="status"></p></form>'+(kiosk?'<button id="exit-kiosk" class="danger-button">Afslut vægskærmstilstand</button>':''))+
- panel('appearance','<h3>Udseende på denne enhed</h3><form id="appearance-form" class="stack-form"><label for="appearance-accent">Primærfarve</label><select id="appearance-accent" name="accent">'+[['#0f172a','Midnat'],['#2563eb','Blå'],['#7c3aed','Lilla'],['#047857','Grøn'],['#be123c','Bær']].map(([value,label])=>'<option value="'+value+'" '+(config.accent===value?'selected':'')+'>'+label+'</option>').join('')+'</select><label for="appearance-tone">Baggrund</label><select id="appearance-tone" name="tone">'+[['cloud','Lys'],['warm','Varm'],['cool','Kølig']].map(([value,label])=>'<option value="'+value+'" '+(config.tone===value?'selected':'')+'>'+label+'</option>').join('')+'</select><label for="appearance-density">Tæthed</label><select id="appearance-density" name="density">'+[['auto','Automatisk'],['compact','Kompakt'],['comfortable','Luftig']].map(([value,label])=>'<option value="'+value+'" '+(config.density===value?'selected':'')+'>'+label+'</option>').join('')+'</select><button type="submit">Gem udseende</button><p id="appearance-message" role="status"></p></form>')+
- panel('account','<h3>Konto</h3><p>'+escapeHtml(session?.user.email||'Offline session')+'</p><p>'+escapeHtml(roleLabel(householdRole))+' i '+escapeHtml(getHouseholdName(activeHousehold))+'</p><div class="account-actions"><button id="account-password">Skift adgangskode</button><button id="account-logout">Log ud</button></div><p class="hint">Log ud rydder lokale kalenderdata og usynkroniseret arbejde. Vægskærmens indstillinger bevares til dit næste login.</p><h4>Dine data</h4><button id="export-family" type="button">Eksportér mine familiedata</button><p id="export-message" role="status"></p><p><a href="/privacy">Privatliv</a> · <a href="/support">Support</a></p>'+(platform.native?'<h4>Notifikationer</h4><button id="enable-push" type="button">Tillad notifikationer</button><p id="push-status" role="status">Påmindelser er endnu ikke aktiveret.</p>':'')+'<h4>Kontosletning</h4><button id="start-delete-account" type="button" class="danger-button">Slet min konto</button><div id="delete-account-content"></div>')
+ return panel('family',householdFormatControl()+("<h3>"+t("app.family_members_with_a_login")+"</h3><p class=\"hint\">"+t("app.child_profiles_do_not_need_a_login_manage_calendar_profiles_under_people")+"</p><div id=\"family-admin-content\">")+renderMembers()+'</div>'+
+ (canManageFeeds()?("<form id=\"invite-form\" class=\"stack-form\"><h4>"+t("app.invite_by_email")+"</h4><label for=\"invite-email\">"+t("app.email")+"</label><input id=\"invite-email\" name=\"email\" type=\"email\" required autocomplete=\"email\"><label for=\"invite-role\">"+t("app.role")+"</label><select id=\"invite-role\" name=\"role\"><option value=\"adult\">"+t("app.adult")+"</option>")+(householdRole==='owner'?("<option value=\"admin\">"+t("app.administrator")+"</option>"):'')+("</select><p class=\"hint\">"+t("app.create_a_personal_link_and_share_it_by_email_the_recipient_must_sign_in_with_this_email")+"</p><button type=\"submit\">"+t("app.create_invitation")+"</button><p id=\"invite-message\" class=\"message\" role=\"status\"></p><div id=\"invite-result\"></div></form>"):("<p>"+t("app.only_owners_and_administrators_can_invite")+"</p>")))+
+ panel('device',("<h3>"+t("app.this_device")+"</h3><p>"+t("app.these_settings_apply_only_here_and_to")+" ")+escapeHtml(getHouseholdName(activeHousehold))+'.</p><form id="device-settings-form" class="stack-form"><label class="checkbox-label"><input id="device-kiosk" name="kiosk" type="checkbox" '+(kiosk?'checked':'')+(">"+t("app.use_as_wall_display")+"</label>")+
+ (!kiosk?("<label for=\"device-pin\">"+t("app.choose_a_device_pin_4_8_digits")+"</label><input id=\"device-pin\" name=\"pin\" type=\"password\" inputmode=\"numeric\" pattern=\"[0-9]{4,8}\" autocomplete=\"new-password\"><p class=\"hint\">"+t("app.the_pin_prevents_accidental_administration_on_the_display")+"</p>"):("<p>"+t("app.settings_are_protected_by_the_device_pin")+"</p>"))+
+ '<label class="checkbox-label"><input id="device-wake" name="wake" type="checkbox" '+(config.wake?'checked':'')+(">"+t("app.keep_screen_awake")+"</label><p id=\"wake-status\" class=\"hint\">")+escapeHtml(wakeScreen.status)+("</p><label for=\"device-idle\">"+t("app.return_to_today_after_inactivity")+"</label><select id=\"device-idle\" name=\"inactivity\">")+[10,15,20,30].map(n=>'<option value="'+n+'" '+(n===config.inactivity?'selected':'')+'>'+n+(" "+t("app.minutes")+"</option>")).join('')+("</select><h4>"+t("app.wall_display_shortcuts")+"</h4>")+
+ [['homey',(t("app.homey_url"))],['sonos',(t("app.sonos_url_app_link"))],['custom',(t("app.other_link"))],['label',(t("app.name_for_other_link"))]].map(([key,label])=>'<label for="shortcut-'+key+'">'+label+'</label><input id="shortcut-'+key+'" name="'+key+'" value="'+escapeHtml(config.shortcuts[key])+'" '+(key==='label'?'maxlength="40"':'type="text" placeholder="https://"')+'>').join('')+
+ ("<button type=\"submit\">"+t("app.save_device")+"</button><p id=\"device-message\" class=\"message\" role=\"status\"></p></form>")+(kiosk?("<button id=\"exit-kiosk\" class=\"danger-button\">"+t("app.exit_wall_display_mode")+"</button>"):''))+
+ panel('appearance',("<h3>"+t("app.appearance_on_this_device")+"</h3><form id=\"appearance-form\" class=\"stack-form\"><label for=\"appearance-accent\">"+t("app.accent_colour")+"</label><select id=\"appearance-accent\" name=\"accent\">")+[['#0f172a',(t("app.midnight"))],['#2563eb',(t("app.blue"))],['#7c3aed',(t("app.purple"))],['#047857',(t("app.green"))],['#be123c',(t("app.berry"))]].map(([value,label])=>'<option value="'+value+'" '+(config.accent===value?'selected':'')+'>'+label+'</option>').join('')+("</select><label for=\"appearance-tone\">"+t("app.background")+"</label><select id=\"appearance-tone\" name=\"tone\">")+[['cloud',(t("app.light"))],['warm',(t("app.warm"))],['cool',(t("app.cool"))]].map(([value,label])=>'<option value="'+value+'" '+(config.tone===value?'selected':'')+'>'+label+'</option>').join('')+("</select><label for=\"appearance-density\">"+t("app.density")+"</label><select id=\"appearance-density\" name=\"density\">")+[['auto',(t("app.automatic"))],['compact',(t("app.compact"))],['comfortable',(t("app.comfortable"))]].map(([value,label])=>'<option value="'+value+'" '+(config.density===value?'selected':'')+'>'+label+'</option>').join('')+("</select><button type=\"submit\">"+t("app.save_appearance")+"</button><p id=\"appearance-message\" role=\"status\"></p></form>"))+
+ panel('account',languageControl()+("<h3>"+t("app.account")+"</h3><p>")+escapeHtml(session?.user.email||(t("app.offline_session")))+'</p><p>'+escapeHtml(roleLabel(householdRole))+(" "+t("app.in")+" ")+escapeHtml(getHouseholdName(activeHousehold))+("</p><div class=\"account-actions\"><button id=\"account-password\">"+t("app.change_password")+"</button><button id=\"account-logout\">"+t("app.sign_out")+"</button></div><p class=\"hint\">"+t("app.signing_out_clears_local_calendar_data_and_unsynced_work_wall_display_settings_are_kept_for_your_next_sign_in")+"</p><h4>"+t("app.your_data")+"</h4><button id=\"export-family\" type=\"button\">"+t("app.export_my_family_data")+"</button><p id=\"export-message\" role=\"status\"></p><p><a href=\"/privacy\">"+t("app.privacy")+"</a> · <a href=\"/support\">"+t("app.support")+"</a></p>")+(platform.native?("<h4>"+t("app.notifications")+"</h4><button id=\"enable-push\" type=\"button\">"+t("app.allow_notifications")+"</button><p id=\"push-status\" role=\"status\">"+t("app.reminders_are_not_enabled_yet")+"</p>"):'')+("<h4>"+t("app.account_deletion")+"</h4><button id=\"start-delete-account\" type=\"button\" class=\"danger-button\">"+t("app.delete_my_account")+"</button><div id=\"delete-account-content\"></div>"))
 }
 function renderMembers() {
- if(!navigator.onLine)return '<p>Opret forbindelse for at se familiens logins og invitationer.</p>'
- return '<ul class="member-list">'+members.map(row=>'<li><span>'+escapeHtml(row.email)+(row.user_id===session?.user.id?' · dig':'')+'</span><strong>'+escapeHtml(roleLabel(row.role))+'</strong></li>').join('')+'</ul>'+
- (canManageFeeds()?'<h4>Invitationer</h4><ul class="member-list">'+invitations.map(inv=>'<li><span>'+escapeHtml(inv.email)+'<small>'+escapeHtml(roleLabel(inv.role))+' · '+invitationStatus(inv)+'</small></span>'+(invitationStatus(inv)==='Afventer'?'<button data-revoke-invite="'+inv.id+'">Tilbagekald</button>':'')+'</li>').join('')+'</ul>':'')
+ if(!navigator.onLine)return ("<p>"+t("app.connect_to_see_the_family_s_logins_and_invitations")+"</p>")
+ return '<ul class="member-list">'+members.map(row=>'<li><span>'+escapeHtml(row.email)+(row.user_id===session?.user.id?(" "+t("app.you")):'')+'</span><strong>'+escapeHtml(roleLabel(row.role))+'</strong></li>').join('')+'</ul>'+
+ (canManageFeeds()?("<h4>"+t("app.invitations")+"</h4><ul class=\"member-list\">")+invitations.map(inv=>'<li><span>'+escapeHtml(inv.email)+'<small>'+escapeHtml(roleLabel(inv.role))+' · '+invitationStatus(inv)+'</small></span>'+(!inv.revoked_at&&!inv.accepted_at&&new Date(inv.expires_at)>new Date()?'<button data-revoke-invite="'+inv.id+("\">"+t("app.revoke")+"</button>"):'')+'</li>').join('')+'</ul>':'')
 }
 async function loadMemberships() {
  if(!navigator.onLine||!activeHousehold)return
@@ -2787,31 +2889,31 @@ async function loadMemberships() {
  if(epoch!==sessionEpoch||activeHousehold?.id!==id)return
  members=users.data||[];invitations=invites.data||[]
  const target=document.querySelector('#family-admin-content')
- if(target){target.innerHTML=users.error||invites.error?'<p>Kunne ikke hente medlemmer. Prøv igen, når forbindelsen er tilbage.</p>':renderMembers();target.querySelectorAll('[data-revoke-invite]').forEach(button=>button.onclick=async()=>{
+ if(target){target.innerHTML=users.error||invites.error?("<p>"+t("app.could_not_load_members_try_again_when_you_are_connected")+"</p>"):renderMembers();target.querySelectorAll('[data-revoke-invite]').forEach(button=>button.onclick=async()=>{
    button.disabled=true;const {error}=await supabase.rpc('revoke_household_invitation',{p_invitation_id:button.dataset.revokeInvite})
-   if(error){button.disabled=false;document.querySelector('#invite-message').textContent='Kunne ikke tilbagekalde invitationen.'}else await loadMemberships()
+   if(error){button.disabled=false;document.querySelector('#invite-message').textContent=(t("app.could_not_revoke_the_invitation"))}else await loadMemberships()
  })}
 }
 async function createInvitation(event) {
  event.preventDefault();const form=event.target,button=form.querySelector('button[type=submit]'),data=new FormData(form),email=String(data.get('email')).trim()
- if(!publicUrl){form.querySelector('#invite-message').textContent='Appens offentlige adresse mangler i denne build.';return}
+ if(!publicUrl){form.querySelector('#invite-message').textContent=(t("app.this_build_is_missing_the_app_s_public_address"));return}
  button.disabled=true
  const {data:token,error}=await supabase.rpc('invite_household_member',{p_household_id:activeHousehold.id,p_email:email,p_role:data.get('role')})
  const info=form.querySelector('#invite-message')
- if(error){button.disabled=false;info.textContent='Kunne ikke oprette invitation: '+error.message;return}
+ if(error){button.disabled=false;info.textContent=(t("app.could_not_create_invitation")+" ")+userError(error);return}
  const link=inviteLink(publicUrl,token)
- form.querySelector('#invite-result').innerHTML='<label for="new-invite-link">Invitationslink · vises kun nu</label><input id="new-invite-link" readonly><div class="account-actions"><button id="copy-invite" type="button">Kopiér link</button><a id="email-invite">Åbn email</a></div>'
+ form.querySelector('#invite-result').innerHTML=("<label for=\"new-invite-link\">"+t("app.invitation_link_shown_only_now")+"</label><input id=\"new-invite-link\" readonly><div class=\"account-actions\"><button id=\"copy-invite\" type=\"button\">"+t("app.copy_link")+"</button><a id=\"email-invite\">"+t("app.open_email")+"</a></div>")
  form.querySelector('#new-invite-link').value=link
- form.querySelector('#email-invite').href='mailto:'+encodeURIComponent(email)+'?subject='+encodeURIComponent('Invitation til Familiekalender')+'&body='+encodeURIComponent('Du er inviteret til vores familiekalender. Log ind eller opret en bruger med denne email, og acceptér invitationen:\n'+link)
- form.querySelector('#copy-invite').onclick=async()=>{try{await navigator.clipboard.writeText(link);info.textContent='Link kopieret. Del det med modtageren.'}catch{info.textContent='Markér og kopiér linket i feltet ovenfor.'}}
- info.textContent='Invitation oprettet. Del linket via email; gyldigt i 7 dage.'
+ form.querySelector('#email-invite').href='mailto:'+encodeURIComponent(email)+'?subject='+encodeURIComponent((t("app.invitation_to_familiekalender")))+'&body='+encodeURIComponent((t("app.you_are_invited_to_our_family_calendar_sign_in_or_create_an_account_with_this_email_and_accept_the_invitation")+"\n")+link)
+ form.querySelector('#copy-invite').onclick=async()=>{try{await navigator.clipboard.writeText(link);info.textContent=(t("app.link_copied_share_it_with_the_recipient"))}catch{info.textContent=(t("app.select_and_copy_the_link_in_the_field_above"))}}
+ info.textContent=(t("app.invitation_created_share_the_link_by_email_valid_for_7_days"))
  await loadMemberships();button.disabled=false
 }
-function renderInvitation() { return pendingInvite?'<section class="panel invitation-banner"><p>Du har en familieinvitation. Brug den email, invitationen blev sendt til.</p><button id="accept-invite" type="button">Acceptér invitation</button>'+(!platform.native?'<p><a href="familiekalender://invite#invite='+encodeURIComponent(pendingInvite)+'">Åbn invitation i appen</a></p>':'')+'<p id="invite-accept-message" role="status"></p></section>':'' }
+function renderInvitation() { return pendingInvite?("<section class=\"panel invitation-banner\"><p>"+t("app.you_have_a_family_invitation_use_the_email_it_was_sent_to")+"</p><button id=\"accept-invite\" type=\"button\">"+t("app.accept_invitation")+"</button>")+(!platform.native?'<p><a href="familiekalender://invite#invite='+encodeURIComponent(pendingInvite)+("\">"+t("app.open_invitation_in_the_app")+"</a></p>"):'')+'<p id="invite-accept-message" role="status"></p></section>':'' }
 async function acceptInvitation() {
  const button=document.querySelector('#accept-invite');button.disabled=true
  const {data,error}=await supabase.rpc('accept_household_invitation',{p_token:pendingInvite})
- if(error){document.querySelector('#invite-accept-message').textContent='Invitationen er udløbet, tilbagekaldt eller til en anden email. Kontrollér også, at din email er bekræftet.';button.disabled=false;return}
+ if(error){document.querySelector('#invite-accept-message').textContent=(t("app.the_invitation_has_expired_been_revoked_or_belongs_to_another_email_also_check_that_your_email_is_confirmed"));button.disabled=false;return}
  pendingInvite='';sessionStorage.removeItem('familiekalender.pending-invite');await loadHouseholds()
  await activateHousehold(households.find(h=>h.id===data));render();await refreshHousehold()
 }
@@ -2820,7 +2922,7 @@ async function archivePerson(id) {
  const person=householdPeople.find(p=>p.id===id),button=document.querySelector('[data-archive-person="'+id+'"]');button.disabled=true
  const archive=person.is_active!==false
  const {error}=await supabase.from('household_people').update({is_active:!archive,...(archive?{reward_enabled:false}:{})}).eq('id',id).eq('household_id',activeHousehold.id)
- if(error){settingsMessage='Kunne ikke ændre personen: '+error.message}else{await loadHouseholdPeople();settingsMessage=archive?'Person arkiveret. Historikken er bevaret, og opgavebelønning er slået fra.':'Person gendannet. Du kan slå opgavebelønning til igen.'}
+ if(error){settingsMessage=(t("app.could_not_update_the_person")+" ")+userError(error)}else{await loadHouseholdPeople();settingsMessage=archive?(t("app.person_archived_history_is_preserved_and_task_rewards_are_disabled")):(t("app.person_restored_you_can_enable_task_rewards_again"))}
  render()
 }
 function persistDevice() {saveDevice(localStorage,device,deviceKey)}
@@ -2837,23 +2939,23 @@ async function saveDeviceSettings(event) {
    updateDeviceProfile({shortcuts,wake:data.has('wake'),inactivity:[10,15,20,30].includes(Number(data.get('inactivity')))?Number(data.get('inactivity')):15})
    await wakeScreen.set(data.has('wake')&&mode()==='kiosk')
    isSettingsModalOpen=false;kioskUnlocked=false;setProductRoute(mode()==='kiosk'?'today':'calendar')
- }catch(error){device=before;form.querySelector('#device-message').textContent=error.message;button.disabled=false}
+ }catch(error){device=before;form.querySelector('#device-message').textContent=userError(error);button.disabled=false}
 }
 function requestKioskAccess(tab) {
- pinRoot.innerHTML='<div id="pin-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="pin-title"><form id="pin-form" class="calendar-modal stack-form"><header class="modal-header"><h2 id="pin-title">Enhedsindstillinger</h2><button id="pin-close" type="button" aria-label="Luk">×</button></header><label for="kiosk-pin">Enheds-PIN</label><input id="kiosk-pin" type="password" inputmode="numeric" autocomplete="off"><button type="submit">Åbn indstillinger</button><button id="pin-use-account" type="button">Glemt PIN? Brug din adgangskode</button><p id="pin-message" role="status"></p></form></div>'
+ pinRoot.innerHTML=("<div id=\"pin-modal\" class=\"modal-backdrop\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"pin-title\"><form id=\"pin-form\" class=\"calendar-modal stack-form\"><header class=\"modal-header\"><h2 id=\"pin-title\">"+t("app.device_settings")+"</h2><button id=\"pin-close\" type=\"button\" aria-label=\""+t("common.close")+"\">×</button></header><label for=\"kiosk-pin\">"+t("app.device_pin")+"</label><input id=\"kiosk-pin\" type=\"password\" inputmode=\"numeric\" autocomplete=\"off\"><button type=\"submit\">"+t("app.open_settings")+"</button><button id=\"pin-use-account\" type=\"button\">"+t("app.forgot_pin_use_your_password")+"</button><p id=\"pin-message\" role=\"status\"></p></form></div>")
  const form=pinRoot.querySelector('form');let useAccount=false
  pinRoot.querySelector('#pin-close').onclick=()=>pinRoot.innerHTML=''
- pinRoot.querySelector('#pin-use-account').onclick=()=>{useAccount=true;form.querySelector('label').textContent='Din kontos adgangskode';form.querySelector('input').inputMode='text';form.querySelector('input').value='';form.querySelector('#pin-message').textContent='Bekræft '+(session.user.email||'din konto')+' for at få adgang.'}
+ pinRoot.querySelector('#pin-use-account').onclick=()=>{useAccount=true;form.querySelector('label').textContent=(t("app.your_account_password"));form.querySelector('input').inputMode='text';form.querySelector('input').value='';form.querySelector('#pin-message').textContent=(t("app.confirm")+" ")+(session.user.email||(t("app.your_account_din_konto")))+(" "+t("app.to_get_access"))}
  form.onsubmit=async event=>{
   event.preventDefault();const button=form.querySelector('button[type=submit]'),info=form.querySelector('#pin-message');button.disabled=true
   try{
-   if(Date.now()<pinBlockedUntil)throw Error('Vent et øjeblik, og prøv igen.')
+   if(Date.now()<pinBlockedUntil)throw Error((t("app.wait_a_moment_and_try_again")))
    let valid=false
    if(useAccount){const {data,error}=await supabase.auth.signInWithPassword({email:session.user.email,password:form.querySelector('input').value});valid=!error&&data.user?.id===session.user.id}
    else valid=await checkPin(form.querySelector('input').value,device.kiosk.pin)
-   if(!valid){pinAttempts++;if(pinAttempts>=5){pinBlockedUntil=Date.now()+30000;pinAttempts=0}throw Error('Forkert PIN eller adgangskode.')}
+   if(!valid){pinAttempts++;if(pinAttempts>=5){pinBlockedUntil=Date.now()+30000;pinAttempts=0}throw Error((t("app.incorrect_pin_or_password")))}
    pinAttempts=0;kioskUnlocked=true;pinRoot.innerHTML='';openSettingsModal(tab)
-  }catch(error){info.textContent=error.message;button.disabled=false}
+  }catch(error){info.textContent=userError(error);button.disabled=false}
  }
 }
 function installProductRuntime() {
@@ -2882,6 +2984,7 @@ function handleNativeBack(){
  void App.minimizeApp()
 }
 async function handleAppUrl(url){
+ if(String(url).startsWith('familiekalender://wall/pair')){try{const code=pairingValue(url);await chooseDeviceMode('wall');wallNaming=true;await wallService.pair(code,platform.os);nativeFamily.naming(app)}catch(e){wallNaming=false;message=e.message;render()}return}
  const link=parseAppLink(url,{base:publicUrl,localOrigin:location.origin})
  if(!link)return
  if(link.kind==='invite'){
@@ -2889,73 +2992,73 @@ async function handleAppUrl(url){
   render({preserveDialogs:true});return
  }
  if(link.kind==='calendar'){pendingCalendarLink=link;applyCalendarLink();return}
- if(link.kind==='auth-error'){message='Linket er udløbet eller ugyldigt. Bed om et nyt login- eller nulstillingslink.';authScreen='login';render();return}
+ if(link.kind==='auth-error'){message=(t("app.this_link_has_expired_or_is_invalid_request_a_new_sign_in_or_reset_link"));authScreen='login';render();return}
  try{
   if(link.recovery){authScreen='recovery';sessionStorage.setItem('familiekalender.recovery','1')}
   const next=await consumeAuthLink(supabase,link)
   await applySession(next)
   history.replaceState(null,'','/')
   render()
- }catch(error){authScreen='login';sessionStorage.removeItem('familiekalender.recovery');message=error.message;render()}
+ }catch(error){authScreen='login';sessionStorage.removeItem('familiekalender.recovery');message=userError(error);render()}
 }
 function applyCalendarLink(){
  if(!pendingCalendarLink||!session||!activeHousehold||isCalendarModalOpen||isSettingsModalOpen)return
  const link=pendingCalendarLink;pendingCalendarLink=null;productRoute='calendar';calendarCursorDate=parseDateIso(link.date)
  calendarViewMode='day';render({preserveDialogs:true})
  // Item links select a date; access remains scoped to the active household.
- if(link.item&&!calendarItems.some(item=>item.id===link.item)){message='Aftalen findes ikke i den valgte familie.'}
+ if(link.item&&!calendarItems.some(item=>item.id===link.item)){message=(t("app.this_event_is_not_in_the_selected_family"))}
 }
 function bindAccountControls(){
  document.querySelector('#start-delete-account')?.addEventListener('click',loadAccountDeletion)
- document.querySelector('#enable-push')?.addEventListener('click',async()=>{try{await devices?.request()}catch{document.querySelector('#push-status').textContent='Notifikationer kunne ikke aktiveres.'}})
+ document.querySelector('#enable-push')?.addEventListener('click',async()=>{try{await devices?.request()}catch{document.querySelector('#push-status').textContent=(t("app.notifications_could_not_be_enabled"))}})
  document.querySelector('#export-family')?.addEventListener('click',async event=>{
   const info=document.querySelector('#export-message');event.target.disabled=true
-  try{await exportFamilyData(supabase,activeHousehold.id);info.textContent='Eksport klar. Gem den et sted, hvor kun du har adgang.'}catch(error){info.textContent=error.message}
+  try{await exportFamilyData(supabase,activeHousehold.id);info.textContent=(t("app.export_ready_save_it_somewhere_only_you_can_access"))}catch(error){info.textContent=userError(error)}
   finally{event.target.disabled=false}
  })
 }
 function renderAccountPage(){
  if(document.querySelector('#delete-account-form'))return
- app.innerHTML='<main class="app-shell public-page"><section class="panel"><p class="eyebrow">Familiekalender</p><h1>Slet min konto</h1><p>'+escapeHtml(session?.user.email||'')+'</p><button id="start-delete-account" class="danger-button">Gennemgå kontosletning</button><div id="delete-account-content"></div><p><a href="/">Til kalenderen</a> · <a href="/privacy">Privatliv</a></p></section></main>'
+ app.innerHTML=("<main class=\"app-shell public-page\"><section class=\"panel\"><p class=\"eyebrow\">Familiekalender</p><h1>"+t("app.delete_my_account")+"</h1><p>")+escapeHtml(session?.user.email||'')+("</p><button id=\"start-delete-account\" class=\"danger-button\">"+t("app.review_account_deletion")+"</button><div id=\"delete-account-content\"></div><p><a href=\"/\">"+t("app.go_to_calendar")+"</a> · <a href=\"/privacy\">"+t("app.privacy")+"</a></p></section></main>")
  bindAccountControls()
 }
 async function loadAccountDeletion(){
  const target=document.querySelector('#delete-account-content'),button=document.querySelector('#start-delete-account')
- if(!navigator.onLine){target.textContent='Opret forbindelse for at slette din konto.';return}
+ if(!navigator.onLine){target.textContent=(t("app.connect_to_delete_your_account"));return}
  button.disabled=true
  const {data:plan,error}=await supabase.rpc('account_deletion_plan')
  button.disabled=false
- if(error){target.textContent='Kunne ikke hente sletteoversigten. Log ind igen og prøv igen.';return}
- target.innerHTML='<form id="delete-account-form" class="stack-form"><h4>Dette kan ikke fortrydes</h4><p>Dit login, din profil, dine medlemskaber og enhedsregistreringer slettes. Forfatterreferencer anonymiseres. Andre ejeres familiedata og børneprofiler bevares. Lokale, usynkroniserede ændringer går tabt.</p>'+
- (plan.pending?'<p>Sletningen er allerede startet. Bekræft din adgangskode igen for at færdiggøre oprydningen.</p>':'')+
- plan.households.map(h=>h.requires_deletion?'<label class="checkbox-label"><input type="checkbox" name="delete-household" value="'+h.id+'" required>Jeg sletter også hele familien '+escapeHtml(h.name)+' ('+h.members+' loginmedlemmer), inklusive kalender, opgaver, personer, feeds, avatarer og opskrifter med billeder.</label>':'<p>Familien '+escapeHtml(h.name)+' bevares. Dit medlemskab fjernes.</p>').join('')+
- '<p>Som eneste ejer skal du bekræfte familiesletning. Afbryd flowet, hvis familien skal bevares.</p><label for="delete-password">Din nuværende adgangskode</label><input id="delete-password" name="password" type="password" required autocomplete="current-password"><label for="delete-confirmation">Skriv SLET MIN KONTO</label><input id="delete-confirmation" name="confirmation" required autocomplete="off" pattern="SLET MIN KONTO"><button type="submit" class="danger-button">Slet min konto permanent</button><p id="delete-message" role="status"></p></form>'
+ if(error){target.textContent=(t("app.could_not_load_the_deletion_overview_sign_in_again_and_retry"));return}
+ target.innerHTML=("<form id=\"delete-account-form\" class=\"stack-form\"><h4>"+t("app.this_cannot_be_undone")+"</h4><p>"+t("app.your_login_profile_memberships_and_device_registrations_will_be_deleted_author_references_will_be_anonymised_other_owners_family_data_and_child_profiles_are_kept_local_unsynced_changes_will_be_lost")+"</p>")+
+ (plan.pending?("<p>"+t("app.deletion_has_already_started_confirm_your_password_again_to_finish_cleanup")+"</p>"):'')+
+ plan.households.map(h=>h.requires_deletion?'<label class="checkbox-label"><input type="checkbox" name="delete-household" value="'+h.id+("\" required>"+t("app.i_am_also_deleting_the_entire_family")+" ")+escapeHtml(h.name)+' ('+h.members+(" "+t("app.login_members_including_calendar_tasks_people_feeds_avatars_and_recipes_with_images")+"</label>"):("<p>"+t("app.the_family")+" ")+escapeHtml(h.name)+(" "+t("app.will_be_kept_your_membership_will_be_removed")+"</p>")).join('')+
+ ("<p>"+t("app.as_the_only_owner_you_must_confirm_family_deletion_cancel_if_the_family_should_be_kept")+"</p><label for=\"delete-password\">"+t("app.your_current_password")+"</label><input id=\"delete-password\" name=\"password\" type=\"password\" required autocomplete=\"current-password\"><label for=\"delete-confirmation\">"+t("app.type_slet_min_konto")+"</label><input id=\"delete-confirmation\" name=\"confirmation\" required autocomplete=\"off\" pattern=\""+t("account.confirm_phrase")+"\"><button type=\"submit\" class=\"danger-button\">"+t("app.delete_my_account_permanently")+"</button><p id=\"delete-message\" role=\"status\"></p></form>")
  target.querySelector('form').onsubmit=async event=>{
   event.preventDefault();const form=event.target,data=new FormData(form),submit=form.querySelector('button[type=submit]'),info=form.querySelector('#delete-message')
-  submit.disabled=true;info.textContent='Sletningen behandles…'
+  submit.disabled=true;info.textContent=(t("app.processing_deletion"))
   try{
-   const result=await supabase.functions.invoke('delete-account',{body:{password:String(data.get('password')),confirmation:String(data.get('confirmation')),delete_household_ids:data.getAll('delete-household')}})
+   const result=await supabase.functions.invoke('delete-account',{body:{password:String(data.get('password')),confirmation:String(data.get('confirmation'))===t('account.confirm_phrase')?'SLET MIN KONTO':String(data.get('confirmation')),delete_household_ids:data.getAll('delete-household')}})
    form.querySelector('#delete-password').value=''
    if(result.error){
     let body;try{body=await result.error.context?.json()}catch{}
-    throw Error(body?.error||'Sletningen kunne ikke bekræftes. Log ind igen, og prøv igen.')
+    throw Error(errorText(body,'app.deletion_could_not_be_confirmed_sign_in_again_and_retry'))
    }
-   if(!result.data?.deleted)throw Error('Sletningen afventer oprydning. Prøv igen.')
+   if(!result.data?.deleted)throw Error((t("app.deletion_is_awaiting_cleanup_please_try_again")))
    const uid=session?.user.id
    syncEngine?.stop();realtime.stop();await devices?.detach().catch(()=>{});await clearNativeExports({all:true}).catch(()=>{})
    if(uid)await localStore.clearUser(uid)
    if(uid){device.profiles=Object.fromEntries(Object.entries(device.profiles||{}).filter(([key])=>!key.startsWith(uid+':')));if(device.kiosk?.userId===uid)delete device.kiosk;persistDevice()}
    clearLocalAuth();clearSessionState();pendingInvite='';sessionStorage.removeItem('familiekalender.pending-invite');sessionStorage.removeItem('familiekalender.recovery')
    await supabase.auth.signOut({scope:'local'}).catch(()=>{})
-   authScreen='login';message='Din konto og de bekræftede familier er slettet.';render()
-  }catch(error){info.textContent=error.message;submit.disabled=false}
+   authScreen='login';message=(t("app.your_account_and_the_confirmed_families_have_been_deleted"));render()
+  }catch(error){info.textContent=userError(error);submit.disabled=false}
  }
 }
 
 
 function renderTaskCapture(tasks,done){
  const ratio=tasks.length?Math.round(done.length/tasks.length*100):0
- return '<section class="ux-task-progress'+(!tasks.length?' is-empty':'')+'"><div><p class="eyebrow">'+(taskRange==='month'?'Månedens fælles indsats':taskRange==='week'?'Ugens fælles indsats':'Dagens fælles indsats')+'</p><h3>'+done.length+' af '+tasks.length+' opgaver klaret</h3><p>'+(tasks.length-done.length?'Små ting, vi hjælpes ad med.':'Der er styr på listen.')+'</p></div><div class="ux-progress-ring" style="--progress:'+ratio+'%"><span>'+ratio+'<small>%</small></span></div></section>'
+ return '<section class="ux-task-progress'+(!tasks.length?' is-empty':'')+'"><div><p class="eyebrow">'+(taskRange==='month'?(t("app.this_month_s_shared_effort")):taskRange==='week'?(t("app.this_week_s_shared_effort")):(t("app.today_s_shared_effort")))+'</p><h3>'+t('tasks.progress',{done:done.length,count:tasks.length})+'</h3><p>'+(tasks.length-done.length?(t("app.small_things_we_help_each_other_with")):(t("app.the_list_is_under_control")))+'</p></div><div class="ux-progress-ring" style="--progress:'+ratio+'%"><span>'+ratio+'<small>%</small></span></div></section>'
 }
 function captureInlineFocus(){
  const input=document.activeElement
@@ -2986,23 +3089,23 @@ function bindPlanningSurface(){
   const meal=calendarItems.find(row=>row.id===button.dataset.mealIngredients);if(!meal)return
   if(recipeId(meal)){recipeUI.shopping(recipeId(meal),meal);return}
   button.disabled=true
-  try{const drafts=ingredientDrafts(meal.data?.recipe?.ingredients?.length?meal.data.recipe.ingredients:meal.note,calendarItems);if(!drafts.length){message='Ingredienserne er allerede på indkøbslisten.';updateCalendarSurface();return}
+  try{const drafts=ingredientDrafts(meal.data?.recipe?.ingredients?.length?meal.data.recipe.ingredients:meal.note,calendarItems);if(!drafts.length){message=(t("app.the_ingredients_are_already_on_the_shopping_list"));updateCalendarSurface();return}
    const result=await runCalendarMutation(()=>({upserts:drafts.flatMap(fields=>planCreate(planValues('shopping',fields)).upserts),deleteIds:[],expected:[]}))
-   message=result.error?result.error.message:drafts.length+' varer føjet til indkøbslisten.'
-  }catch(error){message=error.message}finally{button.disabled=false;updateCalendarSurface()}
+   message=result.error?userError(result.error):drafts.length+(" "+t("app.items_added_to_the_shopping_list"))
+  }catch(error){message=userError(error)}finally{button.disabled=false;updateCalendarSurface()}
  })
  document.querySelectorAll('[data-shopping-toggle]').forEach(input=>input.onchange=async()=>{
   const row=calendarItems.find(item=>item.id===input.dataset.shoppingToggle);if(row?.type!==PLAN_TYPES.shopping)return
   input.disabled=true
   const {error}=await runCalendarMutation(()=>planEdit(calendarItems,row,{...itemValues(row),done:input.checked}),{action:'toggle_done',entityId:row.id})
-  if(error)message=error.message;updateCalendarSurface()
+  if(error)message=userError(error);updateCalendarSurface()
  })
  const completed=document.querySelector('.shopping-completed');if(completed){completed.open=shoppingOpen;completed.ontoggle=()=>{shoppingOpen=completed.open}}
  document.querySelector('#clear-shopping')?.addEventListener('click',async()=>{
   const rows=shoppingItems(calendarItems).filter(row=>row.done)
-  if(!rows.length||!confirm('Fjern '+rows.length+' købte varer? Varer, I stadig mangler, bliver på listen.'))return
+  if(!rows.length||!confirm((t("app.remove")+" ")+rows.length+(" "+t("app.purchased_items_items_you_still_need_will_stay_on_the_list"))))return
   const {error}=await runCalendarMutation(()=>({upserts:[],deleteIds:rows.map(row=>row.id),expected:rows.map(row=>({id:row.id,updated_at:row.updated_at}))}))
-  message=error?error.message:'Købte varer fjernet.';updateCalendarSurface()
+  message=error?userError(error):(t("app.purchased_items_removed"));updateCalendarSurface()
  })
  const form=document.querySelector('#shopping-add')
  if(form){
@@ -3015,18 +3118,18 @@ function bindPlanningSurface(){
     if(context!==sessionEpoch+':'+activeHousehold?.id)return
     if(error)throw error
     if(JSON.stringify(draft)===JSON.stringify(shoppingDraft))shoppingDraft={title:'',note:''}
-    message='Varen er føjet til familiens liste.'
-   }catch(error){message=error.message}finally{shoppingBusy=false;if(context===sessionEpoch+':'+activeHousehold?.id){updateCalendarSurface();document.querySelector('#shopping-title')?.focus({preventScroll:true})}}
+    message=(t("app.the_item_was_added_to_the_family_s_list"))
+   }catch(error){message=userError(error)}finally{shoppingBusy=false;if(context===sessionEpoch+':'+activeHousehold?.id){updateCalendarSurface();document.querySelector('#shopping-title')?.focus({preventScroll:true})}}
   }
  }
 }
 
 
 function taskDates(){const today=toDateIso(new Date());return taskRange==='month'?monthDates(today):taskRange==='week'?weekDates(today):[today]}
-function renderFoodTabs(){return '<nav class="food-tabs" aria-label="Mad og indkøb">'+[['meals','Madplan'],...(mode()==='kiosk'?[]:[['recipes','Opskrifter']]),['shopping','Indkøb']].map(([id,label])=>'<button data-food-tab="'+id+'" aria-pressed="'+(productRoute===id)+'">'+label+'</button>').join('')+'</nav>'}
+function renderFoodTabs(){return ("<nav class=\"food-tabs\" aria-label=\""+t("app.meals_and_shopping")+"\">")+[['meals','Madplan'],...(mode()==='kiosk'?[]:[['recipes',(t("app.recipes"))]]),['shopping','Indkøb']].map(([id,label])=>'<button data-food-tab="'+id+'" aria-pressed="'+(productRoute===id)+'">'+label+'</button>').join('')+'</nav>'}
 function openCreateSheet(){
  if(mode()==='kiosk')return
- createRoot.innerHTML='<div id="create-sheet" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="create-sheet-title"><section class="create-sheet"><header><h2 id="create-sheet-title">Hvad vil du tilføje?</h2><button type="button" data-create-close aria-label="Luk">×</button></header>'+[['Aktivitet','Aktivitet','calendar'],['Opgave','Opgave','tasks'],['meal','Måltid','meals'],['shopping','Indkøbsvare','shopping'],['Fødselsdag','Fødselsdag / mærkedag','sun']].map(([kind,label,i])=>'<button type="button" data-create-kind="'+kind+'">'+icon(i)+'<span>'+label+'</span>'+icon('plus')+'</button>').join('')+'</section></div>'
+ createRoot.innerHTML=("<div id=\"create-sheet\" class=\"modal-backdrop\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"create-sheet-title\"><section class=\"create-sheet\"><header><h2 id=\"create-sheet-title\">"+t("app.what_would_you_like_to_add")+"</h2><button type=\"button\" data-create-close aria-label=\""+t("common.close")+"\">×</button></header>")+[['Aktivitet',t('types.activity'),'calendar'],['Opgave',t('types.task'),'tasks'],['meal',(t("app.meal")),'meals'],['shopping',(t("app.shopping_item")),'shopping'],['Fødselsdag',(t("app.birthday_milestone")),'sun']].map(([kind,label,i])=>'<button type="button" data-create-kind="'+kind+'">'+icon(i)+'<span>'+label+'</span>'+icon('plus')+'</button>').join('')+'</section></div>'
  createRoot.querySelector('[data-create-close]').onclick=()=>{createRoot.innerHTML=''}
  createRoot.querySelector('.modal-backdrop').onclick=e=>{if(e.target===e.currentTarget)createRoot.innerHTML=''}
  createRoot.querySelectorAll('[data-create-kind]').forEach(button=>button.onclick=()=>{
@@ -3040,17 +3143,17 @@ function renderMobileAgendaItem(item,day){
  if(managedTask(item))return rewardsUI.taskCard(item,activePersonFilter)
  const title=getCalendarItemTitle(item),type=getCalendarValue(item,'type'),task=type==='Opgave',done=Boolean(getCalendarValue(item,'done')),time=getCalendarValue(item,'time'),location=getCalendarValue(item,'location')
  const badge=renderCalendarItemIcon(item)||icon(type==='Fritidsinteresse'?'sun':'calendar')
- return '<article class="calendar-item mobile-agenda-item '+(done?'is-done':'')+'" data-calendar-item="'+escapeHtml(item.id)+'" tabindex="0" role="button" aria-label="'+escapeHtml(title+' · '+eventDisplayRange(item))+'" style="--agenda-color:'+escapeHtml(getCalendarItemColor(item))+'"><span class="agenda-time'+(task?' is-task':'')+'">'+(task?badge:escapeHtml(time||'Heldag'))+'</span><div class="agenda-content"><strong>'+escapeHtml(title)+'</strong><p class="agenda-meta">'+(!task?'<span class="agenda-type" title="'+escapeHtml(type)+'" aria-label="'+escapeHtml(type)+'">'+badge+'</span>':'')+escapeHtml(getCalendarItemPeople(item).join(', ')||'Alle')+(task&&time?' · '+escapeHtml(time):'')+(location?' · '+escapeHtml(location):'')+'</p>'+renderCalendarRepeatMeta(item)+(sourceLabel(item)?'<span class="calendar-source-badge">'+escapeHtml(sourceLabel(item))+'</span>':'')+'</div>'+(task&&!imported(item)?'<label class="done-toggle"><input type="checkbox" data-calendar-toggle="'+escapeHtml(item.id)+'" '+(done?'checked':'')+' aria-label="'+escapeHtml((done?'Fortryd udført: ':'Markér udført: ')+title)+'"><span class="sr-only">'+(done?'Udført':'Markér udført')+'</span></label>':'')+'</article>'
+ return '<article class="calendar-item mobile-agenda-item '+(done?'is-done':'')+'" data-calendar-item="'+escapeHtml(item.id)+'" tabindex="0" role="button" aria-label="'+escapeHtml(title+' · '+eventDisplayRange(item))+'" style="--agenda-color:'+escapeHtml(getCalendarItemColor(item))+'"><span class="agenda-time'+(task?' is-task':'')+'">'+(task?badge:escapeHtml(time||(t("calendar.all_day"))))+'</span><div class="agenda-content"><strong>'+escapeHtml(title)+'</strong><p class="agenda-meta">'+(!task?'<span class="agenda-type" title="'+escapeHtml(typeLabel(type))+'" aria-label="'+escapeHtml(typeLabel(type))+'">'+badge+'</span>':'')+escapeHtml(calendarPeopleLabel(item)||'Alle')+(task&&time?' · '+escapeHtml(time):'')+(location?' · '+escapeHtml(location):'')+'</p>'+renderCalendarRepeatMeta(item)+(sourceLabel(item)?'<span class="calendar-source-badge">'+escapeHtml(sourceLabel(item))+'</span>':'')+'</div>'+(task&&!imported(item)?'<label class="done-toggle"><input type="checkbox" data-calendar-toggle="'+escapeHtml(item.id)+'" '+(done?'checked':'')+' aria-label="'+escapeHtml((done?(t("app.undo_completion")+" "):(t("app.mark_completed_marker_udf_rt_")+" "))+title)+'"><span class="sr-only">'+(done?(t("app.completed")):(t("app.mark_completed")))+'</span></label>':'')+'</article>'
 }
 function renderMobileDay(date,{heading=true}={}){
  const day=toDateIso(date),week=productRoute==='calendar'&&calendarViewMode==='week'
  const rows=getRenderableCalendarItems().filter(item=>eventOverlapsDate(item,day)&&doesItemMatchPersonFilter(item)).sort((a,b)=>Number(eventInterval(b).multiDay)-Number(eventInterval(a).multiDay)||(getCalendarValue(a,'time')||'').localeCompare(getCalendarValue(b,'time')||''))
  const appointments=rows.filter(item=>getCalendarValue(item,'type')!=='Opgave'),tasks=rows.filter(item=>getCalendarValue(item,'type')==='Opgave'),meals=mealsOn(calendarItems,day)
- const dayTitle=week?formatWeekday(date)+' '+formatShortDate(date):new Intl.DateTimeFormat('da-DK',{weekday:'long',day:'numeric',month:'long'}).format(date)
+ const dayTitle=week?formatWeekday(date)+' '+formatShortDate(date):dateFormatter({weekday:'long',day:'numeric',month:'long'}).format(date)
  let content
- if(week)content=(rows.length||meals.length?appointments.map(item=>renderMobileAgendaItem(item,day)).join('')+tasks.map(renderCompactTask).join(''):'<p class="agenda-empty">Ingen aftaler</p>')+compactMeals(meals)
- else content=(appointments.length?'<section class="mobile-agenda-section"><h3>Aftaler</h3>'+appointments.map(item=>renderMobileAgendaItem(item,day)).join('')+'</section>':!tasks.length&&!meals.length?'<p class="agenda-empty">Ingen planer</p>':'')+(tasks.length?'<section class="mobile-agenda-section"><h3>Opgaver</h3>'+renderDayItems('Opgave',tasks,day)+'</section>':'')+(meals.length?'<section class="mobile-agenda-section mobile-dinner'+(meals.length===1&&!meals[0].time?' is-title-only':'')+'"><h3>'+icon('meals')+' Aftensmad</h3>'+meals.map(meal=>'<button data-plan-edit="'+meal.id+'"><strong>'+escapeHtml(meal.title)+'</strong>'+(meal.time?'<small>'+escapeHtml(meal.time)+'</small>':'')+'</button>').join('')+'</section>':'')
- return '<article class="day-card mobile-agenda-day '+(day===toDateIso(new Date())?'is-today':'')+'" data-day="'+day+'">'+(heading&&week?'<header class="day-card-header"><strong>'+escapeHtml(dayTitle)+'</strong>'+(day===toDateIso(new Date())?'<span>I dag</span>':'')+'</header>':'')+content+'</article>'
+ if(week)content=(rows.length||meals.length?appointments.map(item=>renderMobileAgendaItem(item,day)).join('')+tasks.map(renderCompactTask).join(''):("<p class=\"agenda-empty\">"+t("app.no_events")+"</p>"))+compactMeals(meals)
+ else content=(appointments.length?("<section class=\"mobile-agenda-section\"><h3>"+t("app.events_aftaler")+"</h3>")+appointments.map(item=>renderMobileAgendaItem(item,day)).join('')+'</section>':!tasks.length&&!meals.length?("<p class=\"agenda-empty\">"+t("app.no_plans")+"</p>"):'')+(tasks.length?("<section class=\"mobile-agenda-section\"><h3>"+t("nav.tasks")+"</h3>")+renderDayItems('Opgave',tasks,day)+'</section>':'')+(meals.length?'<section class="mobile-agenda-section mobile-dinner'+(meals.length===1&&!meals[0].time?' is-title-only':'')+'"><h3>'+icon('meals')+(" "+t("app.dinner")+"</h3>")+meals.map(meal=>'<button data-plan-edit="'+meal.id+'"><strong>'+escapeHtml(meal.title)+'</strong>'+(meal.time?'<small>'+escapeHtml(meal.time)+'</small>':'')+'</button>').join('')+'</section>':'')
+ return '<article class="day-card mobile-agenda-day '+(day===toDateIso(new Date())?'is-today':'')+'" data-day="'+day+'">'+(heading&&week?'<header class="day-card-header"><strong>'+escapeHtml(dayTitle)+'</strong>'+(day===toDateIso(new Date())?("<span>"+t("nav.today")+"</span>"):'')+'</header>':'')+content+'</article>'
 }
 
 init()
@@ -3062,19 +3165,20 @@ async function loadRewardsV2(){
  if(!error&&engine===syncEngine&&generation===engine.writeGeneration&&version===rewardLoadVersion){rewardMotion.hydrate(data);await engine.snapshot({rewards:data})}
 }
 async function performRewardAction(action,payload){
- const engine=syncEngine;if(!engine)return {error:new Error('Familien er endnu ikke klar.')}
+ if(isWall()){try{await wallService.complete({itemId:payload.item_id,dueDate:payload.due_date,personId:payload.person_id,done:action!=='undo',action});return {data:{rewards:rewardState}}}catch(error){return {error}}}
+ const engine=syncEngine;if(!engine)return {error:new Error((t("app.the_family_is_not_ready_yet")))}
  if(['complete','undo'].includes(action)){
   const item=allowanceTasks(materialize(calendarItems,[payload.due_date],{milestones:false}),rewardState,[payload.due_date]).find(t=>(t.isRepeatOccurrence?t.baseId:t.id)===payload.item_id&&actionPayload(t,payload.person_id).occurrence_date===payload.occurrence_date)
-  if(!item)return {error:new Error('Opgaven findes ikke længere.')}
+  if(!item)return {error:new Error((t("app.this_task_no_longer_exists")))}
   const rule=rewardRule(item)
   rewardMotion.taskCheck(payload.item_id,action==='undo'?'open':rule.approval?'pending':'completed',payload.person_id)
   return engine.enqueue({p_upserts:[],p_delete_ids:[],p_expected:[],reward_action:{action,payload,optimistic:{origin_id:rewardOrigin(item),task_id:payload.item_id,title:item.title,reward_mode:rule.mode,star_value:rule.stars,requires_approval:rule.approval}}},{action:'reward_'+action,entityId:rewardOrigin(item)+'|'+payload.occurrence_date+'|'+payload.person_id})
  }
- if(!navigator.onLine||syncStatus.offline)return {error:new Error(action==='redeem'?'Du skal være online for at indløse en belønning.':'Denne handling kræver forbindelse.')}
- if(engine.state.queue.length){await engine.replay();if(engine.state.queue.length)return {error:new Error('Synkronisér de ventende opgaver først.')};}
+ if(!navigator.onLine||syncStatus.offline)return {error:new Error(action==='redeem'?(t("app.you_need_to_be_online_to_redeem_a_reward")):(t("app.this_action_requires_a_connection")))}
+ if(engine.state.queue.length){await engine.replay();if(engine.state.queue.length)return {error:new Error((t("app.sync_pending_tasks_first")))};}
  engine.writeGeneration++
  const result=await supabase.rpc('reward_action',{p_request_id:crypto.randomUUID(),p_household_id:activeHousehold.id,p_action:action,p_payload:payload})
- if(engine!==syncEngine)return {error:new Error('Familien er skiftet.')}
+ if(engine!==syncEngine)return {error:new Error((t("app.the_family_has_changed")))}
  if(!result.error){engine.writeGeneration++;await engine.snapshot({rewards:result.data.rewards});if(['config','allowance_save'].includes(action))await loadHouseholdPeople();updateCalendarSurface()}
  return result
 }
@@ -3084,11 +3188,11 @@ function setupTaskEditor(isTask){
  if(!rewardFields&&isTask){
   const item=getEditingCalendarItem(),grid=form.querySelector('.form-grid'),date=form.querySelector('#calendar-date').parentElement,people=form.querySelector('.calendar-person-pills').parentElement
   form.closest('.calendar-modal').classList.add('task-editor')
-  advanced=document.createElement('details');advanced.className='task-advanced full';advanced.innerHTML='<summary>Avanceret</summary><div class="form-grid"></div>'
+  advanced=document.createElement('details');advanced.className='task-advanced full';advanced.innerHTML=("<summary>"+t("app.advanced")+"</summary><div class=\"form-grid\"></div>")
   for(const id of ['calendar-time','calendar-type','calendar-duration','calendar-location','calendar-note','calendar-birth-year'])advanced.lastElementChild.append(form.querySelector('#'+id).parentElement)
   grid.prepend(people);grid.prepend(form.querySelector('#calendar-title').parentElement)
   people.after(date)
-  quick=document.createElement('div');quick.className='task-quick-fields full';quick.innerHTML='<div class="task-quick-dates" aria-label="Hvornår"><button type="button" data-task-day="0">I dag</button><button type="button" data-task-day="1">I morgen</button><button type="button" data-task-day="date">Vælg dato</button></div><label for="task-repeat">Gentagelse</label><select id="task-repeat"><option value="none">Ingen</option><option value="weekly">Hver uge</option><option value="weekdays">Hverdage</option></select>'
+  quick=document.createElement('div');quick.className='task-quick-fields full';quick.innerHTML=("<div class=\"task-quick-dates\" aria-label=\""+t("app.when")+"\"><button type=\"button\" data-task-day=\"0\">"+t("nav.today")+"</button><button type=\"button\" data-task-day=\"1\">"+t("app.tomorrow")+"</button><button type=\"button\" data-task-day=\"date\">"+t("app.choose_date")+"</button></div><label for=\"task-repeat\">"+t("app.repeat")+"</label><select id=\"task-repeat\"><option value=\"none\">"+t("app.none")+"</option><option value=\"weekly\">"+t("app.every_week")+"</option><option value=\"weekdays\">"+t("app.weekdays")+"</option></select>")
   date.append(quick)
   const repeat=form.querySelector('#task-repeat'),weekly=form.querySelector('[name=repeatWeekly]'),weekdays=form.querySelector('[name=weekdays]')
   repeat.value=weekdays.checked?'weekdays':weekly.checked?'weekly':'none';repeat.disabled=weekly.disabled;repeat.querySelector('[value=weekdays]').disabled=!!item
@@ -3097,8 +3201,8 @@ function setupTaskEditor(isTask){
   advanced.lastElementChild.append(form.querySelector('#calendar-options'));grid.append(advanced)
   rewardFields=document.createElement('fieldset');rewardFields.id='task-reward-fields';rewardFields.className='full';rewardFields.disabled=!rewardsUI.adult
   const configured=calendarValue(item,'rewardMode')||'none',requires=item?!!calendarValue(item,'requiresApproval'):householdPeople.some(p=>rewardConfig(rewardState,p.id).default_requires_approval)
-  rewardFields.innerHTML='<details class="task-reward-details"><summary>Belønning <small>valgfrit</small></summary><div class="stack-form"><label for="task-reward-mode">Denne opgave</label><select id="task-reward-mode" name="rewardMode"><option value="none">Ingen belønning</option><option value="stars">Bonus ⭐</option></select><div id="task-stars-fields"><label for="task-star-value">Bonusstjerner</label><input id="task-star-value" type="number" name="starValue" min="1" max="100000" step="1" value="'+(Number(calendarValue(item,'starValue'))||10)+'"><label><input type="checkbox" name="bonusPool" '+(calendarValue(item,'bonusPool')?'checked':'')+'> Frivillig bonusopgave — én person kan tage den</label></div><label><input name="requiresApproval" type="checkbox" '+(requires?'checked':'')+'> Kræver voksengodkendelse</label><p class="hint">Nye belønningsregler gælder fra nu og frem. Afsluttede belønninger bevares.</p></div></details>'
-  if(configured==='allowance'){const o=document.createElement('option');o.value='allowance';o.textContent='Tidligere lommepengeopgave · gennemgå aftale';rewardFields.querySelector('select').append(o)}advanced.before(rewardFields);form.querySelector('[name=rewardMode]').value=configured
+  rewardFields.innerHTML=("<details class=\"task-reward-details\"><summary>"+t("app.reward")+" <small>"+t("app.optional")+"</small></summary><div class=\"stack-form\"><label for=\"task-reward-mode\">"+t("app.this_task")+"</label><select id=\"task-reward-mode\" name=\"rewardMode\"><option value=\"none\">"+t("app.no_reward")+"</option><option value=\"stars\">"+t("app.bonus")+"</option></select><div id=\"task-stars-fields\"><label for=\"task-star-value\">"+t("app.bonus_stars")+"</label><input id=\"task-star-value\" type=\"number\" name=\"starValue\" min=\"1\" max=\"100000\" step=\"1\" value=\"")+(Number(calendarValue(item,'starValue'))||10)+'"><label><input type="checkbox" name="bonusPool" '+(calendarValue(item,'bonusPool')?'checked':'')+("> "+t("app.optional_bonus_task_one_person_can_take_it")+"</label></div><label><input name=\"requiresApproval\" type=\"checkbox\" ")+(requires?'checked':'')+("> "+t("app.requires_adult_approval")+"</label><p class=\"hint\">"+t("app.new_reward_rules_apply_from_now_on_completed_rewards_are_preserved")+"</p></div></details>")
+  if(configured==='allowance'){const o=document.createElement('option');o.value='allowance';o.textContent=(t("app.previous_allowance_task_review_agreement"));rewardFields.querySelector('select').append(o)}advanced.before(rewardFields);form.querySelector('[name=rewardMode]').value=configured
   const refresh=()=>{const mode=form.querySelector('[name=rewardMode]').value;form.querySelector('#task-stars-fields').hidden=mode!=='stars';form.querySelector('[name=starValue]').required=mode==='stars';const managed=mode!=='none'||form.querySelector('[name=requiresApproval]').checked;setCheckboxOptionEnabled(form.querySelector('#done-option'),!managed)}
   form.querySelector('[name=rewardMode]').onchange=refresh;form.querySelector('[name=requiresApproval]').onchange=ev=>{ev.target.dataset.manual='true';refresh()};refresh()
   quick.querySelectorAll('[data-task-day]').forEach(b=>b.onclick=()=>{const input=form.querySelector('#calendar-date');if(b.dataset.taskDay==='date'){input.focus();input.showPicker?.()}else input.value=addDays(rewardToday(),Number(b.dataset.taskDay))})
@@ -3106,14 +3210,15 @@ function setupTaskEditor(isTask){
  if(rewardFields)rewardFields.hidden=!isTask
  if(quick)quick.hidden=!isTask
  if(advanced&&!isTask)advanced.open=true
- if(isTask){form.querySelector('#task-repeat').disabled=form.querySelector('[name=repeatWeekly]').disabled;document.querySelector('#calendar-modal-title').textContent=getEditingCalendarItem()?'Rediger opgave':'Ny opgave';form.querySelector('button[type=submit]').textContent=getEditingCalendarItem()?'Gem ændringer':'Opret opgave'}
+ if(isTask){form.querySelector('#task-repeat').disabled=form.querySelector('[name=repeatWeekly]').disabled;document.querySelector('#calendar-modal-title').textContent=getEditingCalendarItem()?(t("app.edit_task")):(t("app.new_task"));form.querySelector('button[type=submit]').textContent=getEditingCalendarItem()?(t("app.save_changes")):(t("app.create_task"))}
 }
 async function loadRecipes(){
+ if(isWall())return
  if(!syncEngine||!navigator.onLine)return
  const engine=syncEngine,version=++recipeLoadVersion
  const {data,error,stale}=await recipeService.load()
  if(engine!==syncEngine||version!==recipeLoadVersion||stale)return
- if(error){recipeLoadError='Biblioteket kunne ikke opdateres. Viser senest gemte opskrifter.';return}
+ if(error){recipeLoadError=(t("app.the_library_could_not_be_refreshed_showing_the_last_saved_recipes"));return}
  const resolved=await recipeService.images(data||[])
  if(engine!==syncEngine||version!==recipeLoadVersion)return
  recipeLoadError='';recipeImages=new Map(resolved.map(r=>[r.image_path,r.image_display_url]));libraryRecipes=resolved
@@ -3123,22 +3228,22 @@ async function loadRecipes(){
 
 function renderHiddenImports(){
  if(!hiddenImportsOpen)return '';
- if(hiddenImportsLoading)return '<p role="status">Henter skjulte aftaler…</p>';
- return '<div class="hidden-imports"><p class="hint">Gendan gør aftalen synlig igen, når den stadig findes i kilden. Gendan fjerner kun den valgte skjuleregel. Andre skjuleregler og lokale tilpasninger bevares.</p>'+
- (hiddenImports.length?hiddenImports.map((row,i)=>'<article><div><strong>'+escapeHtml(row.title)+'</strong><small>'+escapeHtml(row.feed_name)+' · '+escapeHtml(hiddenImportLabel(row))+'</small></div><button type="button" data-restore-import="'+i+'">Gendan</button></article>').join(''):'<p>Ingen skjulte importerede aftaler.</p>')+'</div>';
+ if(hiddenImportsLoading)return ("<p role=\"status\">"+t("app.loading_hidden_events")+"</p>");
+ return ("<div class=\"hidden-imports\"><p class=\"hint\">"+t("app.restore_makes_an_event_visible_again_if_it_still_exists_in_the_source_only_the_selected_hiding_rule_is_removed_other_hiding_rules_and_local_changes_are_preserved")+"</p>")+
+ (hiddenImports.length?hiddenImports.map((row,i)=>'<article><div><strong>'+escapeHtml(row.title)+'</strong><small>'+escapeHtml(row.feed_name)+' · '+escapeHtml(hiddenImportLabel(row))+'</small></div><button type="button" data-restore-import="'+i+("\">"+t("app.restore")+"</button></article>")).join(''):("<p>"+t("app.no_hidden_imported_events")+"</p>"))+'</div>';
 }
 async function loadHiddenImports(){
  const hid=activeHousehold?.id,epoch=sessionEpoch;if(!hid)return;
  hiddenImportsOpen=true;hiddenImportsLoading=true;render();
  const {data,error}=await supabase.rpc('list_hidden_calendar_imports',{p_household_id:hid});
  if(hid!==activeHousehold?.id||epoch!==sessionEpoch)return;
- hiddenImportsLoading=false;if(error){hiddenImportsOpen=false;calendarImportMessage='Kunne ikke hente skjulte aftaler. Prøv igen.'}else hiddenImports=data||[];
+ hiddenImportsLoading=false;if(error){hiddenImportsOpen=false;calendarImportMessage=(t("app.could_not_load_hidden_events_please_try_again"))}else hiddenImports=data||[];
  render();
 }
 async function restoreHiddenImport(index){
  const row=hiddenImports[index],hid=activeHousehold?.id,epoch=sessionEpoch;if(!row||!hid)return;
  const {error}=await supabase.rpc('restore_calendar_import',{p_household_id:hid,p_feed_id:row.feed_id,p_uid:row.uid,p_occurrence:row.occurrence});
  if(hid!==activeHousehold?.id||epoch!==sessionEpoch)return;
- if(error){calendarImportMessage='Kunne ikke gendanne aftalen. Prøv igen.';render();return}
+ if(error){calendarImportMessage=(t("app.could_not_restore_the_event_please_try_again"));render();return}
  await refreshHousehold();await loadHiddenImports();
 }

@@ -1,3 +1,4 @@
+import {t,formatMoney} from '../i18n/index.js'
 import {occurrenceDate, value} from './calendar-semantics.js'
 import {itemMatchesPerson} from './people.js'
 export const rewardToday=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Copenhagen',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date())
@@ -26,8 +27,8 @@ export function taskComplete(item,people,state,pid='Alle'){
  return !!targets.length&&targets.every(p=>isApproved(occurrenceState(state,item,p.id)))
 }
 export const actionPayload=(item,pid)=>({person_id:pid,item_id:item.isRepeatOccurrence?item.baseId:item.id,occurrence_date:occurrenceDate(item),due_date:value(item,'allowanceDueDate')||item.date})
-export function currency(minor){return new Intl.NumberFormat('da-DK',{style:'currency',currency:'DKK',minimumFractionDigits:minor%100?2:0,maximumFractionDigits:2}).format(minor/100)}
-export function parseCurrency(text){const m=String(text).trim().match(/^(\d{1,7})(?:[,.](\d{1,2}))?$/);if(!m)throw Error('Skriv et beløb i kroner, fx 100 eller 100,50.');const n=Number(m[1])*100+Number((m[2]||'').padEnd(2,'0'));if(n>100000000)throw Error('Beløbet er for stort.');return n}
+export const currency=formatMoney
+export function parseCurrency(text){const m=String(text).trim().match(/^(\d{1,7})(?:[,.](\d{1,2}))?$/);if(!m)throw Error((t("rewards.enter_an_amount_for_example_100_or_100_50")));const n=Number(m[1])*100+Number((m[2]||'').padEnd(2,'0'));if(n>100000000)throw Error((t("rewards.the_amount_is_too_large")));return n}
 export function monthProgress(rows,people,state,pid,day=rewardToday()){
  const confirmed=state?.monthly?.find(m=>m.person_id===pid&&(m.period_start?day>=m.period_start&&day<=m.period_end:m.year===Number(day.slice(0,4))&&m.month===Number(day.slice(5,7))));if(confirmed)return confirmed
  const contract=state?.contracts?.find(m=>m.person_id===pid&&day>=m.period_start&&day<=m.period_end);if(contract)return contract

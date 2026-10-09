@@ -1,9 +1,10 @@
+import {t} from '../i18n/index.js'
 export const AVATAR_BUCKET = 'household-avatars'
 export const AVATAR_MAX_BYTES = 2 * 1024 * 1024
 const extensions = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }
 export function validateAvatar(file) {
-  if (!extensions[file.type]) throw new Error('Vælg et PNG-, JPEG- eller WebP-billede.')
-  if (file.size <= 0 || file.size > AVATAR_MAX_BYTES) throw new Error('Avatar må højst fylde 2 MB.')
+  if (!extensions[file.type]) throw new Error((t("avatars.choose_a_png_jpeg_or_webp_image")))
+  if (file.size <= 0 || file.size > AVATAR_MAX_BYTES) throw new Error((t("avatars.the_avatar_must_be_no_larger_than_2_mb")))
 }
 export function avatarDisplayUrl(person) {
   const value = person.avatar_display_url || person.avatar_url || ''

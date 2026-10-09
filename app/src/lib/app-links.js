@@ -1,13 +1,14 @@
+import {t} from '../i18n/index.js'
 // One model for verified HTTPS links, local development and the registered native scheme.
 export const NATIVE_CALLBACK='familiekalender://auth/callback'
 const TOKEN=/^[0-9a-f-]{72}$/i
 export function publicBase(env={},location=globalThis.location) {
  const raw=env.VITE_PUBLIC_APP_URL
- if(raw){const url=new URL(raw);if(url.protocol!=='https:'||url.username||url.password)throw Error('Public app URL skal være HTTPS.');return url.origin}
+ if(raw){const url=new URL(raw);if(url.protocol!=='https:'||url.username||url.password)throw Error((t("app_links.the_public_app_url_must_use_https")));return url.origin}
  return location?.origin?.startsWith('http')&&location.origin!=='https://localhost'?location.origin:''
 }
 export function authCallback({native=false,base=''}={}){return native?NATIVE_CALLBACK:new URL('/auth/callback',base).href}
-export function inviteLink(base,token){if(!TOKEN.test(token))throw Error('Ugyldig invitation');return new URL('/invite',base).href+'#invite='+encodeURIComponent(token)}
+export function inviteLink(base,token){if(!TOKEN.test(token))throw Error((t("app_links.invalid_invitation")));return new URL('/invite',base).href+'#invite='+encodeURIComponent(token)}
 export function parseAppLink(input,{base='',localOrigin=''}={}) {
  let url;try{url=new URL(input)}catch{return null}
  const native=url.protocol==='familiekalender:'
@@ -31,8 +32,8 @@ export function parseAppLink(input,{base='',localOrigin=''}={}) {
  return null
 }
 export async function consumeAuthLink(client,link){
- if(link.kind!=='auth')throw Error('Ugyldigt loginlink.')
+ if(link.kind!=='auth')throw Error((t("app_links.invalid_sign_in_link")))
  const response=link.code?await client.auth.exchangeCodeForSession(link.code):await client.auth.setSession({access_token:link.access,refresh_token:link.refresh})
- if(response.error||!response.data?.session)throw Error('Linket er udløbet eller allerede brugt. Bed om et nyt link.')
+ if(response.error||!response.data?.session)throw Error((t("app_links.this_link_has_expired_or_has_already_been_used_request_a_new_link")))
  return response.data.session
 }

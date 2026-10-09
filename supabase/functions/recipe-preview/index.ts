@@ -41,20 +41,12 @@ export function makeRecipeHandler(deps:{authenticate?:(authorization:string)=>Pr
      return json({recipe,review_required:true});
     }catch(error){
      const code=error instanceof Error?error.message:'';
-     const messages:Record<string,[number,string]>={
-      VISION_NOT_CONFIGURED:[503,'Fotoscan er ikke konfigureret endnu. Du kan stadig skrive opskriften manuelt.'],
-      VISION_RATE_LIMIT:[429,'Der er mange scanninger lige nu. Vent et minut og prøv igen.'],
-      VISION_TIMEOUT:[504,'Det tog for lang tid at læse billederne. Prøv igen.'],
-      INVALID_IMAGES:[400,'Vælg 1–4 læsbare billeder på højst 2200 pixels og 12 MB i alt.'],
-      VISION_NO_RECIPE:[422,'Vi kunne ikke finde en opskrift. Prøv tydeligere fotos, eller skriv den manuelt.'],
-      VISION_UNREADABLE:[422,'Vi kunne ikke læse opskriften. Prøv tydeligere fotos, eller skriv den manuelt.']
-     };
-     const [status,message]=messages[code]||[503,'Opskriftsscanning er midlertidigt ikke tilgængelig. Prøv igen eller skriv opskriften manuelt.'];
-     return json({error:messages[code]?code:'VISION_UNAVAILABLE',message},status);
+     const statuses:Record<string,number>={VISION_NOT_CONFIGURED:503,VISION_RATE_LIMIT:429,VISION_TIMEOUT:504,INVALID_IMAGES:400,VISION_NO_RECIPE:422,VISION_UNREADABLE:422};
+     return json({error:statuses[code]?code:'VISION_UNAVAILABLE'},statuses[code]||503);
     }finally{
      if(paths.length){
       const cleanup=deps.cleanup|| (async(_auth:string,p:string[])=>{const {error}=await storage().remove(p);if(error)throw Error('CLEANUP_FAILED');});
-      try{await cleanup(authorization,paths);}catch{return json({error:'SCAN_CLEANUP_FAILED',message:'Scanningen blev afbrudt. Midlertidige billeder forsøges fjernet igen fra din enhed.'},503);}
+      try{await cleanup(authorization,paths);}catch{return json({error:'SCAN_CLEANUP_FAILED'},503);}
      }
     }
    }
@@ -63,7 +55,7 @@ export function makeRecipeHandler(deps:{authenticate?:(authorization:string)=>Pr
    let image_copy=null;
    if(recipe.image){try{await abortable((deps.validateImage||resolvePublic)(recipeUrl(recipe.image)),AbortSignal.timeout(3000));image_copy=await(deps.image||fetchRecipeImage)(recipe.image);}catch{recipe.image='';/* optional image failure never blocks the recipe or produces a hotlink */}}
    return json({recipe:{...recipe,image_copy}});
-  }catch{return json({error:'RECIPE_UNAVAILABLE',message:'Opskriften kunne ikke hentes. Prøv et andet link, eller skriv den manuelt.'},422);}
+  }catch{return json({error:'RECIPE_UNAVAILABLE'},422);}
  };
 }
 if(import.meta.main)Deno.serve(makeRecipeHandler());

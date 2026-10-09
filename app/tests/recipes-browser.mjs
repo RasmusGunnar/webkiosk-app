@@ -8,7 +8,7 @@ import {routeTo,openSettings} from './browser-actions.mjs'
 const expect=baseExpect.configure({timeout:15000})
 const local=localSupabase(),admin=createClient(local.API_URL,local.SERVICE_ROLE_KEY,{auth:{persistSession:false}}),out='supabase/.temp/recipes30',root='http://127.0.0.1:5179'
 mkdirSync(out,{recursive:true})
-const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true}),context=await browser.newContext({viewport:{width:1440,height:1000},timezoneId:'Europe/Copenhagen'}),page=await context.newPage()
+const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true}),context=await browser.newContext({locale:'da-DK',viewport:{width:1440,height:1000},timezoneId:'Europe/Copenhagen'}),page=await context.newPage()
 page.setDefaultTimeout(14000)
 const errors=[],results=[],shots=[],paths=[];let uid,hid,signedBatches=0
 page.on('request',r=>{if(r.method()==='POST'&&new URL(r.url()).pathname==='/storage/v1/object/sign/recipe-images')signedBatches++})

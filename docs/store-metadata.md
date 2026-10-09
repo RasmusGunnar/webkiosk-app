@@ -1,4 +1,5 @@
-# Store metadata · Danish · 1.0
+# Store metadata · da-DK / en-GB · 1.0
+Internationalization drafts are in [da-DK](store-locales/da-DK.json) and [en-GB](store-locales/en-GB.json). The app name remains **Familiekalender** in both locales. These are local preparation files only; no App Store Connect or Play Console listing has been created or changed. Final legal/support information, subscription terms and native screenshots remain release tasks.
 Draft for the actual release; no store listing has been submitted.
 
 - Name: **Familiekalender**

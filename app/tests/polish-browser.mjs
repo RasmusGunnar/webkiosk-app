@@ -7,7 +7,7 @@ import {routeTo,openCreate,openSettings} from './browser-actions.mjs'
 const local=localSupabase(),admin=createClient(local.API_URL,local.SERVICE_ROLE_KEY,{auth:{persistSession:false}})
 const root='http://127.0.0.1:5178',out='supabase/.temp/polish24',today='2026-10-05'
 mkdirSync(out,{recursive:true})
-const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true}),page=await browser.newPage({viewport:{width:1440,height:900},timezoneId:'Europe/Copenhagen'})
+const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true}),page=await browser.newPage({locale:'da-DK',viewport:{width:1440,height:900},timezoneId:'Europe/Copenhagen'})
 page.setDefaultTimeout(12000)
 const errors=[],results=[],shots=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept())
 await page.route('**/*',r=>['localhost','127.0.0.1'].includes(new URL(r.request().url()).hostname)?r.continue():r.abort())

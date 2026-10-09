@@ -1,3 +1,4 @@
+import {t} from '../i18n/index.js'
 export class DeviceRegistration {
  constructor({client,push,storage,platform,appVersion='1.0.0',enabled=false,onStatus=()=>{}}){
   Object.assign(this,{client,push,storage,platform,appVersion,enabled,onStatus})
@@ -10,7 +11,7 @@ export class DeviceRegistration {
   this.context={userId,householdId};this.generation++
   if(!this.handles.length&&this.enabled){
    this.handles.push(await this.push.addListener('registration',({value})=>{if(this.context){this.token=value;void this.save()}}))
-   this.handles.push(await this.push.addListener('registrationError',()=>this.onStatus('Push kunne ikke registreres. Prøv igen senere.')))
+   this.handles.push(await this.push.addListener('registrationError',()=>this.onStatus((t("device_registration.push_registration_failed_please_try_again_later")))))
   }
   await this.save()
  }
@@ -21,18 +22,18 @@ export class DeviceRegistration {
   this.serial=this.serial.catch(()=>{}).then(async()=>{
    if(generation!==this.generation)return
    const {error}=await this.client.rpc('register_device',{p_installation_id:this.id,p_household_id:context.householdId,p_platform:this.platform.os,p_app_version:this.appVersion,p_push_token:token})
-   if(error)this.onStatus('Enheden er ikke registreret. Opret forbindelse og prøv igen.')
-  }).catch(()=>this.onStatus('Enhedsregistrering afventer forbindelse.'))
+   if(error)this.onStatus((t("device_registration.the_device_is_not_registered_connect_and_try_again")))
+  }).catch(()=>this.onStatus((t("device_registration.device_registration_is_waiting_for_a_connection"))))
   return this.serial
  }
  async request(){
-  if(!this.enabled){this.onStatus('Push afventer opsætning af APNs/FCM.');return}
+  if(!this.enabled){this.onStatus((t("device_registration.push_is_waiting_for_apns_fcm_configuration")));return}
   if(!this.context)return
   let permission=await this.push.checkPermissions()
   if(permission.receive==='prompt'||permission.receive==='prompt-with-rationale')permission=await this.push.requestPermissions()
-  if(permission.receive!=='granted'){this.onStatus('Notifikationer er slået fra. Tillad dem i enhedens indstillinger.');return}
+  if(permission.receive!=='granted'){this.onStatus((t("device_registration.notifications_are_disabled_allow_them_in_your_device_settings")));return}
   await this.push.register()
-  this.onStatus('Tilladelse givet. Påmindelser er endnu ikke aktiveret.')
+  this.onStatus((t("device_registration.permission_granted_reminders_are_not_enabled_yet")))
  }
  async resume(){
   await this.save()

@@ -13,7 +13,7 @@ const admin=createClient(local.API_URL,local.SERVICE_ROLE_KEY,{auth:{persistSess
 const must=async q=>{const result=await q;if(result.error)throw Error(result.error.code+': '+result.error.message);return result.data}
 const checks=[],evidence=[],errors=[],pass=name=>{checks.push(name);console.log('PASS '+checks.length+': '+name)}
 const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true})
-const page=await browser.newPage({viewport:{width:1440,height:900},timezoneId:'Europe/Copenhagen',serviceWorkers:'block'})
+const page=await browser.newPage({locale:'da-DK',viewport:{width:1440,height:900},timezoneId:'Europe/Copenhagen',serviceWorkers:'block'})
 page.setDefaultTimeout(15000);page.on('pageerror',error=>errors.push(error.message))
 await page.route('**/*',route=>['127.0.0.1','localhost'].includes(new URL(route.request().url()).hostname)?route.continue():route.abort())
 mkdirSync(out,{recursive:true})

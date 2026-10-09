@@ -64,10 +64,10 @@ try {
  pass('Forgot-password request uses local callback and generic response')
  let mail
  await expect.poll(async()=>{
-  const response=await fetch('http://127.0.0.1:59324/api/v1/messages'),body=await response.json()
+  const response=await fetch('http://127.0.0.1:47324/api/v1/messages'),body=await response.json()
   mail=body.messages?.find(row=>row.To?.some(to=>to.Address===email));return Boolean(mail)
  },{timeout:15000}).toBe(true)
- const contents=await (await fetch('http://127.0.0.1:59324/api/v1/message/'+mail.ID)).json()
+ const contents=await (await fetch('http://127.0.0.1:47324/api/v1/message/'+mail.ID)).json()
  const link=contents.HTML.match(/href="([^"]+)"/)?.[1]?.replaceAll('&amp;','&')
  expect(link).toBeTruthy();await phone.goto(link)
  await expect(phone.locator('#recovery-form')).toBeVisible()

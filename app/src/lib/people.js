@@ -1,3 +1,4 @@
+import {t} from '../i18n/index.js'
 const normalize = value => String(value || '').trim().toLocaleLowerCase('da')
 export function findPerson(value, people) {
   const idMatch = people.find(person => person.id === value)
@@ -26,7 +27,7 @@ export function itemPersonIds(item, people) {
 export function itemPeople(item, people) {
   const ids = item.person_ids?.length ? item.person_ids : item.data?.personIds || item.personIds || []
   if (ids.length) {
-    const names = ids.map(id => people.find(person => person.id === id)?.name || 'Ukendt person')
+    const names = ids.map(id => people.find(person => person.id === id)?.name || (t("people.unknown_person")))
     return [...names, ...(item.data?.unresolvedPeople || item.unresolvedPeople || [])]
   }
   return selectPeople(item.data?.people || item.people || item.person || item.data?.person || [], people).people

@@ -64,3 +64,7 @@ body[data-mode=mobile] .meal-card small{font-size:11px;line-height:1.4;color:#6c
 body[data-mode=mobile] #calendar-view :is(.calendar-item,.meal-day,.shopping-row,.mobile-dinner){scroll-margin-bottom:calc(164px + env(safe-area-inset-bottom))}
 
 body[data-mode=mobile] .person-chipbar.has-more{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 20px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 20px),transparent)}
+
+/* English navigation needs two lines; keep every icon on the same baseline. */
+html[lang="en-GB"] body[data-mode=mobile] .product-nav button>span{white-space:normal;min-height:24px;display:flex;align-items:center;justify-content:center;line-height:1.15;overflow:visible}
+.language-control{display:grid;gap:6px;margin:12px 0}.language-control select{max-width:100%;min-width:0}

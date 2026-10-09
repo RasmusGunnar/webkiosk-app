@@ -1,0 +1,19 @@
+<!-- LOCAL DRAFT ONLY. Review sender/legal details and copy separately into each approved hosted template.
+     .Data.preferred_locale comes from Auth metadata, not profiles. Existing users fall back to Danish.
+     Supabase supplies ConfirmationURL separately for confirmation/recovery/invitation/email change. -->
+<!doctype html>
+<html lang="{{ if eq .Data.preferred_locale "en-GB" }}en-GB{{ else }}da-DK{{ end }}">
+<meta charset="utf-8">
+<body style="font-family:system-ui,sans-serif;color:#234d43;background:#f7f6ef;padding:24px">
+<h1>Familiekalender</h1>
+{{ if eq .Data.preferred_locale "en-GB" }}
+<p>Continue your requested account action in Familiekalender.</p>
+<p><a href="{{ .ConfirmationURL }}">Continue securely</a></p>
+<p>If you did not request this email, you can ignore it. Do not share this link.</p>
+{{ else }}
+<p>Fortsæt den kontohandling, du har bedt om i Familiekalender.</p>
+<p><a href="{{ .ConfirmationURL }}">Fortsæt sikkert</a></p>
+<p>Hvis du ikke har bedt om denne mail, kan du ignorere den. Del ikke linket.</p>
+{{ end }}
+</body>
+</html>

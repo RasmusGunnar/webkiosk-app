@@ -1,0 +1,11 @@
+{
+  "name": "Familiekalender",
+  "subtitle": "Familiens hverdag samlet",
+  "short_description": "Del kalender, opgaver, opskrifter og indkøb med familien.",
+  "description": "Saml familiens aftaler, opgaver, madplan og indkøb. Del opskrifter og overblik på personlige enheder og familiens vægskærm. Vælg dansk eller engelsk uden at ændre familiens egne tekster. Voksne administrerer familieprofiler, invitationer, lommepenge og bonusstjerner. Gemte data kan læses offline; import og administration kræver forbindelse. Eksport og kontosletning findes i appen.",
+  "keywords": "familie,kalender,opgaver,madplan,opskrifter,indkøb,vægskærm",
+  "privacy_summary": "Familiedata deles med familiens medlemmer. Fotoscan sender valgte billeder til en serverbaseret AI-udbyder, når du vælger at analysere. Se privatlivssiden for detaljer.",
+  "privacy_url": "TODO_FINAL_PUBLIC_URL/privacy",
+  "support_url": "TODO_FINAL_PUBLIC_URL/support",
+  "review_status": "Local draft. Legal entity, final subscription terms and real native screenshots pending."
+}

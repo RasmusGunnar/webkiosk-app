@@ -17,12 +17,12 @@ try{
  await must(client.auth.resetPasswordForEmail(email,{redirectTo:NATIVE_CALLBACK}))
  let mail
  for(let attempt=0;attempt<30;attempt++){
-  const inbox=await(await fetch('http://127.0.0.1:59324/api/v1/messages')).json()
+  const inbox=await(await fetch('http://127.0.0.1:47324/api/v1/messages')).json()
   mail=inbox.messages?.find(row=>row.To?.some(to=>to.Address===email))
   if(mail)break;await new Promise(resolve=>setTimeout(resolve,250))
  }
  assert(mail,'Native recovery email received in local Mailpit')
- const contents=await(await fetch('http://127.0.0.1:59324/api/v1/message/'+mail.ID)).json()
+ const contents=await(await fetch('http://127.0.0.1:47324/api/v1/message/'+mail.ID)).json()
  const verify=contents.HTML.match(/href="([^"]+)"/)[1].replaceAll('&amp;','&')
  const response=await fetch(verify,{redirect:'manual'}),redirect=response.headers.get('location')
  assert(redirect?.startsWith(NATIVE_CALLBACK+'?code='),'Supabase uses the allowlisted native callback with PKCE code')

@@ -1,14 +1,16 @@
 // Allowance is a server-confirmed period contract, layered over task_reward_occurrences.
-export function allowanceTasks(rows,state,dates){
+export function allowanceTasks(rows,state,dates,{calendar=false}={}){
  const days=[...new Set(dates)].sort();if(!days.length)return rows;
  const frozen=(state?.occurrences||[]).filter(s=>s.allowance_contract_id);
- const selected=frozen.filter(s=>s.due_date<=days.at(-1)&&(s.window_end||s.due_date)>=days[0]);
+ // A flexible weekly window has no scheduled day. Keep it in Tasks/Today until
+ // the product defines a calendar placement; never invent one from the window.
+ const selected=frozen.filter(s=>(!calendar||(s.obligation_rule?.schedule!=='weekly'&&(!s.window_end||s.window_end===s.due_date)))&&s.due_date<=days.at(-1)&&(s.window_end||s.due_date)>=days[0]);
  const originals=new Set(frozen.map(s=>s.task_id+'|'+s.occurrence_date));
  return [...rows.filter(r=>!(state?.agreements||[]).some(a=>!a.needs_review&&a.effective_from<=r.date&&a.legacy_task_ids?.includes(r.baseId||r.id))&&!originals.has((r.isRepeatOccurrence?r.baseId:r.id)+'|'+(r.occurrenceDate||r.data?.originalDate||r.date))),
  ...selected.map(s=>{
   const date=days.find(d=>d>=s.due_date&&d<=(s.window_end||s.due_date));
   return {id:s.task_id,type:'Opgave',title:s.title,date,person_ids:[s.person_id],personIds:[s.person_id],people:[],done:['completed','approved'].includes(s.status),
-   occurrenceDate:s.occurrence_date,data:{rewardOriginId:s.origin_id,rewardMode:'allowance',starValue:0,requiresApproval:s.requires_approval,personIds:[s.person_id],allowanceDueDate:s.due_date,allowanceContractId:s.allowance_contract_id,windowEnd:s.window_end}};
+   occurrenceDate:s.occurrence_date,data:{rewardOriginId:s.origin_id,rewardMode:'allowance',starValue:0,requiresApproval:s.requires_approval,personIds:[s.person_id],allowanceDueDate:s.due_date,allowanceContractId:s.allowance_contract_id,allowanceStatus:s.status,windowEnd:s.window_end}};
  }).filter(t=>t.date)].sort((a,b)=>a.date.localeCompare(b.date));
 }
 export const currentAgreement=(state,pid)=>[...(state?.agreements||[])].filter(a=>a.person_id===pid).sort((a,b)=>b.effective_from.localeCompare(a.effective_from))[0]||null;

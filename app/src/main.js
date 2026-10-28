@@ -10,6 +10,8 @@ import './polish.css'
 import './recipes.css'
 import './multiday.css'
 import './imported-scopes.css'
+import './dialogs.css'
+import {isAnnualType,birthdayPerson,annualEventValues} from './lib/annual-events.js'
 import {hiddenImportLabel} from './lib/imported-scopes.js'
 import {eventInterval,eventOverlapsDate,eventDisplayRange,eventDayLabel,eventDayState,eventDateRange,validateEventInterval,supportsInterval,daysBetween} from './lib/calendar-interval.js'
 import {RecipeService,imageBlob} from './lib/recipe-service.js'
@@ -137,7 +139,10 @@ const importedEditor=new ImportedEditor({root:importedRoot,getContext:()=>sessio
 const recipeRoot=document.createElement('div');document.body.append(recipeRoot)
 const recipeContext=()=>({key:sessionEpoch+':'+activeHousehold?.id,householdId:activeHousehold?.id,recipes:libraryRecipes,people:householdPeople,items:calendarItems,mode:mode(),error:recipeLoadError})
 const recipeService=new RecipeService({client:supabase,getContext:recipeContext})
+// Remove one assignment through the same versioned, household-scoped offline queue as edits.
+const removePlannedItem=existing=>runCalendarMutation(()=>({upserts:[],deleteIds:[existing.id],expected:[{id:existing.id,updated_at:existing.updated_at}]}),{action:'delete',entityId:existing.id})
 const recipeUI=new RecipeUI({root:recipeRoot,getContext:recipeContext,service:recipeService,refresh:loadRecipes,avatar:p=>renderPersonAvatar(p,'person-avatar recipe-avatar'),onChange:()=>updateCalendarSurface(),notice:text=>{message=text;updateCalendarSurface()},newMeal:date=>planEditor.open('meal',{date}),editMeal:row=>planEditor.open('meal',{id:row.id}),
+ removeMeal:async meal=>{const {error}=await removePlannedItem(meal);if(error)throw error},
  planRecipe:async(recipe,fields)=>{const values={...planValues('meal',{title:recipe.title,date:fields.date,note:fields.note}),recipe_id:recipe.id,servings_override:fields.servings_override?Number(fields.servings_override):null};const result=await runCalendarMutation(()=>planCreate(values));if(result.error)throw result.error},
  addShopping:async(recipe,ingredients,{meal,actionId})=>{const rows=ingredients.filter(i=>!calendarItems.some(row=>row.data?.recipe_action_id===actionId&&row.data?.ingredient_id===i.id)).map(i=>({id:crypto.randomUUID(),values:{...planValues('shopping',{title:i.raw_text.slice(0,160),note:i.raw_text.length>160?i.raw_text:'',location:shoppingCategory(i.raw_text)}),recipe_id:recipe.id,meal_id:meal?.id||null,ingredient_id:i.id,ingredient_raw_text:i.raw_text,recipe_action_id:actionId}}));if(!rows.length)return;const result=await runCalendarMutation(()=>({upserts:rows,deleteIds:[],expected:[]}));if(result.error)throw result.error}
 })
@@ -150,8 +155,8 @@ const planEditor=new PlanEditor({getRecipes:()=>libraryRecipes,chooseRecipe:date
   return data
  },
  save:(values,existing)=>runCalendarMutation(()=>existing?planEdit([existing],existing,values):planCreate(values)),
- remove:existing=>runCalendarMutation(()=>({upserts:[],deleteIds:[existing.id],expected:[{id:existing.id,updated_at:existing.updated_at}]})),
- onSaved:()=>{message='Gemt til familien.';updateCalendarSurface()}
+ remove:removePlannedItem,
+ onSaved:({removedMeal=false}={})=>{message=removedMeal?'Retten er fjernet fra madplanen.':'Gemt til familien.';updateCalendarSurface()}
 })
 let pendingInvite=consumeInvite(location,history,sessionStorage)
 let authScreen=location.hash.includes('type=recovery')||sessionStorage.getItem('familiekalender.recovery')?'recovery':'login'
@@ -878,7 +883,6 @@ function renderCalendarModal() {
   const base = item ? baseFor(editingRowsSnapshot, item) : null
   const readOnly = imported(item) || item?.isVirtualMilestone || (managedTask(item)&&!rewardsUI.adult)
   const mode = readOnly ? 'Kalenderaftale' : item ? 'Rediger aftale' : 'Ny aftale'
-  const submitText = item ? 'Gem ændringer' : 'Opret aftale'
   const values = {
     title: getCalendarValue(item || {}, 'title'),
     date: (item?.isYearlyOccurrence ? getCalendarValue(base || item, 'date') : getCalendarValue(item || {}, 'date')) || getDefaultCalendarItemDate(),
@@ -897,6 +901,7 @@ function renderCalendarModal() {
   const isBirthday = values.type === 'Fødselsdag'
   const isTask = values.type === 'Opgave'
   const isMilestone = values.type === 'Mærkedag'
+  const submitText = item ? 'Gem ændringer' : isBirthday ? 'Opret fødselsdag' : isMilestone ? 'Opret mærkedag' : 'Opret aftale'
   const hasRepeatScope = Boolean(item && isRepeatContextItem(item))
   const canUseWeekdays = !item && !isBirthday && !isMilestone
 
@@ -910,7 +915,7 @@ function renderCalendarModal() {
 
         <form id="calendar-modal-form">
           ${readOnly ? '<p class="source-notice">' + (managedTask(item)&&!rewardsUI.adult?'Belønningsopgaver redigeres af en voksen.':item.isVirtualMilestone ? 'Automatisk mærkedag fra kalenderens traditionsliste.' : 'Importeret fra ' + sourceLabel(item) + '. Redigér aftalen i kildekalenderen; ændringer kommer med ved næste import.') + '</p>' : ''}
-          ${item?.isYearlyOccurrence ? '<p class="source-notice">Ændringer gælder fødselsdagen i alle år. Datoen her er den oprindelige dato.</p>' : ''}
+          ${item?.isYearlyOccurrence ? '<p class="source-notice">Ændringer gælder i alle år. Datoen her er den oprindelige dato.</p>' : ''}
           <fieldset class="calendar-fields" ${readOnly ? 'disabled' : ''}>
           <div class="form-grid">
             <div class="full">
@@ -919,6 +924,11 @@ function renderCalendarModal() {
               <datalist id="task-suggestions">${[...new Set([...taskSuggestions, ...calendarItems.filter(row => row.type === 'Opgave').map(row => row.title)])].map(title => '<option value="' + escapeHtml(title) + '"></option>').join('')}</datalist>
             </div>
 
+            <div id="birthday-person-field" class="full" hidden>
+              <label for="calendar-birthday-person">Person</label>
+              <input id="calendar-birthday-person" name="birthdayPerson" list="birthday-people" value="${escapeHtml(birthdayPerson(item,householdPeople))}" maxlength="1000" autocomplete="off" disabled />
+              <datalist id="birthday-people">${householdPeople.filter(isActiveHouseholdPerson).map(p=>'<option value="'+escapeHtml(p.name)+'"></option>').join('')}</datalist>
+            </div>
             <div>
               <label for="calendar-date">Startdato</label>
               <input id="calendar-date" name="date" type="date" value="${escapeHtml(values.date)}" required />
@@ -968,7 +978,7 @@ function renderCalendarModal() {
 
             <div id="birthday-fields" class="full ${isBirthday ? '' : 'hidden'}">
               <label for="calendar-birth-year">Fødselsår</label>
-              <input id="calendar-birth-year" name="birthYear" type="number" min="1900" max="2100" step="1" value="${escapeHtml(values.birthYear)}" />
+              <input id="calendar-birth-year" name="birthYear" type="number" min="1" max="9999" step="1" value="${escapeHtml(values.birthYear)}" />
             </div>
 
             <div class="full">
@@ -1733,7 +1743,10 @@ async function handleSaveCalendarItem(event) {
     weekdays: !editingItem && !['Fødselsdag','Mærkedag'].includes(type) && formData.has('weekdays'),
     repeatYearly: type === 'Fødselsdag', birthYear: type === 'Fødselsdag' ? String(formData.get('birthYear') || '') : '',
   }
-  if(supportsInterval(itemData)){
+  if(isAnnualType(type)){
+    try{Object.assign(itemData,annualEventValues({...itemData,birthdayPerson:formData.get('birthdayPerson')},editingItem,householdPeople))}
+    catch(error){form.querySelector('#calendar-editor-message').textContent=error.message;return}
+  }else if(supportsInterval(itemData)){
     Object.assign(itemData,{endDate:String(formData.get('endDate')||itemData.date),endTime:String(formData.get('endTime')||''),allDay:formData.has('allDay'),durationMin:null})
     if(itemData.allDay){itemData.time='';itemData.endTime=''}
     const invalid=validateEventInterval(itemData)
@@ -1971,6 +1984,7 @@ function openEditCalendarModal(itemId) {
   if(mode()==='kiosk'){const item=findRenderableCalendarItem(itemId);if(item)planEditor.view({title:getCalendarItemTitle(item),date:formatDayHeaderDate(parseDateIso(item.date)),time:item.time,note:getCalendarValue(item,'note'),location:getCalendarValue(item,'location'),people:getCalendarItemPeople(item).join(', '),source:sourceLabel(item)});return}
   const item = findRenderableCalendarItem(itemId)
   if (!item) return
+  if(item.data?.allowanceContractId){rewardsUI.taskDetail(item,activePersonFilter);return}
   if(imported(item)&&canEditImported(item)){importedEditor.open(item);return}
   editingCalendarItemId = itemId
   editingCalendarSnapshot = structuredClone(item)
@@ -2366,10 +2380,13 @@ function syncActivePersonFilter() {
 
 function updateIntervalFields(){
  const form=document.querySelector('#calendar-modal-form');if(!form)return
- const enabled=supportsInterval({type:form.querySelector('#calendar-type').value}),allDay=enabled&&form.querySelector('#calendar-all-day').checked
+ const annual=isAnnualType(form.querySelector('#calendar-type').value),enabled=supportsInterval({type:form.querySelector('#calendar-type').value}),allDay=annual||enabled&&form.querySelector('#calendar-all-day').checked
  form.querySelectorAll('.interval-field').forEach(el=>{el.hidden=!enabled;el.querySelectorAll('input').forEach(input=>input.disabled=!enabled)})
  for(const id of ['calendar-time','calendar-end-time']){const input=form.querySelector('#'+id);input.disabled=allDay||id==='calendar-end-time'&&!enabled;input.parentElement.hidden=allDay||id==='calendar-end-time'&&!enabled}
- form.querySelector('#calendar-duration').parentElement.hidden=enabled
+ form.querySelector('#calendar-duration').parentElement.hidden=enabled||annual
+ form.querySelector('#calendar-duration').disabled=enabled||annual
+ form.querySelector('#calendar-location').parentElement.hidden=annual
+ form.querySelector('#calendar-location').disabled=annual
 }
 function updateModalTypeFields() {
   const type = normalizeTypeValue(document.querySelector('#calendar-type')?.value || 'Aktivitet')
@@ -2389,12 +2406,23 @@ function updateModalTypeFields() {
   const titleInput = document.querySelector('#calendar-title')
   if (isTask) titleInput?.setAttribute('list', 'task-suggestions'); else titleInput?.removeAttribute('list')
   birthdayFields?.classList.toggle('hidden', !isBirthday)
-  calendarOptions?.classList.toggle('hidden', isBirthday)
-  setCheckboxOptionEnabled(repeatWeeklyOption, !isBirthday)
+  calendarOptions?.classList.toggle('hidden', isBirthday||isMilestone)
+  setCheckboxOptionEnabled(repeatWeeklyOption, !isBirthday&&!isMilestone)
   setCheckboxOptionEnabled(weekdaysOption, canUseWeekdays)
   setCheckboxOptionEnabled(doneOption, isTask)
   updateModalScopeFields()
   setupTaskEditor(isTask)
+  const annual=isBirthday||isMilestone,form=document.querySelector('#calendar-modal-form')
+  titleInput.parentElement.hidden=isBirthday;titleInput.disabled=isBirthday;titleInput.required=!isBirthday
+  const personInput=form.querySelector('#calendar-birthday-person')
+  personInput.parentElement.hidden=!isBirthday;personInput.disabled=!isBirthday;personInput.required=isBirthday
+  form.querySelector('.calendar-person-pills').parentElement.hidden=isBirthday
+  form.querySelector('#calendar-type').parentElement.hidden=annual
+  form.querySelector('label[for=calendar-date]').textContent=annual?'Dato':'Startdato'
+  form.querySelector('label[for=calendar-birth-year]').textContent='Fødselsår · valgfrit'
+  form.querySelector('label[for=calendar-note]').textContent=annual?'Note · valgfri':'Note'
+  if(annual)document.querySelector('#calendar-modal-title').textContent=(getEditingCalendarItem()?'Rediger ':'Opret ')+(isBirthday?'fødselsdag':'mærkedag')
+  if(!getEditingCalendarItem())form.querySelector('button[type=submit]').textContent=isBirthday?'Opret fødselsdag':isMilestone?'Opret mærkedag':'Opret aftale'
   updateIntervalFields()
 }
 
@@ -2558,7 +2586,7 @@ function formatDayHeaderDate(date) {
   }).format(date)
 }
 
-function getRenderableCalendarItems() { const dates=getVisibleCalendarDates(),rows=materialize(calendarOnly(calendarItems),dates);return ['today','tasks'].includes(productRoute)?allowanceTasks(rows,rewardState,productRoute==='today'?[rewardToday()]:dates):rows }
+function getRenderableCalendarItems() { const dates=productRoute==='today'?[rewardToday()]:getVisibleCalendarDates(),rows=materialize(calendarOnly(calendarItems),dates);return allowanceTasks(rows,rewardState,dates,{calendar:productRoute==='calendar'}) }
 
 function getVisibleCalendarDates() {
   if(productRoute==='tasks')return taskDates()
@@ -2982,6 +3010,7 @@ function bindPlanningSurface(){
   planEditor.open(row.type===PLAN_TYPES.meal?'meal':'shopping',{id:row.id})
  })
  document.querySelectorAll('[data-meal-week]').forEach(button=>button.onclick=()=>{calendarCursorDate=button.dataset.mealWeek==='0'?new Date():parseDateIso(addDays(toDateIso(calendarCursorDate),Number(button.dataset.mealWeek)*7));updateCalendarSurface()})
+ document.querySelectorAll('[data-meal-remove]').forEach(button=>button.onclick=()=>{if(mode()!=='kiosk')planEditor.confirmRemoveMeal(button.dataset.mealRemove)})
  document.querySelectorAll('[data-meal-ingredients]').forEach(button=>button.onclick=async()=>{
   const meal=calendarItems.find(row=>row.id===button.dataset.mealIngredients);if(!meal)return
   if(recipeId(meal)){recipeUI.shopping(recipeId(meal),meal);return}
@@ -3026,7 +3055,7 @@ function taskDates(){const today=toDateIso(new Date());return taskRange==='month
 function renderFoodTabs(){return '<nav class="food-tabs" aria-label="Mad og indkøb">'+[['meals','Madplan'],...(mode()==='kiosk'?[]:[['recipes','Opskrifter']]),['shopping','Indkøb']].map(([id,label])=>'<button data-food-tab="'+id+'" aria-pressed="'+(productRoute===id)+'">'+label+'</button>').join('')+'</nav>'}
 function openCreateSheet(){
  if(mode()==='kiosk')return
- createRoot.innerHTML='<div id="create-sheet" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="create-sheet-title"><section class="create-sheet"><header><h2 id="create-sheet-title">Hvad vil du tilføje?</h2><button type="button" data-create-close aria-label="Luk">×</button></header>'+[['Aktivitet','Aktivitet','calendar'],['Opgave','Opgave','tasks'],['meal','Måltid','meals'],['shopping','Indkøbsvare','shopping'],['Fødselsdag','Fødselsdag / mærkedag','sun']].map(([kind,label,i])=>'<button type="button" data-create-kind="'+kind+'">'+icon(i)+'<span>'+label+'</span>'+icon('plus')+'</button>').join('')+'</section></div>'
+ createRoot.innerHTML='<div id="create-sheet" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="create-sheet-title"><section class="create-sheet"><header><h2 id="create-sheet-title">Hvad vil du tilføje?</h2><button type="button" data-create-close aria-label="Luk">×</button></header>'+[['Aktivitet','Aktivitet','calendar'],['Opgave','Opgave','tasks'],['meal','Måltid','meals'],['shopping','Indkøbsvare','shopping'],['Fødselsdag','Fødselsdag','sun'],['Mærkedag','Mærkedag','sun']].map(([kind,label,i])=>'<button type="button" data-create-kind="'+kind+'">'+icon(i)+'<span>'+label+'</span>'+icon('plus')+'</button>').join('')+'</section></div>'
  createRoot.querySelector('[data-create-close]').onclick=()=>{createRoot.innerHTML=''}
  createRoot.querySelector('.modal-backdrop').onclick=e=>{if(e.target===e.currentTarget)createRoot.innerHTML=''}
  createRoot.querySelectorAll('[data-create-kind]').forEach(button=>button.onclick=()=>{

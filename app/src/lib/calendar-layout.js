@@ -11,6 +11,7 @@ export function compactDay(items,limit=6){
  return {items:selected,hidden:items.length-selected.length}
 }
 export function compactTask(item,{people,done,reward}={}){
- return '<button class="compact-task '+(done?'is-done':'')+'" data-task-detail="'+e(item.id)+'"><span class="compact-task-status" aria-hidden="true">'+(done?'✓':reward?.mode==='stars'?'☆':'○')+'</span><span><strong>'+e(item.title)+'</strong><small>'+e(people||'Alle')+(reward?.mode==='stars'?' · +'+e(reward.stars)+' ⭐':reward?.mode==='allowance'?' · Lommepenge':'')+'</small></span></button>'
+ const excused=item.data?.allowanceStatus==='excused'
+ return '<button class="compact-task '+(done?'is-done':excused?'is-excused':'')+'" data-task-detail="'+e(item.id)+'"><span class="compact-task-status" aria-hidden="true">'+(done?'✓':excused?'–':reward?.mode==='stars'?'☆':'○')+'</span><span><strong>'+e(item.title)+'</strong><small>'+e(people||'Alle')+(reward?.mode==='stars'?' · +'+e(reward.stars)+' ⭐':reward?.mode==='allowance'?' · Lommepenge':'')+(excused?' · Fritaget':'')+'</small></span></button>'
 }
 export function compactMeals(meals){return meals.length?'<section class="day-meals" aria-label="Mad">'+meals.map(meal=>'<button data-plan-edit="'+e(meal.id)+'">'+icon('meals')+'<strong>'+e(meal.title)+'</strong></button>').join('')+'</section>':''}

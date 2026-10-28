@@ -10,13 +10,29 @@ export class PlanEditor{
   this.bindClose()
  }
  bindClose(){this.root.querySelectorAll('[data-plan-close]').forEach(b=>b.onclick=()=>this.close());this.root.querySelector('.modal-backdrop').onclick=e=>{if(e.target===e.currentTarget)this.close()}}
+ confirmRemoveMeal(id){
+  const row=this.getRows().find(row=>row.id===id&&row.type===PLAN_TYPES.meal);if(!row||this.busy)return
+  const meal=structuredClone(row),context=this.getContext()
+  const day=new Intl.DateTimeFormat('da-DK',{timeZone:'Europe/Copenhagen',weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(new Date(meal.date+'T12:00:00Z'))
+  this.root.innerHTML='<div id="plan-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="plan-editor-title" aria-describedby="meal-remove-question"><section class="calendar-modal plan-modal"><header class="modal-header"><h2 id="plan-editor-title">Fjern fra madplan</h2><button type="button" data-plan-close aria-label="Luk">×</button></header><p id="meal-remove-question">Fjern <strong>'+escape(meal.title)+'</strong> fra '+escape(day)+'?</p><p>Opskriften bliver i Opskrifter. Andre planlagte dage bevares.</p><p id="plan-error" class="message" role="alert"></p><div class="modal-actions"><button type="button" data-plan-close>Annuller</button><button type="button" class="danger-button" data-confirm-meal-remove>Fjern fra madplan</button></div></section></div>'
+  this.bindClose()
+  const dialog=this.root.firstChild,buttons=dialog.querySelectorAll('button'),error=dialog.querySelector('#plan-error')
+  dialog.querySelector('[data-confirm-meal-remove]').onclick=async()=>{
+   if(this.busy)return
+   if(context!==this.getContext()){this.close();return}
+   this.busy=true;buttons.forEach(button=>button.disabled=true)
+   try{const result=await this.remove(meal);if(context!==this.getContext())return;if(result?.error)throw result.error;this.close(true);this.onSaved({removedMeal:true})}
+   catch(e){if(error.isConnected)error.textContent=e.message}
+   finally{if(dialog.isConnected){this.busy=false;buttons.forEach(button=>button.disabled=false)}}
+  }
+ }
  open(kind,{id,date}={}){
   const existing=id?structuredClone(this.getRows().find(row=>row.id===id)):null
   if(id&&!existing)return
   const context=this.getContext(),meal=kind==='meal',recipe=existing?.data?.recipe||existing?.recipe||{}
   // Only a newly fetched preview creates a library recipe. Existing legacy text stays unlinked.
   let importedRecipe=null,importId=null,savedRecipe=null
-  this.root.innerHTML='<div id="plan-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="plan-editor-title"><section class="calendar-modal plan-modal"><header class="modal-header"><div><p class="eyebrow">'+(meal?'Familiens madplan':'Familiens indkøb')+'</p><h2 id="plan-editor-title">'+(existing?'Rediger '+(meal?'ret':'vare'):meal?'Hvad skal vi spise?':'Tilføj en vare')+'</h2></div><button type="button" data-plan-close aria-label="Luk">×</button></header><form id="plan-form" class="stack-form"><label for="plan-title">'+(meal?'Ret':'Vare')+'</label><input id="plan-title" name="title" value="'+escape(existing?.title||'')+'" placeholder="'+(meal?'Fx pasta med tomatsauce':'Fx mælk')+'" required maxlength="160" autocomplete="off">'+(meal?'<div class="form-grid"><div><label for="plan-date">Dag</label><input id="plan-date" name="date" type="date" value="'+escape(existing?.date||date)+'" required></div><div><label for="plan-time">Spisetid · valgfri</label><input id="plan-time" name="time" type="time" value="'+escape(existing?.time||'')+'"></div></div><label for="plan-note">Indkøb til retten · valgfrit</label><textarea id="plan-note" name="note" rows="6" maxlength="4000" placeholder="Én vare pr. linje, fx&#10;500 g pasta&#10;Tomater&#10;Basilikum">'+escape(existing?.note||'')+'</textarea><p class="hint">Fra madplanen kan du føje disse linjer til indkøbslisten.</p>':'<label for="plan-note">Mængde eller note · valgfri</label><input id="plan-note" name="note" maxlength="4000" value="'+escape(existing?.note||'')+'" placeholder="Fx 2 liter"><label for="plan-category">Kategori</label><select id="plan-category" name="location">'+SHOPPING_CATEGORIES.map(c=>'<option '+((existing?.location||'Andet')===c?'selected':'')+'>'+escape(c)+'</option>').join('')+'</select>')+'<p id="plan-error" class="message" role="alert"></p><div class="modal-actions">'+(existing?'<button type="button" id="plan-delete" class="danger-button">Slet '+(meal?'ret':'vare')+'</button>':'')+'<button type="button" data-plan-close>Annuller</button><button type="submit">'+(meal?'Gem i madplan':'Gem vare')+'</button></div></form></section></div>'
+  this.root.innerHTML='<div id="plan-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="plan-editor-title"><section class="calendar-modal plan-modal"><header class="modal-header"><div><p class="eyebrow">'+(meal?'Familiens madplan':'Familiens indkøb')+'</p><h2 id="plan-editor-title">'+(existing?'Rediger '+(meal?'ret':'vare'):meal?'Hvad skal vi spise?':'Tilføj en vare')+'</h2></div><button type="button" data-plan-close aria-label="Luk">×</button></header><form id="plan-form" class="stack-form"><label for="plan-title">'+(meal?'Ret':'Vare')+'</label><input id="plan-title" name="title" value="'+escape(existing?.title||'')+'" placeholder="'+(meal?'Fx pasta med tomatsauce':'Fx mælk')+'" required maxlength="160" autocomplete="off">'+(meal?'<div class="form-grid"><div><label for="plan-date">Dag</label><input id="plan-date" name="date" type="date" value="'+escape(existing?.date||date)+'" required></div><div><label for="plan-time">Spisetid · valgfri</label><input id="plan-time" name="time" type="time" value="'+escape(existing?.time||'')+'"></div></div><label for="plan-note">Indkøb til retten · valgfrit</label><textarea id="plan-note" name="note" rows="6" maxlength="4000" placeholder="Én vare pr. linje, fx&#10;500 g pasta&#10;Tomater&#10;Basilikum">'+escape(existing?.note||'')+'</textarea><p class="hint">Fra madplanen kan du føje disse linjer til indkøbslisten.</p>':'<label for="plan-note">Mængde eller note · valgfri</label><input id="plan-note" name="note" maxlength="4000" value="'+escape(existing?.note||'')+'" placeholder="Fx 2 liter"><label for="plan-category">Kategori</label><select id="plan-category" name="location">'+SHOPPING_CATEGORIES.map(c=>'<option '+((existing?.location||'Andet')===c?'selected':'')+'>'+escape(c)+'</option>').join('')+'</select>')+'<p id="plan-error" class="message" role="alert"></p><div class="modal-actions">'+(existing?'<button type="button" id="plan-delete" class="danger-button">'+(meal?'Fjern fra madplan':'Slet vare')+'</button>':'')+'<button type="button" data-plan-close>Annuller</button><button type="submit">'+(meal?'Gem i madplan':'Gem vare')+'</button></div></form></section></div>'
   if(meal){
    const linked=this.getRecipes().find(r=>r.id===(existing?.recipe_id||existing?.data?.recipe_id)),bar=document.createElement('section');bar.className='recipe-meal-context';bar.innerHTML=linked?'<strong>'+escape(linked.title)+'</strong><button type="button" data-linked-recipe>Åbn opskrift</button><label>Portioner til dette måltid<input name="servings_override" type="number" min="1" max="10000" step="0.5" value="'+escape(existing.data?.servings_override||linked.servings||'')+'"></label>':'<button type="button" data-choose-recipe>Vælg fra opskriftsbiblioteket</button>';this.root.querySelector('#plan-form').prepend(bar);bar.querySelector('[data-choose-recipe]')?.addEventListener('click',()=>this.chooseRecipe(existing?.date||date));bar.querySelector('[data-linked-recipe]')?.addEventListener('click',()=>this.openRecipe(linked.id));
    if(linked){this.root.querySelector('#plan-title').readOnly=true;this.root.querySelector('#plan-note').rows=3;this.root.querySelector('label[for=plan-note]').textContent='Note til dette måltid';this.root.querySelector('#plan-note').placeholder='Fx lav dobbelt portion';this.root.querySelector('#plan-note').nextElementSibling.textContent='Ændrer ikke opskriften i biblioteket.'}
@@ -28,11 +44,11 @@ export class PlanEditor{
   }
   this.bindClose()
   const form=this.root.querySelector('form'),error=this.root.querySelector('#plan-error')
-  const run=async action=>{
+  const run=async(action,{removedMeal=false}={})=>{
    if(this.busy)return
    if(context!==this.getContext()){this.close();return}
    this.busy=true;form.querySelectorAll('button').forEach(b=>b.disabled=true)
-   try{const result=await action();if(context!==this.getContext())return;if(result?.error)throw result.error;this.close(true);this.onSaved()}
+   try{const result=await action();if(context!==this.getContext())return;if(result?.error)throw result.error;this.close(true);this.onSaved({removedMeal})}
    catch(e){if(error.isConnected)error.textContent=e.message}
    finally{if(form.isConnected)this.busy=false;form.querySelectorAll('button').forEach(b=>b.disabled=false)}
   }
@@ -56,6 +72,11 @@ export class PlanEditor{
    }
    return this.save(values,existing)
   })}
-  this.root.querySelector('#plan-delete')?.addEventListener('click',()=>{if(window.confirm('Slet '+existing.title+'?'))void run(()=>this.remove(existing))})
+  this.root.querySelector('#plan-delete')?.addEventListener('click',()=>{
+   if(this.busy)return
+   const date=new Intl.DateTimeFormat('da-DK',{timeZone:'Europe/Copenhagen',day:'numeric',month:'long'}).format(new Date(existing.date+'T12:00:00Z'))
+   const confirmation=meal?'Fjern "'+existing.title+'" fra madplanen den '+date+'? Opskriften bliver i Opskrifter.':'Slet '+existing.title+'?'
+   if(window.confirm(confirmation))void run(()=>this.remove(existing),{removedMeal:meal})
+  })
  }
 }

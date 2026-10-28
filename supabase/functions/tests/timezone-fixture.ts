@@ -1,0 +1,10 @@
+import {eventsToCalendarRows,parseIcsEvents} from '../_shared/calendar-parser.ts';
+const [id,household_id,actor,date]=Deno.args;
+const day=date.replaceAll('-','');
+const calendar=(lines:string[])=>['BEGIN:VCALENDAR','VERSION:2.0',...lines,'END:VCALENDAR'].join('\r\n');
+const event=(uid:string,start:string)=>['BEGIN:VEVENT','UID:'+uid,'SUMMARY:Importeret aftale 18:30',start,'END:VEVENT'];
+const range={start:new Date(date+'T00:00:00Z'),end:new Date(date+'T23:59:59Z')};
+const named=parseIcsEvents(calendar(event('named','DTSTART;TZID=Europe/Copenhagen:'+day+'T183000')),range)[0];
+const utc=named.start!.replaceAll('-','').replaceAll(':','').replace('.000','');
+const rows=eventsToCalendarRows(parseIcsEvents(calendar(event('utc','DTSTART:'+utc)),range),{id,household_id,source:'ics',feed_url:'https://example.test/calendar.ics'},actor);
+console.log(JSON.stringify(rows));

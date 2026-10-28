@@ -12,8 +12,9 @@ export function displayTitle(item) {
   const age=Number(value(item,'date').slice(0,4))-year
   return birthday(item)&&year&&age>0 ? title+' bliver '+age+' år' : title
 }
-export function weekly(item) { return !imported(item) && Boolean(value(item,'repeatWeekly')) && !value(item,'overrideOf') }
-export function repeatContext(item) { return !imported(item) && Boolean(weekly(item)||value(item,'overrideOf')||item?.isRepeatOccurrence) }
+export function yearly(item) { return !imported(item) && (birthday(item)||value(item,'type')==='Mærkedag'||Boolean(value(item,'repeatYearly'))) }
+export function weekly(item) { return !imported(item) && !yearly(item) && Boolean(value(item,'repeatWeekly')) && !value(item,'overrideOf') }
+export function repeatContext(item) { return !imported(item) && !yearly(item) && Boolean(weekly(item)||value(item,'overrideOf')||item?.isRepeatOccurrence) }
 export function exceptions(item) { const raw=value(item,'exceptions'); return [...new Set((Array.isArray(raw)?raw:String(raw).split(/[;,]/)).filter(date=>parseDate(date)))] }
 export function seriesId(item) { return String(value(item,'seriesId')||item.id) }
 export function occurrenceDate(item) { return item.occurrenceDate || value(item,'originalDate') || value(item,'date') }
@@ -43,14 +44,14 @@ export function materialize(rows,dates,{milestones=true}={}) {
         // Legacy base done belongs only to its original day, never to the entire series.
         result.push({...item,...shiftInterval(item,date),id:'repeat|'+item.id+'|'+date,baseId:item.id,occurrenceDate:date,isRepeatOccurrence:true,done:date===original?Boolean(value(item,'done')):false})
       }
-    } else if (!imported(item) && birthday(item) && !value(item,'overrideOf')) {
+    } else if (yearly(item) && !value(item,'overrideOf')) {
       for (const date of dates) {
         const year=Number(date.slice(0,4)), monthDay=original.slice(5)
         let expected=year+'-'+monthDay
         if (monthDay==='02-29'&&!parseDate(expected)) expected=year+'-02-28'
         const firstYear=Number(value(item,'birthYear'))||Number(original.slice(0,4))
         if (date!==expected || year<firstYear) continue
-        result.push({...item,id:'yearly|'+item.id+'|'+date,baseId:item.id,date,occurrenceDate:date,isYearlyOccurrence:true})
+        result.push({...item,id:'yearly|'+item.id+'|'+date,baseId:item.id,date,time:'',allDay:true,endDate:date,endTime:'',occurrenceDate:date,isYearlyOccurrence:true})
       }
     } else if (dates.some(date=>eventOverlapsDate(item,date))) {
       if (!value(item,'overrideOf') && exceptions(item).includes(original)) continue

@@ -46,6 +46,13 @@ test('new entries use distinct IDs so same-day meals do not overwrite each other
  assert.notEqual(planCreate(planValues('meal',{title:'Mad',date}),next).upserts[0].id,planCreate(planValues('meal',{title:'Mad',date}),next).upserts[0].id)
  assert.equal(shoppingCategory('2 liter mælk'),'Mejeri & æg')
 })
+test('each planned day exposes removal by meal instance ID; kiosk remains read-only',()=>{
+ const rows=['2026-09-28','2026-09-29','2026-09-30'].map((date,i)=>({id:'meal-'+i,type:'Madplan',title:'Tomatsuppe',date,recipe_id:'shared-recipe'}))
+ const html=renderMeals(rows,new Date(date+'T12:00:00'))
+ for(const row of rows)assert.ok(html.includes('data-meal-remove="'+row.id+'"'))
+ assert.equal((html.match(/Fjern fra madplan/g)||[]).length,3)
+ assert.ok(!renderMeals(rows,new Date(date+'T12:00:00'),true).includes('data-meal-remove'))
+})
 test('meal and shopping rendering escapes user text and unknown categories remain visible',()=>{
  const attack='<img src=x onerror=alert(1)>'
  const meals=renderMeals([{id,type:'Madplan',title:attack,date,note:attack}],new Date(date+'T12:00:00'))

@@ -6,7 +6,7 @@ import {addDays, parseDate} from './calendar-dates.js'
 const field=(item,key,alias=key)=>item?.[key]??item?.[alias]??item?.data?.[key]??item?.data?.[alias]
 const dayNumber=date=>Date.parse(date+'T12:00:00Z')/86400000
 export const daysBetween=(start,end)=>Math.round(dayNumber(end)-dayNumber(start))
-export const supportsInterval=item=>!['Opgave','Madplan','Indkøb','Fødselsdag'].includes(field(item,'type'))&&!item?.isVirtualMilestone
+export const supportsInterval=item=>!['Opgave','Madplan','Indkøb','Fødselsdag','Mærkedag'].includes(field(item,'type'))&&!item?.isVirtualMilestone
 const wallFormatter=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Copenhagen',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'})
 function wallParts(instant){const p=Object.fromEntries(wallFormatter.formatToParts(new Date(instant)).map(p=>[p.type,p.value]));return {date:p.year+'-'+p.month+'-'+p.day,time:p.hour+':'+p.minute}}
 function civilInstant(date,time){

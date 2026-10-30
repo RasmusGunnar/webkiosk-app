@@ -1,6 +1,6 @@
 import {parse} from '@babel/parser'
 // Analyze literal source nodes. Used by the migration inventory and the hardcoded-UI guard.
-export const domainValues=new Set(['Alle','Aktivitet','Fritidsinteresse','Opgave','Fødselsdag','Madplan','Indkøb','Andet','Barn','Voksen','Familie','Google','Aula','ICS','DKK','EUR','SEK','NOK','GBP','USD','Europe/Copenhagen'])
+export const domainValues=new Set(['Alle','Aktivitet','Fritidsinteresse','Opgave','Fødselsdag','Mærkedag','Madplan','Indkøb','Andet','Barn','Voksen','Familie','Google','Aula','ICS','DKK','EUR','SEK','NOK','GBP','USD','Europe/Copenhagen'])
 export function fragments(value){
  const parts=[];const add=(start,end)=>{const s=value.slice(start,end),trim=s.trim();if(!trim||!/[\p{L}]/u.test(trim)||/[<>=]/.test(trim))return;parts.push({start:start+s.indexOf(trim),end:start+s.indexOf(trim)+trim.length,text:trim})}
  if(value.includes('<')||value.includes('>')){

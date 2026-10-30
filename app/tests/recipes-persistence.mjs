@@ -14,7 +14,7 @@ const results=[],errors=[],httpErrors=[],external=[]
 const pass=label=>{results.push(label);console.log('PASS '+label)}
 mkdirSync(out,{recursive:true})
 const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true})
-const context=await browser.newContext({viewport:{width:1440,height:1000},timezoneId:'Europe/Copenhagen'}),page=await context.newPage()
+const context=await browser.newContext({locale:'da-DK',viewport:{width:1440,height:1000},timezoneId:'Europe/Copenhagen'}),page=await context.newPage()
 let uid,hid,preview
 page.on('pageerror',e=>errors.push(e.message))
 page.on('response',async r=>{if(r.status()>=400)httpErrors.push({status:r.status(),path:new URL(r.url()).pathname});if(r.url().includes('/functions/v1/recipe-preview')&&r.status()===200)preview=(await r.json()).recipe})

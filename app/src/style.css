@@ -1275,7 +1275,7 @@ body[data-mode=desktop] .calendar-item { padding:10px; }
  .calendar-modal,.settings-modal { width:100%;max-width:none;max-height:100%;height:100%;border-radius:0;box-shadow:none;padding:16px 16px calc(16px + env(safe-area-inset-bottom));overflow:auto;overscroll-behavior:contain; }
  .modal-header { position:sticky;top:-16px;padding:12px 0;background:#fff;z-index:5; }
  .modal-header h2 { font-size:19px; }
- .calendar-modal:not(.stack-form) { display:flex;flex-direction:column;overflow:hidden; }
+ .calendar-modal:has(> #calendar-modal-form) { display:flex;flex-direction:column;overflow:hidden; }
  #calendar-modal-form { display:flex;flex-direction:column;min-height:0;flex:1;overflow:auto; }
  #calendar-modal-form>.modal-actions { position:sticky;bottom:0;flex-direction:row;flex-wrap:wrap;margin-top:auto;padding-bottom:4px;background:#fff; }
  .modal-actions button { flex:1 1 auto; }

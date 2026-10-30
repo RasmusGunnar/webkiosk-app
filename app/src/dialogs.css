@@ -1,0 +1,9 @@
+/* A dialog is bounded by the visible viewport, including a mobile keyboard.
+   Only editors with an explicit scrolling form delegate scrolling to a child. */
+.modal-backdrop{--dialog-edge:16px;top:var(--visual-top,0px);bottom:auto;height:var(--visual-height,100dvh);padding:var(--dialog-edge);box-sizing:border-box;align-items:flex-start;overflow-y:auto}
+.modal-backdrop>:is(.calendar-modal,.settings-modal,.reward-modal){min-height:0;max-height:calc(var(--visual-height,100dvh) - 2 * var(--dialog-edge));overflow-y:auto;overscroll-behavior:contain;scroll-padding-block:72px 20px}
+.modal-backdrop>:is(.calendar-modal,.settings-modal,.reward-modal) form{min-width:0}
+@media(max-width:699px){
+ .modal-backdrop{--dialog-edge:8px}
+ .modal-backdrop>:is(.calendar-modal,.settings-modal,.reward-modal){height:auto}
+}

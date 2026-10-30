@@ -3,7 +3,7 @@ import {createClient} from '@supabase/supabase-js'
 import {randomUUID} from 'node:crypto'
 import {mkdirSync,writeFileSync} from 'node:fs'
 import {localSupabase} from '../../scripts/local-supabase.mjs'
-import {routeTo,openSettings} from './browser-actions.mjs'
+import {routeTo,openSettings,openCreate} from './browser-actions.mjs'
 import {dateIso,weekDates} from '../src/lib/calendar-dates.js'
 import {calendarPayload} from '../src/lib/calendar.js'
 const local=localSupabase(),base='http://127.0.0.1:5185',out='supabase/.temp/i18n10',options={auth:{persistSession:false,autoRefreshToken:false}},admin=createClient(local.API_URL,local.SERVICE_ROLE_KEY,options),client=createClient(local.API_URL,local.ANON_KEY,options)
@@ -34,6 +34,22 @@ try{
   await openSettings(page,'account');await page.locator('[data-personal-locale]').selectOption(lang);await expect(page.locator('html')).toHaveAttribute('lang',lang);await shot(prefix+'-language-selector');await close()
   await expect.poll(async()=>(await must(client.from('profiles').select('preferred_locale').eq('id',uid).single())).preferred_locale).toBe(lang)
   for(const route of ['today','calendar','meals','tasks','family']){await routeTo(page,route);await shot(prefix+'-'+route)}
+  // The merged annual editors must keep persisted types invariant in both locales.
+  for(const [kind,key] of [['Fødselsdag','birthday'],['Mærkedag','anniversary']]){
+   await routeTo(page,'calendar');await openCreate(page,kind)
+   const title='Merge '+key+' '+lang,submit=lang==='da-DK'?(key==='birthday'?'Opret fødselsdag':'Opret mærkedag'):(key==='birthday'?'Create birthday':'Create anniversary')
+   await page.locator(key==='birthday'?'#calendar-birthday-person':'#calendar-title').fill(title);await page.locator('#calendar-date').fill(today)
+   await expect(page.locator('#calendar-modal-form button[type=submit]')).toHaveText(submit)
+   for(const selector of ['#calendar-time','#calendar-end-date','#calendar-duration','#calendar-location','[name=repeatWeekly]'])await expect(page.locator(selector)).toBeHidden()
+   await page.locator('#calendar-modal-form button[type=submit]').click();await expect(page.locator('#calendar-modal')).toHaveCount(0)
+   let row;await expect.poll(async()=>{row=(await must(client.from('calendar_items').select('*').eq('household_id',hid).eq('title',title)))[0];return !!row}).toBe(true)
+   expect(row.type).toBe(kind);expect(row.all_day).toBe(true);expect(row.repeat_yearly||row.data.repeatYearly).toBe(true)
+   await page.reload();await routeTo(page,'calendar');await page.locator('[data-calendar-item^="yearly|'+row.id+'|"]').first().click();await page.locator('#calendar-note').fill('Merge edit');await page.locator('#calendar-modal-form button[type=submit]').click();await expect(page.locator('#calendar-modal')).toHaveCount(0)
+   await expect.poll(async()=>(await must(client.from('calendar_items').select('note').eq('id',row.id).single())).note).toBe('Merge edit')
+   expect(await must(client.from('calendar_items').select('id').eq('household_id',hid).eq('title',title))).toHaveLength(1)
+   await must(client.from('calendar_items').delete().eq('id',row.id));pass(lang+' '+key+' minimal create, yearly reload and same-ID edit')
+  }
+  await routeTo(page,'family')
   await page.locator('[data-reward-config="'+people[2].id+'"]').click();await expect(page.locator('#allowance-form')).toBeVisible();await shot(prefix+'-allowance');await close()
   await page.locator('[data-native-page=subscription]').click();await expect(page.locator('.native-subscription-hero')).toBeVisible();await shot(prefix+'-subscription');await close()
   await page.locator('[data-native-page=devices]').click();await page.locator('#native-add-wall').click();await expect(page.locator('.native-pair-code')).toBeVisible();await shot(prefix+'-device-pairing')

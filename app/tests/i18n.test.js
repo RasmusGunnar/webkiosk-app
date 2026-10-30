@@ -2,7 +2,8 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {engine,t,locale,setLocale,detectLocale,LanguagePreference,formatDate,formatTime,formatMoney,formatNumber,setHouseholdFormat,weekdays,errorText} from '../src/i18n/index.js'
 import {routeLabels} from '../src/lib/product-ui.js'
-import {displayTitle,taskSuggestions} from '../src/lib/calendar-semantics.js'
+import {displayTitle,taskSuggestions,materialize} from '../src/lib/calendar-semantics.js'
+import {annualEventValues} from '../src/lib/annual-events.js'
 import {eventDayLabel} from '../src/lib/calendar-interval.js'
 import {typeLabel,personRoleLabel} from '../src/i18n/domain-labels.js'
 import {statusText,offeringPackages} from '../src/lib/subscription-model.js'
@@ -33,6 +34,20 @@ test('central dates, times, numbers and currency follow locale independently',()
   for(const currency of ['DKK','EUR','SEK','NOK','GBP','USD']){setHouseholdFormat({currency_code:currency});assert.equal(formatMoney(10050),new Intl.NumberFormat(lang,{style:'currency',currency,minimumFractionDigits:2,maximumFractionDigits:2}).format(100.5))}
  }
  setLocale('da-DK');assert.match(formatMoney(10000,'DKK'),/^100\s+kr\.$/);setHouseholdFormat(null)
+})
+
+test('annual persisted types and specific-day meal actions survive both locales',()=>{
+ for(const lang of ['da-DK','en-GB']){
+  setLocale(lang)
+  const values=annualEventValues({type:'Mærkedag',title:'Bryllupsdag',date:'2026-10-30'},null,[])
+  assert.equal(values.type,'Mærkedag');assert.equal(values.title,'Bryllupsdag');assert.equal(values.allDay,true)
+  assert.equal(materialize([{id:'annual',...values}],['2027-10-30'],{milestones:false})[0].baseId,'annual')
+  assert.equal(typeLabel(values.type),lang==='da-DK'?'Mærkedag':'Anniversary')
+  assert.equal(t('meal.remove'),lang==='da-DK'?'Fjern fra madplan':'Remove from meal plan')
+  const question=t('meal.remove_question',{title:'Pasta <script>',date:'30 October'})
+  assert.ok(question.includes('30 October'));assert.ok(question.includes('&lt;script&gt;'));assert.ok(!question.includes('<script>'))
+ }
+ setLocale('da-DK')
 })
 test('Danish fallback works and unknown keys are never shown',()=>{
  engine.addResource('da-DK','translation','test.only_danish','Dansk fallback');setLocale('en-GB');assert.equal(t('test.only_danish'),'Dansk fallback');assert.notEqual(t('not.a.real.key'),'not.a.real.key');delete engine.getResourceBundle('da-DK','translation')['test.only_danish'];setLocale('da-DK')

@@ -76,9 +76,12 @@ try{
  sql('begin;\n'+assertions+'\nrollback;')
  check('Civil schedules: daily, weekdays, selected, weekly, leap, DST, month boundary',true)
  const future=new Date(frozen.period_end+'T12:00:00');future.setDate(future.getDate()+1);const nextDay=new Intl.DateTimeFormat('en-CA').format(future)
+ // A week can end after the calendar month; both periods must be closed for payout.
+ const rollover=new Date([frozen.period_end,week.period_end].sort().at(-1)+'T12:00:00');rollover.setDate(rollover.getDate()+1)
+ const rolloverDay=new Intl.DateTimeFormat('en-CA').format(rollover)
  const claimsSQL="select set_config('request.jwt.claims','"+JSON.stringify({sub:ownerId,role:'authenticated'})+"',true);"
  const closeTest=[
- "begin;",clock(nextDay),claimsSQL,"select private.ensure_allowance_periods('"+hid+"');",
+ "begin;",clock(rolloverDay),claimsSQL,"select private.ensure_allowance_periods('"+hid+"');",
  "do $$ declare n int;begin",
  "if not exists(select 1 from public.allowance_contracts where id='"+frozen.id+"' and closed_at is not null) then raise exception 'Not closed';end if;",
  "if not exists(select 1 from public.allowance_contracts where person_id='"+p.id+"' and period_start='"+nextDay+"' and allowance_minor=20000) then raise exception 'Latest agreement missing';end if;",

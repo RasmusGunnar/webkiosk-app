@@ -1183,5 +1183,22 @@
   "product.plan_meal_date": "Plan meal {{date}}",
   "tasks.progress_one": "{{done, number}} of {{count, number}} task completed",
   "tasks.progress_other": "{{done, number}} of {{count, number}} tasks completed",
-  "account.confirm_phrase": "DELETE MY ACCOUNT"
+  "account.confirm_phrase": "DELETE MY ACCOUNT",
+  "meal.remove": "Remove from meal plan",
+  "meal.removed": "The meal has been removed from the meal plan.",
+  "meal.remove_question": "Remove {{title}} from {{date}}?",
+  "meal.preserved": "The recipe stays in Recipes. Other planned days are kept.",
+  "meal.confirm_remove": "Remove \"{{title}}\" from the meal plan on {{date}}? The recipe stays in Recipes.",
+  "plan_editor.delete_item": "Delete item",
+  "plan_editor.confirm_delete_item": "Delete {{title}}?",
+  "annual.create_birthday": "Create birthday",
+  "annual.create_anniversary": "Create anniversary",
+  "annual.edit_birthday": "Edit birthday",
+  "annual.edit_anniversary": "Edit anniversary",
+  "annual.birth_year_optional": "Year of birth · optional",
+  "annual.note_optional": "Note · optional",
+  "annual.edit_all_years": "Changes apply to every year. The date here is the original date.",
+  "annual.person_required": "Enter the person whose birthday it is.",
+  "annual.invalid_birth_year": "Enter a valid year of birth, or leave the field empty.",
+  "types.anniversary": "Anniversary"
 }

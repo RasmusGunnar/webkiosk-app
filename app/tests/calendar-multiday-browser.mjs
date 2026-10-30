@@ -164,10 +164,12 @@ try{
  await page.setViewportSize({width:1920,height:1080});await openSettings(page,'device');await page.locator('#device-kiosk').check();await page.locator('#device-pin').fill('1948');await page.locator('#device-settings-form button[type=submit]').click();await routeTo(page,'calendar');await page.locator('#calendar-today-button').click();await filter(people[1].id)
  for(const [width,height] of [[1920,1080],[1280,800],[1024,600]]){
   await page.setViewportSize({width,height});if(width<1500)await expect(page.locator('body')).toHaveAttribute('data-density','compact')
-  await noSpans();await fits();await expect(cards()).toHaveCount(4);await shot('daily-kiosk-hotel-'+width)
-  expect(await page.locator('.week-grid .day-sections').evaluateAll(els=>els.every(e=>e.scrollHeight<=e.clientHeight+1))).toBe(true)
-  expect(await page.locator('.week-grid .compact-activity,.week-grid .compact-task,.week-grid .day-meals').evaluateAll(els=>els.every(e=>e.getBoundingClientRect().bottom<document.querySelector('.product-nav').getBoundingClientRect().top))).toBe(true)
+  await noSpans();await fits();await expect(cards()).toHaveCount(4)
+  // Resize rendering is debounced; density can already be compact at both sizes.
+  await expect.poll(()=>page.locator('.week-grid .day-sections').evaluateAll(els=>els.every(e=>e.scrollHeight<=e.clientHeight+1))).toBe(true)
+  await expect.poll(()=>page.locator('.week-grid .compact-activity,.week-grid .compact-task,.week-grid .day-meals').evaluateAll(els=>els.every(e=>e.getBoundingClientRect().bottom<document.querySelector('.product-nav').getBoundingClientRect().top))).toBe(true)
   expect(await page.evaluate(()=>document.documentElement.scrollHeight<=innerHeight+1)).toBe(true)
+  await shot('daily-kiosk-hotel-'+width)
  }
  expect(errors).toEqual([]);pass('Kiosk retains seven independent columns and bounded rows at 1920/1280/1024; no uncaught browser errors')
  writeFileSync(out+'/results.json',JSON.stringify({pass:true,results,shots},null,2))

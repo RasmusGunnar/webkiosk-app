@@ -1183,5 +1183,22 @@
   "product.plan_meal_date": "Planlæg mad {{date}}",
   "tasks.progress_one": "{{done, number}} af {{count, number}} opgave klaret",
   "tasks.progress_other": "{{done, number}} af {{count, number}} opgaver klaret",
-  "account.confirm_phrase": "SLET MIN KONTO"
+  "account.confirm_phrase": "SLET MIN KONTO",
+  "meal.remove": "Fjern fra madplan",
+  "meal.removed": "Retten er fjernet fra madplanen.",
+  "meal.remove_question": "Fjern {{title}} fra {{date}}?",
+  "meal.preserved": "Opskriften bliver i Opskrifter. Andre planlagte dage bevares.",
+  "meal.confirm_remove": "Fjern \"{{title}}\" fra madplanen den {{date}}? Opskriften bliver i Opskrifter.",
+  "plan_editor.delete_item": "Slet vare",
+  "plan_editor.confirm_delete_item": "Slet {{title}}?",
+  "annual.create_birthday": "Opret fødselsdag",
+  "annual.create_anniversary": "Opret mærkedag",
+  "annual.edit_birthday": "Rediger fødselsdag",
+  "annual.edit_anniversary": "Rediger mærkedag",
+  "annual.birth_year_optional": "Fødselsår · valgfrit",
+  "annual.note_optional": "Note · valgfri",
+  "annual.edit_all_years": "Ændringer gælder i alle år. Datoen her er den oprindelige dato.",
+  "annual.person_required": "Angiv personen, der har fødselsdag.",
+  "annual.invalid_birth_year": "Angiv et gyldigt fødselsår, eller lad feltet være tomt.",
+  "types.anniversary": "Mærkedag"
 }

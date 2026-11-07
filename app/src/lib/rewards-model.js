@@ -1,5 +1,5 @@
 import {t,formatMoney} from '../i18n/index.js'
-import {occurrenceDate, value} from './calendar-semantics.js'
+import {occurrenceDate, value, imported} from './calendar-semantics.js'
 import {itemMatchesPerson} from './people.js'
 export const rewardToday=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Copenhagen',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date())
 export const emptyRewards=()=>({configs:[],periods:[],occurrences:[],balances:[],ledger:[],catalog:[],goals:[],redemptions:[],snapshots:[],monthly:[],agreements:[],contracts:[]})
@@ -11,7 +11,9 @@ export function rewardRule(item){
  // Newly queued tasks have not yet received server-maintained rule history.
  return {mode:value(item,'rewardMode')||'none',stars:Number(value(item,'starValue')||0),approval:!!value(item,'requiresApproval'),pool:!!value(item,'bonusPool')}
 }
-export const managedTask=item=>item?.type==='Opgave'&&(rewardRule(item).mode!=='none'||rewardRule(item).approval)
+// Every task uses per-person occurrences, including tasks without rewards.
+export const managedTask=item=>item?.type==='Opgave'&&!imported(item)
+export const completionNeedsApproval=(item,person,role)=>rewardRule(item).approval&&!(['adult','voksen'].includes(person?.role)&&['owner','admin','adult'].includes(role))
 export const rewardOrigin=item=>value(item,'rewardOriginId')||value(item,'overrideBaseId')||item.baseId||item.id
 export const occurrenceState=(state,item,pid)=>state?.occurrences?.find(s=>s.origin_id===rewardOrigin(item)&&s.occurrence_date===occurrenceDate(item)&&s.person_id===pid)
 export const isApproved=s=>['completed','approved'].includes(s?.status)
@@ -24,7 +26,7 @@ export function taskPeople(item,people,state){
 export function taskComplete(item,people,state,pid='Alle'){
  if(!managedTask(item))return !!item.done
  const targets=taskPeople(item,people,state).filter(p=>pid==='Alle'||p.id===pid)
- return !!targets.length&&targets.every(p=>isApproved(occurrenceState(state,item,p.id)))
+ return !!targets.length&&targets.every(p=>isApproved(occurrenceState(state,item,p.id))||occurrenceState(state,item,p.id)?.status==='excused')
 }
 export const actionPayload=(item,pid)=>({person_id:pid,item_id:item.isRepeatOccurrence?item.baseId:item.id,occurrence_date:occurrenceDate(item),due_date:value(item,'allowanceDueDate')||item.date})
 export const currency=formatMoney
@@ -40,7 +42,7 @@ export function optimisticReward(state,entry){
  const a=entry.payload.reward_action;if(!a||!['complete','undo'].includes(a.action))return state
  const p=a.payload,view=structuredClone(state||emptyRewards()),prior=view.occurrences.find(s=>s.person_id===p.person_id&&s.origin_id===a.optimistic.origin_id&&s.occurrence_date===p.occurrence_date)
  if(a.action==='complete'&&isApproved(prior))return view
- const s={...a.optimistic,...prior,...p,status:a.action==='undo'?'open':(prior?.requires_approval??a.optimistic.requires_approval)?'pending':'completed',local_pending:true}
+ const s={...a.optimistic,...prior,...p,status:a.action==='undo'?'open':(a.optimistic.requires_approval??prior?.requires_approval)?'pending':'completed',local_pending:true}
  view.occurrences=view.occurrences.filter(o=>!(o.person_id===p.person_id&&o.origin_id===s.origin_id&&o.occurrence_date===p.occurrence_date));view.occurrences.push(s)
  return view
 }

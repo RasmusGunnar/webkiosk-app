@@ -64,6 +64,7 @@ export class RewardMotion {
   const metric=effect.milestone?'.reward-month':effect.feedbackKind==='goal'?'.reward-goal':effect.feedbackKind==='stars'?'.reward-star-balance':null
   const focused=metric&&panels.map(p=>p.querySelector(metric)||p).find(visible)
   if(focused)return focused
+  if(effect.taskId&&effect.pid){const person=select('data-reward-task',effect.taskId).flatMap(task=>[...task.querySelectorAll(`[data-task-person="${escaped(effect.pid)}"]`)]).find(visible);if(person)return person}
   const candidates=[...(effect.taskId?select('data-reward-task',effect.taskId).concat(select('data-calendar-item',effect.taskId)):[]),...(effect.redemptionId?select('data-reward-redemption',effect.redemptionId):[]),...(effect.rewardId?select('data-reward-catalog-card',effect.rewardId):[]),...panels,...(effect.check?[...document.querySelectorAll('[data-completed-date]')]:[])]
   return candidates.find(visible)
  }

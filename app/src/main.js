@@ -1,8 +1,10 @@
+import {ownStarPerson} from './lib/stars-model.js'
+import {personAvatar,personPicker,personStack,installAvatarFallback} from './lib/person-avatars.js'
 import {typeLabel,personRoleLabel} from './i18n/domain-labels.js'
 import {t,userError,dateFormatter,LanguagePreference,setHouseholdFormat,locale,errorText} from './i18n/index.js'
 import {allowanceTasks} from './lib/allowance-model.js'
 import {RewardsUI} from './lib/rewards-ui.js'
-import {emptyRewards,rewardRule,managedTask,taskComplete,actionPayload,rewardOrigin,rewardConfig,rewardToday} from './lib/rewards-model.js'
+import {emptyRewards,rewardRule,managedTask,taskComplete,actionPayload,rewardOrigin,rewardConfig,rewardToday,completionNeedsApproval} from './lib/rewards-model.js'
 import './style.css'
 import './product.css'
 import './desktop-kiosk.css'
@@ -19,6 +21,8 @@ import {localReviewEnabled} from './lib/subscription-model.js'
 import {NativeFamilyUI} from './lib/native-family-ui.js'
 import {WallDeviceService,pairingValue} from './lib/wall-device.js'
 import './dialogs.css'
+import './person-avatars.css'
+import './stars.css'
 import {isAnnualType,birthdayPerson,annualEventValues} from './lib/annual-events.js'
 import {hiddenImportLabel} from './lib/imported-scopes.js'
 import {eventInterval,eventOverlapsDate,eventDisplayRange,eventDayLabel,eventDayState,eventDateRange,validateEventInterval,supportsInterval,daysBetween} from './lib/calendar-interval.js'
@@ -56,6 +60,7 @@ import { icon, routeLabels, renderNavigation, renderMeals, renderShopping } from
 import { PlanEditor } from './lib/plan-editor.js'
 import { installDialogAccessibility } from './lib/dialog-accessibility.js'
 
+installAvatarFallback(document)
 const app = document.querySelector('#app')
 const publicUrl=publicBase(import.meta.env,location)
 const accountPath=location.pathname==='/delete-account'
@@ -153,7 +158,7 @@ let shoppingDraft={title:'',note:''},shoppingBusy=false,shoppingOpen=false
 let foodRoute='meals'
 let productRoute='calendar',settingsTab='people',taskRange='today',newCalendarType='Aktivitet'
 let kioskUnlocked=false,pinAttempts=0,pinBlockedUntil=0,members=[],invitations=[]
-const rewardsUI=new RewardsUI({getContext:()=>({key:sessionEpoch+':'+activeHousehold?.id,items:calendarItems,people:householdPeople,state:rewardState,role:householdRole,mode:mode(),online:navigator.onLine&&!syncStatus.offline}),onAction:performRewardAction,onSelect:id=>{activePersonFilter=id;setProductRoute('tasks');activePersonFilter=id;updateCalendarSurface()},onToggle:toggleCalendarItemDone,onEdit:openEditCalendarModal,avatar:renderPersonAvatar})
+const rewardsUI=new RewardsUI({getContext:()=>({key:sessionEpoch+':'+activeHousehold?.id,items:calendarItems,people:householdPeople,state:rewardState,userId:session?.user.id,role:householdRole,mode:mode(),online:navigator.onLine&&!syncStatus.offline}),onAction:performRewardAction,onSelect:id=>{activePersonFilter=id;setProductRoute('tasks');activePersonFilter=id;updateCalendarSurface()},onToggle:toggleCalendarItemDone,onEdit:openEditCalendarModal,onRewards:()=>{setProductRoute('tasks');activePersonFilter='Alle';taskRange='rewards';updateCalendarSurface()},avatar:renderPersonAvatar})
 const pinRoot=document.createElement('div');document.body.append(pinRoot)
 const createRoot=document.createElement('div');document.body.append(createRoot)
 createRoot.addEventListener('dismiss-dialog',()=>{createRoot.innerHTML=''})
@@ -700,6 +705,7 @@ function scheduleCalendarSurface() {
   surfaceFrame = requestAnimationFrame(() => { surfaceFrame = null; updateCalendarSurface() })
 }
 function updateCalendarSurface() {
+  if(productRoute==='tasks'&&householdRole==='child'&&activePersonFilter==='Alle')activePersonFilter=ownStarPerson(rewardState,session?.user.id)||'Alle'
   if (!session || !activeHousehold || !document.querySelector('#calendar-view')) return
   const inlineFocus=captureInlineFocus()
   for(const feed of calendarFeeds){const status=document.querySelector('[data-feed-status="'+feed.id+'"]');if(status)status.textContent=feedSyncStatus(feed)}
@@ -849,15 +855,16 @@ function renderDayCard(date,full=false) {
   `
 }
 
-function renderWeekItem(item,day){if(eventInterval(item).multiDay)return renderDailyIntervalItem(item,day,true);return '<button class="compact-activity" data-calendar-item="'+escapeHtml(item.id)+'" style="--item-color:'+escapeHtml(getCalendarItemColor(item))+'"><strong>'+renderCalendarItemIcon(item)+escapeHtml(getCalendarItemTitle(item))+'</strong><span class="compact-activity-meta"><time>'+escapeHtml(item.time||(t("calendar.all_day")))+'</time><span>'+escapeHtml(calendarPeopleLabel(item))+'</span>'+(sourceLabel(item)?'<small>'+escapeHtml(sourceLabel(item))+'</small>':'')+'</span></button>'}
+function renderWeekItem(item,day){if(eventInterval(item).multiDay)return renderDailyIntervalItem(item,day,true);return '<button class="compact-activity" data-calendar-item="'+escapeHtml(item.id)+'" style="--item-color:'+escapeHtml(getCalendarItemColor(item))+'"><strong>'+renderCalendarItemIcon(item)+escapeHtml(getCalendarItemTitle(item))+'</strong><span class="compact-activity-meta"><time>'+escapeHtml(item.time||(t("calendar.all_day")))+'</time><span>'+renderItemAvatars(item)+'</span>'+(sourceLabel(item)?'<small>'+escapeHtml(sourceLabel(item))+'</small>':'')+'</span></button>'}
 function renderDailyIntervalItem(item,day,compact=false){
  const title=getCalendarItemTitle(item),people=calendarPeopleLabel(item),range=eventDisplayRange(item),label=eventDayLabel(item,day,{compact})
- return '<button class="compact-activity calendar-multiday" data-calendar-item="'+escapeHtml(item.id)+'" data-event-state="'+eventDayState(item,day)+'" aria-label="'+escapeHtml(title+' · '+range+' · '+people)+'" title="'+escapeHtml(range+' · '+people+(sourceLabel(item)?' · '+sourceLabel(item):''))+'" style="--item-color:'+escapeHtml(getCalendarItemColor(item))+'"><strong>'+renderCalendarItemIcon(item)+escapeHtml(title)+'</strong>'+(!compact?'<span class="event-range">'+escapeHtml(eventDateRange(item)+' · '+people)+'</span>':'')+'<span class="compact-activity-meta event-day-label">'+escapeHtml(label)+'</span></button>'
+ return '<button class="compact-activity calendar-multiday" data-calendar-item="'+escapeHtml(item.id)+'" data-event-state="'+eventDayState(item,day)+'" aria-label="'+escapeHtml(title+' · '+range+' · '+people)+'" title="'+escapeHtml(range+' · '+people+(sourceLabel(item)?' · '+sourceLabel(item):''))+'" style="--item-color:'+escapeHtml(getCalendarItemColor(item))+'"><strong>'+renderCalendarItemIcon(item)+escapeHtml(title)+'</strong>'+(!compact?'<span class="event-range">'+escapeHtml(eventDateRange(item)+' · '+people)+'</span>':'')+'<span class="compact-activity-meta event-day-label">'+escapeHtml(label)+renderItemAvatars(item)+'</span></button>'
 }
-function renderCompactTask(item){return compactTask(item,{people:calendarPeopleLabel(item),done:taskComplete(item,householdPeople,rewardState,activePersonFilter),reward:rewardRule(item)})}
+function renderItemAvatars(item){return personStack(item,householdPeople,rewardState)}
+function renderCompactTask(item){return compactTask(item,{avatars:renderItemAvatars(item),people:calendarPeopleLabel(item),done:taskComplete(item,householdPeople,rewardState,activePersonFilter),reward:rewardRule(item)})}
 function openDayDetail(date){detailRoot.innerHTML='<div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="day-detail-title"><section class="calendar-modal full-day-detail"><header class="modal-header"><h2 id="day-detail-title">'+escapeHtml(formatDayHeaderDate(parseDateIso(date)))+("</h2><button data-day-close aria-label=\""+t("common.close")+"\">×</button></header>")+renderDayCard(parseDateIso(date),true)+'</section></div>';detailRoot.querySelector('[data-day-close]').onclick=()=>{detailRoot.innerHTML=''};bindCalendarSurface();bindPlanningSurface()}
 function renderCalendarItemCard(item,day=toDateIso(calendarCursorDate)) {
-  if(managedTask(item))return rewardsUI.taskCard(item,activePersonFilter)
+  if(managedTask(item))return productRoute==='tasks'?rewardsUI.taskCard(item,activePersonFilter):renderCompactTask(item)
   if(eventInterval(item).multiDay)return renderDailyIntervalItem(item,day)
   if(mode()==='mobile')return renderMobileAgendaItem(item,day)
   const id = item.id
@@ -903,10 +910,10 @@ function renderCalendarItemCard(item,day=toDateIso(calendarCursorDate)) {
           ${itemIcon ? `
             <p class="calendar-item-meta">
               <span>${escapeHtml(timeLabel)}</span>
-              <span>${escapeHtml(person)}</span>
+              <span>${renderItemAvatars(item)}</span>
               ${repeatMeta}
             </p>
-          ` : `<p class="calendar-person">${escapeHtml(person)}${repeatMeta}</p>`}
+          ` : `<p class="calendar-person">${renderItemAvatars(item)}${repeatMeta}</p>`}
 
           ${(location || note) ? `
             <div class="calendar-item-footer">
@@ -1024,8 +1031,8 @@ function renderCalendarModal() {
               <input id="calendar-end-time" name="endTime" type="time" value="${escapeHtml(interval.endTime)}" />
             </div>
             <label class="interval-field full interval-all-day"><input id="calendar-all-day" name="allDay" type="checkbox" ${interval.allDay?'checked':''}> ${t("calendar.all_day")}</label>
-            <div class="full">
-              <label>${t("app.people")}</label>
+            <div class="full calendar-people-section" role="group" aria-labelledby="calendar-people-label">
+              <label id="calendar-people-label">${t("app.people")}</label>
               <div class="calendar-person-pills">
                 ${renderCalendarPersonPills(values.people)}
               </div>
@@ -1645,18 +1652,7 @@ function getPersonRoleLabel(role) {
   return labels[mapPersonRoleToUi(role)] || 'Andet'
 }
 
-function renderPersonAvatar(person, className) {
-  const name = person.name || 'Alle'
-  const avatar = avatarDisplayUrl(person)
-  const color = person.color || getPersonColor(name)
-  const initial = (name.trim()[0] || '?').toUpperCase()
-
-  if (avatar) {
-    return `<span class="${className}"><img src="${escapeHtml(avatar)}" alt="" /></span>`
-  }
-
-  return `<span class="${className}" style="background:${escapeHtml(color)}22;color:#111827">${escapeHtml(initial)}</span>`
-}
+function renderPersonAvatar(person,className){return personAvatar(person,{className})}
 
 async function handleLogin(event) {
   event.preventDefault()
@@ -1869,6 +1865,7 @@ async function runCalendarMutation(makePlan, options = {}) {
 async function toggleCalendarItemDone(itemId, done) {
   const item = findRenderableCalendarItem(itemId)
   if (!item || imported(item)) return
+  if(item.type==='Opgave'){rewardsUI.taskDetail(item,activePersonFilter);return}
   if(isWall()){try{await wallService.complete({itemId:item.baseId||item.id,dueDate:item.date,done})}catch(e){message=e.message}updateCalendarSurface();return}
   rewardMotion.taskCheck(item.id,done?'completed':'open')
   const { error } = await runCalendarMutation(() => planEdit(calendarItems,item,{...itemValues(item),done},'one'),
@@ -2389,12 +2386,7 @@ function renderCalendarPersonPills(selectedPeople) {
   const selection = selectPeople(selectedPeople, householdPeople)
   const options = [{ id: 'Alle', name: t('common.all'), color: '#0f172a' }, ...householdPeople.filter(person => isActiveHouseholdPerson(person) || selection.personIds.includes(person.id))]
   selection.unresolvedPeople.forEach(name => options.push({ id: name, name, color: '#64748b' }))
-  return options.map(person => {
-    const checked = person.id === 'Alle' ? selection.people.includes('Alle') : selection.personIds.includes(person.id) || selection.unresolvedPeople.includes(person.id)
-    return '<label class="calendar-person-pill ' + (checked ? 'selected' : '') + '" style="--person-color:' + escapeHtml(person.color || '#64748b') +
-      '"><input type="checkbox" name="people" value="' + escapeHtml(person.id) + '" data-calendar-person-choice ' + (checked ? 'checked' : '') +
-      ' /><span>' + escapeHtml(person.id==='Alle'?t('common.all'):person.name) + '</span></label>'
-  }).join('')
+  return personPicker(options,[...selection.personIds,...selection.unresolvedPeople,...(selection.people.includes('Alle')?['Alle']:[])])
 }
 
 function handleCalendarPersonChoice(event) {
@@ -2504,7 +2496,7 @@ function updateModalTypeFields() {
   form.querySelector('label[for=calendar-birth-year]').textContent=t('annual.birth_year_optional')
   form.querySelector('label[for=calendar-note]').textContent=annual?t('annual.note_optional'):t('app.note')
   if(annual)document.querySelector('#calendar-modal-title').textContent=getEditingCalendarItem()?(isBirthday?t('annual.edit_birthday'):t('annual.edit_anniversary')):(isBirthday?t('annual.create_birthday'):t('annual.create_anniversary'))
-  if(!getEditingCalendarItem())form.querySelector('button[type=submit]').textContent=isBirthday?t('annual.create_birthday'):isMilestone?t('annual.create_anniversary'):t('app.create_event')
+  if(!getEditingCalendarItem())form.querySelector('button[type=submit]').textContent=isBirthday?t('annual.create_birthday'):isMilestone?t('annual.create_anniversary'):isTask?t('app.create_task'):t('app.create_event')
   updateIntervalFields()
 }
 
@@ -2784,7 +2776,7 @@ function setProductRoute(route) {
   if(route==='today')calendarViewMode='day'
   if(route==='calendar')calendarViewMode=mode()==='kiosk'&&!isWall()?'week':getDefaultCalendarViewMode()
   if(mode()!=='kiosk')updateDeviceProfile({lastRoute:route})
-  if(route==='tasks')calendarViewMode='day'
+  if(route==='tasks'){calendarViewMode='day';if(householdRole==='child')activePersonFilter=ownStarPerson(rewardState,session?.user.id)||'Alle'}
   hasUserSelectedCalendarView=true
   render()
 }
@@ -2828,7 +2820,7 @@ function renderTaskView() {
     const daily=items.filter(item=>item.date===date)
     return daily.length?'<section class="task-date-group"><h3>'+escapeHtml(formatDayHeaderDate(parseDateIso(date)))+'</h3>'+daily.map(renderCalendarItemCard).join('')+'</section>':''
   }).join('')
-  return '<div class="task-view rewards-task-view"><p id="reward-message" role="status"></p>'+(activePersonFilter==='Alle'?rewardsUI.summary():rewardsUI.dashboard(activePersonFilter))+rewardsUI.approvals()+(activePersonFilter==='Alle'?renderTaskCapture(tasks,done):'')+'<div class="segmented-control"><button data-task-range="today" aria-pressed="'+(taskRange==='today')+("\">"+t("nav.today")+"</button><button data-task-range=\"week\" aria-pressed=\"")+(taskRange==='week')+("\">"+t("app.this_week")+"</button>")+(mode()!=='kiosk'?'<button data-task-range="month" aria-pressed="'+(taskRange==='month')+("\">"+t("app.month")+"</button><button data-task-range=\"rewards\" aria-pressed=\"")+(taskRange==='rewards')+("\">"+t("app.rewards")+"</button>"):'')+'</div>'+
+  return '<div class="task-view rewards-task-view"><p id="reward-message" role="status"></p>'+(activePersonFilter==='Alle'?rewardsUI.summary():rewardsUI.dashboard(activePersonFilter))+rewardsUI.approvals()+(activePersonFilter==='Alle'&&taskRange!=='rewards'?rewardsUI.starEntry():'')+(activePersonFilter==='Alle'?renderTaskCapture(tasks,done):'')+'<div class="segmented-control"><button data-task-range="today" aria-pressed="'+(taskRange==='today')+("\">"+t("nav.today")+"</button><button data-task-range=\"week\" aria-pressed=\"")+(taskRange==='week')+("\">"+t("app.this_week")+"</button>")+(mode()!=='kiosk'?'<button data-task-range="month" aria-pressed="'+(taskRange==='month')+("\">"+t("app.month")+"</button><button data-task-range=\"rewards\" aria-pressed=\"")+(taskRange==='rewards')+("\">"+t("app.rewards")+"</button>"):'')+'</div>'+
     (taskRange==='rewards'?rewardsUI.shop(activePersonFilter):
     (open.length?group(open):("<div class=\"panel empty-state\">"+t("app.no_open_tasks_well_done")+"</div>"))+
     (done.length?'<details class="completed-tasks" data-completed-date="task-view" '+(expandedTaskDays.has('task-view')?'open':'')+'><summary>'+done.length+(" "+t("app.completed_tasks")+"</summary>")+group(done)+'</details>':'')+rewardsUI.bonus(activePersonFilter)+rewardsUI.history(activePersonFilter))+'</div>'
@@ -2896,7 +2888,7 @@ function renderOtherSettings() {
  const config=settingsForDevice(),kiosk=mode()==='kiosk'
  const panel=(id,html)=>'<section class="settings-block" data-settings-panel="'+id+'" '+(settingsTab===id?'':'hidden')+'>'+html+'</section>'
  return panel('family',householdFormatControl()+("<h3>"+t("app.family_members_with_a_login")+"</h3><p class=\"hint\">"+t("app.child_profiles_do_not_need_a_login_manage_calendar_profiles_under_people")+"</p><div id=\"family-admin-content\">")+renderMembers()+'</div>'+
- (canManageFeeds()?("<form id=\"invite-form\" class=\"stack-form\"><h4>"+t("app.invite_by_email")+"</h4><label for=\"invite-email\">"+t("app.email")+"</label><input id=\"invite-email\" name=\"email\" type=\"email\" required autocomplete=\"email\"><label for=\"invite-role\">"+t("app.role")+"</label><select id=\"invite-role\" name=\"role\"><option value=\"adult\">"+t("app.adult")+"</option>")+(householdRole==='owner'?("<option value=\"admin\">"+t("app.administrator")+"</option>"):'')+("</select><p class=\"hint\">"+t("app.create_a_personal_link_and_share_it_by_email_the_recipient_must_sign_in_with_this_email")+"</p><button type=\"submit\">"+t("app.create_invitation")+"</button><p id=\"invite-message\" class=\"message\" role=\"status\"></p><div id=\"invite-result\"></div></form>"):("<p>"+t("app.only_owners_and_administrators_can_invite")+"</p>")))+
+ (canManageFeeds()?("<form id=\"invite-form\" class=\"stack-form\"><h4>"+t("app.invite_by_email")+"</h4><label for=\"invite-email\">"+t("app.email")+"</label><input id=\"invite-email\" name=\"email\" type=\"email\" required autocomplete=\"email\"><label for=\"invite-role\">"+t("app.role")+"</label><select id=\"invite-role\" name=\"role\"><option value=\"adult\">"+t("app.adult")+"</option>")+("<option value=\"child\">"+t("roles.child")+"</option>")+(householdRole==='owner'?("<option value=\"admin\">"+t("app.administrator")+"</option>"):'')+("</select><p class=\"hint\">"+t("app.create_a_personal_link_and_share_it_by_email_the_recipient_must_sign_in_with_this_email")+"</p><button type=\"submit\">"+t("app.create_invitation")+"</button><p id=\"invite-message\" class=\"message\" role=\"status\"></p><div id=\"invite-result\"></div></form>"):("<p>"+t("app.only_owners_and_administrators_can_invite")+"</p>")))+
  panel('device',("<h3>"+t("app.this_device")+"</h3><p>"+t("app.these_settings_apply_only_here_and_to")+" ")+escapeHtml(getHouseholdName(activeHousehold))+'.</p><form id="device-settings-form" class="stack-form"><label class="checkbox-label"><input id="device-kiosk" name="kiosk" type="checkbox" '+(kiosk?'checked':'')+(">"+t("app.use_as_wall_display")+"</label>")+
  (!kiosk?("<label for=\"device-pin\">"+t("app.choose_a_device_pin_4_8_digits")+"</label><input id=\"device-pin\" name=\"pin\" type=\"password\" inputmode=\"numeric\" pattern=\"[0-9]{4,8}\" autocomplete=\"new-password\"><p class=\"hint\">"+t("app.the_pin_prevents_accidental_administration_on_the_display")+"</p>"):("<p>"+t("app.settings_are_protected_by_the_device_pin")+"</p>"))+
  '<label class="checkbox-label"><input id="device-wake" name="wake" type="checkbox" '+(config.wake?'checked':'')+(">"+t("app.keep_screen_awake")+"</label><p id=\"wake-status\" class=\"hint\">")+escapeHtml(wakeScreen.status)+("</p><label for=\"device-idle\">"+t("app.return_to_today_after_inactivity")+"</label><select id=\"device-idle\" name=\"inactivity\">")+[10,15,20,30].map(n=>'<option value="'+n+'" '+(n===config.inactivity?'selected':'')+'>'+n+(" "+t("app.minutes")+"</option>")).join('')+("</select><h4>"+t("app.wall_display_shortcuts")+"</h4>")+
@@ -3169,10 +3161,10 @@ function openCreateSheet(){
 }
 function renderMobileAgendaItem(item,day){
  if(eventInterval(item).multiDay)return renderDailyIntervalItem(item,day)
- if(managedTask(item))return rewardsUI.taskCard(item,activePersonFilter)
+ if(managedTask(item))return productRoute==='tasks'?rewardsUI.taskCard(item,activePersonFilter):renderCompactTask(item)
  const title=getCalendarItemTitle(item),type=getCalendarValue(item,'type'),task=type==='Opgave',done=Boolean(getCalendarValue(item,'done')),time=getCalendarValue(item,'time'),location=getCalendarValue(item,'location')
  const badge=renderCalendarItemIcon(item)||icon(type==='Fritidsinteresse'?'sun':'calendar')
- return '<article class="calendar-item mobile-agenda-item '+(done?'is-done':'')+'" data-calendar-item="'+escapeHtml(item.id)+'" tabindex="0" role="button" aria-label="'+escapeHtml(title+' · '+eventDisplayRange(item))+'" style="--agenda-color:'+escapeHtml(getCalendarItemColor(item))+'"><span class="agenda-time'+(task?' is-task':'')+'">'+(task?badge:escapeHtml(time||(t("calendar.all_day"))))+'</span><div class="agenda-content"><strong>'+escapeHtml(title)+'</strong><p class="agenda-meta">'+(!task?'<span class="agenda-type" title="'+escapeHtml(typeLabel(type))+'" aria-label="'+escapeHtml(typeLabel(type))+'">'+badge+'</span>':'')+escapeHtml(calendarPeopleLabel(item)||'Alle')+(task&&time?' · '+escapeHtml(time):'')+(location?' · '+escapeHtml(location):'')+'</p>'+renderCalendarRepeatMeta(item)+(sourceLabel(item)?'<span class="calendar-source-badge">'+escapeHtml(sourceLabel(item))+'</span>':'')+'</div>'+(task&&!imported(item)?'<label class="done-toggle"><input type="checkbox" data-calendar-toggle="'+escapeHtml(item.id)+'" '+(done?'checked':'')+' aria-label="'+escapeHtml((done?(t("app.undo_completion")+" "):(t("app.mark_completed_marker_udf_rt_")+" "))+title)+'"><span class="sr-only">'+(done?(t("app.completed")):(t("app.mark_completed")))+'</span></label>':'')+'</article>'
+ return '<article class="calendar-item mobile-agenda-item '+(done?'is-done':'')+'" data-calendar-item="'+escapeHtml(item.id)+'" tabindex="0" role="button" aria-label="'+escapeHtml(title+' · '+eventDisplayRange(item))+'" style="--agenda-color:'+escapeHtml(getCalendarItemColor(item))+'"><span class="agenda-time'+(task?' is-task':'')+'">'+(task?badge:escapeHtml(time||(t("calendar.all_day"))))+'</span><div class="agenda-content"><strong>'+escapeHtml(title)+'</strong><p class="agenda-meta">'+(!task?'<span class="agenda-type" title="'+escapeHtml(typeLabel(type))+'" aria-label="'+escapeHtml(typeLabel(type))+'">'+badge+'</span>':'')+renderItemAvatars(item)+(task&&time?' · '+escapeHtml(time):'')+(location?' · '+escapeHtml(location):'')+'</p>'+renderCalendarRepeatMeta(item)+(sourceLabel(item)?'<span class="calendar-source-badge">'+escapeHtml(sourceLabel(item))+'</span>':'')+'</div>'+(task&&!imported(item)?'<label class="done-toggle"><input type="checkbox" data-calendar-toggle="'+escapeHtml(item.id)+'" '+(done?'checked':'')+' aria-label="'+escapeHtml((done?(t("app.undo_completion")+" "):(t("app.mark_completed_marker_udf_rt_")+" "))+title)+'"><span class="sr-only">'+(done?(t("app.completed")):(t("app.mark_completed")))+'</span></label>':'')+'</article>'
 }
 function renderMobileDay(date,{heading=true}={}){
  const day=toDateIso(date),week=productRoute==='calendar'&&calendarViewMode==='week'
@@ -3199,9 +3191,9 @@ async function performRewardAction(action,payload){
  if(['complete','undo'].includes(action)){
   const item=allowanceTasks(materialize(calendarItems,[payload.due_date],{milestones:false}),rewardState,[payload.due_date]).find(t=>(t.isRepeatOccurrence?t.baseId:t.id)===payload.item_id&&actionPayload(t,payload.person_id).occurrence_date===payload.occurrence_date)
   if(!item)return {error:new Error((t("app.this_task_no_longer_exists")))}
-  const rule=rewardRule(item)
-  rewardMotion.taskCheck(payload.item_id,action==='undo'?'open':rule.approval?'pending':'completed',payload.person_id)
-  return engine.enqueue({p_upserts:[],p_delete_ids:[],p_expected:[],reward_action:{action,payload,optimistic:{origin_id:rewardOrigin(item),task_id:payload.item_id,title:item.title,reward_mode:rule.mode,star_value:rule.stars,requires_approval:rule.approval}}},{action:'reward_'+action,entityId:rewardOrigin(item)+'|'+payload.occurrence_date+'|'+payload.person_id})
+  const rule=rewardRule(item),requiresApproval=completionNeedsApproval(item,householdPeople.find(p=>p.id===payload.person_id),householdRole)
+  rewardMotion.taskCheck(payload.item_id,action==='undo'?'open':requiresApproval?'pending':'completed',payload.person_id)
+  return engine.enqueue({p_upserts:[],p_delete_ids:[],p_expected:[],reward_action:{action,payload,optimistic:{origin_id:rewardOrigin(item),task_id:payload.item_id,title:item.title,reward_mode:rule.mode,star_value:rule.stars,requires_approval:requiresApproval}}},{action:'reward_'+action,entityId:rewardOrigin(item)+'|'+payload.occurrence_date+'|'+payload.person_id})
  }
  if(!navigator.onLine||syncStatus.offline)return {error:new Error(action==='redeem'?(t("app.you_need_to_be_online_to_redeem_a_reward")):(t("app.this_action_requires_a_connection")))}
  if(engine.state.queue.length){await engine.replay();if(engine.state.queue.length)return {error:new Error((t("app.sync_pending_tasks_first")))};}
@@ -3232,7 +3224,7 @@ function setupTaskEditor(isTask){
   const configured=calendarValue(item,'rewardMode')||'none',requires=item?!!calendarValue(item,'requiresApproval'):householdPeople.some(p=>rewardConfig(rewardState,p.id).default_requires_approval)
   rewardFields.innerHTML=("<details class=\"task-reward-details\"><summary>"+t("app.reward")+" <small>"+t("app.optional")+"</small></summary><div class=\"stack-form\"><label for=\"task-reward-mode\">"+t("app.this_task")+"</label><select id=\"task-reward-mode\" name=\"rewardMode\"><option value=\"none\">"+t("app.no_reward")+"</option><option value=\"stars\">"+t("app.bonus")+"</option></select><div id=\"task-stars-fields\"><label for=\"task-star-value\">"+t("app.bonus_stars")+"</label><input id=\"task-star-value\" type=\"number\" name=\"starValue\" min=\"1\" max=\"100000\" step=\"1\" value=\"")+(Number(calendarValue(item,'starValue'))||10)+'"><label><input type="checkbox" name="bonusPool" '+(calendarValue(item,'bonusPool')?'checked':'')+("> "+t("app.optional_bonus_task_one_person_can_take_it")+"</label></div><label><input name=\"requiresApproval\" type=\"checkbox\" ")+(requires?'checked':'')+("> "+t("app.requires_adult_approval")+"</label><p class=\"hint\">"+t("app.new_reward_rules_apply_from_now_on_completed_rewards_are_preserved")+"</p></div></details>")
   if(configured==='allowance'){const o=document.createElement('option');o.value='allowance';o.textContent=(t("app.previous_allowance_task_review_agreement"));rewardFields.querySelector('select').append(o)}advanced.before(rewardFields);form.querySelector('[name=rewardMode]').value=configured
-  const refresh=()=>{const mode=form.querySelector('[name=rewardMode]').value;form.querySelector('#task-stars-fields').hidden=mode!=='stars';form.querySelector('[name=starValue]').required=mode==='stars';const managed=mode!=='none'||form.querySelector('[name=requiresApproval]').checked;setCheckboxOptionEnabled(form.querySelector('#done-option'),!managed)}
+  const refresh=()=>{const mode=form.querySelector('[name=rewardMode]').value;form.querySelector('#task-stars-fields').hidden=mode!=='stars';form.querySelector('[name=starValue]').required=mode==='stars';setCheckboxOptionEnabled(form.querySelector('#done-option'),false)}
   form.querySelector('[name=rewardMode]').onchange=refresh;form.querySelector('[name=requiresApproval]').onchange=ev=>{ev.target.dataset.manual='true';refresh()};refresh()
   quick.querySelectorAll('[data-task-day]').forEach(b=>b.onclick=()=>{const input=form.querySelector('#calendar-date');if(b.dataset.taskDay==='date'){input.focus();input.showPicker?.()}else input.value=addDays(rewardToday(),Number(b.dataset.taskDay))})
  }

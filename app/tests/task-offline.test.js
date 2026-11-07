@@ -5,6 +5,7 @@ import { safeFeedMetadata, safePeopleCache, scopeKey } from '../src/lib/local-st
 import { OfflineSync } from '../src/lib/offline-sync.js'
 const people=[{id:'ida',name:'Ida',role:'child'},{id:'carl',name:'Carl',role:'child'},{id:'adult',name:'Mor',role:'adult'},{id:'enabled',name:'Far',role:'adult',reward_enabled:true}]
 const task=(id,extra={})=>({id,title:'Lektier',date:'2026-09-28',type:'Opgave',done:true,person:'Alle',person_ids:[],data:{},...extra})
+const confirmed=(entries)=>({occurrences:entries.map(([origin,person,date='2026-09-28',occurrence=date])=>({id:origin+person,origin_id:origin,person_id:person,title:'Lektier',due_date:date,occurrence_date:occurrence,status:'completed'}))})
 test('task emoji preserves all legacy mappings and free-text fallback',()=>{
  for(const [title,emoji] of [['Skole','🎒'],['Lektier','🎒'],['Tøm tasker','🎒'],['Opvask','🍽️'],['Dæk bordet','🍽️'],['Rydde op på værelset','🧹'],['Skrald','🗑️'],['Affald','🗑️'],['Madpakke','🥪'],['Custom','✅']])assert.equal(taskEmoji(title),emoji)
 })
@@ -15,17 +16,19 @@ test('participation defaults with explicit override; no weekly reward tier',()=>
 })
 test('whole-week single, multi and Alle counts ignore future, undone and other types',()=>{
  const rows=[task('single',{person_ids:['ida']}),task('multi',{person_ids:['ida','carl']}),task('all'),task('future',{date:'2026-09-30'}),task('open',{done:false}),task('event',{type:'Aktivitet'})]
- assert.deepEqual(weeklyProgress(rows,people,'2026-09-29','2026-09-29').map(p=>[p.personId,p.count,p.week]),[['ida',3,40],['carl',2,40],['enabled',1,40]])
+ const state=confirmed([['single','ida'],['multi','ida'],['multi','carl'],['all','ida'],['all','carl'],['all','enabled'],['future','ida','2026-09-30']])
+ assert.deepEqual(weeklyProgress(rows,people,'2026-09-29','2026-09-29',state).map(p=>[p.personId,p.count,p.week]),[['ida',3,40],['carl',2,40],['enabled',1,40]])
 })
 test('recurring first completion and overrides count once, never leak to next week',()=>{
  const base=task('base',{data:{repeatWeekly:true,exceptions:['2026-09-28']}})
  const override=task('override',{data:{overrideOf:'base',overrideBaseId:'base',originalDate:'2026-09-28'}})
- assert.equal(weeklyProgress([base,override],people,'2026-09-28','2026-10-10')[0].count,1)
- assert.equal(weeklyProgress([base,override],people,'2026-10-05','2026-10-10')[0].count,0)
+ const state=confirmed([['base','ida']])
+ assert.equal(weeklyProgress([base,override],people,'2026-09-28','2026-10-10',state)[0].count,1)
+ assert.equal(weeklyProgress([base,override],people,'2026-10-05','2026-10-10',state)[0].count,0)
 })
 test('history, moved occurrences and ISO year use calendar week and stable identity',()=>{
  const rows=[task('a',{date:'2025-12-29'}),task('b',{date:'2025-12-30',data:{overrideOf:'base',originalDate:'2025-12-22'}})]
- const result=weeklyProgress(rows,people,'2026-01-01','2026-09-28')[0]
+ const result=weeklyProgress(rows,people,'2026-01-01','2026-09-28',confirmed([['a','ida','2025-12-29'],['base','ida','2025-12-30','2025-12-22']]))[0]
  assert.equal(result.count,2);assert.equal(result.year,2026);assert.equal(result.week,1)
 })
 test('cache excludes feed URLs, private messages and expiring avatar signatures',()=>{

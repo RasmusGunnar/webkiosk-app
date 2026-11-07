@@ -1,0 +1,35 @@
+.person-bubble{--avatar-size:36px;display:inline-flex;position:relative;flex:none;width:var(--avatar-size);height:var(--avatar-size);vertical-align:middle;border-radius:50%;color:#243343}
+.person-bubble-face{position:relative;display:grid;place-items:center;width:100%;height:100%;border:2px solid color-mix(in srgb,var(--person-color),white 38%);border-radius:50%;background:color-mix(in srgb,var(--person-color),white 83%);overflow:hidden;font-size:calc(var(--avatar-size)*.34);font-weight:750;line-height:1}
+.person-bubble-face>span{display:grid;place-items:center;position:absolute;inset:0}
+.person-bubble-face img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.person-bubble-face svg{width:65%;height:65%}
+.person-bubble.is-group .person-bubble-face{background:#f0f1f3;border-color:#d3d8dd}
+.person-status-badge{position:absolute;right:-4px;bottom:-3px;display:grid;place-items:center;width:16px;height:16px;border-radius:50%;border:2px solid white;background:#e6f1e8;color:#235c3a;font-size:11px;font-weight:800;line-height:1;z-index:2}
+.person-bubble[data-person-status=approved] .person-bubble-face{border-color:#37734b}
+.person-bubble[data-person-status=approved] .person-status-badge{background:#326a45;color:white}
+.person-bubble[data-person-status=pending] .person-status-badge{background:#fcf1d9;color:#73551d}
+.person-bubble[data-person-status=excused] .person-status-badge{background:#edf0f2;color:#536272}
+.person-stack{display:inline-flex;align-items:center;gap:4px;padding:2px 4px 4px 0;vertical-align:middle;flex-shrink:0}
+.person-stack .person-bubble{--avatar-size:26px}
+.person-stack .person-status-badge{width:13px;height:13px;font-size:9px;right:-3px;bottom:-2px}
+.person-overflow{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:#edf0f2;color:#46576a;font-size:11px;font-weight:700}
+.calendar-person-pills{display:flex;flex-wrap:wrap;gap:8px}
+.calendar-person-pill.person-choice{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;min-width:66px;min-height:82px;max-width:108px;padding:8px 10px;border:1px solid transparent;border-radius:16px;background:transparent;cursor:pointer;transition:background .15s,transform .15s;line-height:1.2}
+.person-choice .person-bubble{--avatar-size:38px}
+.person-choice input{position:absolute;width:100%;height:100%;inset:0;margin:0;opacity:0;cursor:pointer;z-index:3}
+.person-choice-name{font-size:12px;max-width:100%;overflow-wrap:anywhere;text-align:center;color:#344256}
+.person-choice-check{display:none;position:absolute;top:6px;right:8px;border-radius:50%;background:#305d4d;color:white;width:16px;height:16px;font-size:10px;text-align:center;line-height:16px}
+.calendar-person-pill.person-choice:has(input:checked){background:#edf4ef;border-color:#7c9f8e}
+.person-choice:has(input:checked) .person-choice-check{display:block}
+.person-choice:focus-within{outline:3px solid #365f97;outline-offset:3px}
+.person-choice:active{transform:scale(.97)}
+.reward-task-person>.task-person-identity{display:flex;align-items:center;gap:10px;min-width:0}
+.task-person-identity>span:last-child{min-width:0;overflow-wrap:anywhere}
+.reward-task-person{gap:12px;align-items:center}
+.reward-task-person .reward-actions{flex-wrap:wrap;justify-content:flex-end}
+.reward-task-person .reward-actions button{min-height:44px}
+.compact-task>span:last-child{min-width:0;flex:1}
+.compact-task small,.compact-activity-meta{align-items:center;gap:6px}
+.calendar-item-meta .person-stack,.agenda-meta .person-stack{margin:0}
+@media(max-width:430px){.reward-task-person{flex-wrap:wrap}.reward-task-person .reward-actions{margin-left:auto}.reward-task-person>.task-person-identity{flex:1 1 130px}}
+@media(prefers-reduced-motion:reduce){.calendar-person-pill.person-choice{transition:none}.person-choice:active{transform:none}}

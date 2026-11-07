@@ -35,7 +35,7 @@ try{
  s=await state(owner,hid);m=s.monthly.find(m=>m.person_id===p.id)
  check('Approval earns deterministic rounded amount',m.completed_total===1&&m.earned_minor===Math.round(10000/m.eligible_total))
  check('Allowance never grants stars',s.ledger.length===0&&s.occurrences.find(o=>o.id===one.id).star_value===0)
- await must(act(child,hid,'undo',payload(one)));check('Undo open period reduces earned',(await state(owner,hid)).monthly.find(m=>m.person_id===p.id).earned_minor===0)
+ check('Child cannot reopen approved duty',!!(await act(child,hid,'undo',payload(one))).error);await must(act(owner,hid,'undo',payload(one)));check('Undo open period reduces earned',(await state(owner,hid)).monthly.find(m=>m.person_id===p.id).earned_minor===0)
  await must(act(owner,hid,'excuse',{...payload(one),reason:'Ferie'}));s=await state(owner,hid);m=s.monthly.find(m=>m.person_id===p.id)
  check('Excused removed from denominator with audit',m.eligible_total===frozen.eligible_total-1&&m.excused_total===1)
  await must(act(owner,hid,'unexcuse',payload(one)))

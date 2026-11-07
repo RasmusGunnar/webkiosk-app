@@ -46,7 +46,8 @@
     "deploymentEnabled": {
       "polish/calendar-meals-imports": false,
       "feature/calendar-import-sync": false,
-      "feature/native-subscription-wall": false
+      "feature/native-subscription-wall": false,
+      "feature/tasks-people-ux": false
     }
   }
 }

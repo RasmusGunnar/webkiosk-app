@@ -19,6 +19,9 @@ import {RevenueCatProvider} from './lib/subscription-provider.js'
 import {SubscriptionAccessService} from './lib/subscription-access.js'
 import {localReviewEnabled} from './lib/subscription-model.js'
 import {NativeFamilyUI} from './lib/native-family-ui.js'
+import {AulaUI} from './lib/aula-ui.js'
+import './aula.css'
+import {installShellUpdates} from './lib/app-shell-update.js'
 import {WallDeviceService,pairingValue} from './lib/wall-device.js'
 import './dialogs.css'
 import './person-avatars.css'
@@ -154,6 +157,7 @@ const wallService=new WallDeviceService({client:supabase,onSnapshot:snapshot=>{
 },onRevoked:()=>{wallRevoked=true;activeHousehold=null;households=[];calendarItems=[];householdPeople=[];rewardState=emptyRewards();void wakeScreen.set(false);render()},onStatus:text=>{message=text}})
 const nativeFamily=new NativeFamilyUI({client:supabase,access:subscriptionAccess,wall:wallService,review:nativeReview,
  getContext:()=>({householdId:activeHousehold?.id,admin:canManageFeeds(),platform:platform.os}),chooseMode:chooseDeviceMode,onRender:()=>{wallNaming=false;render()}})
+const aulaUI=new AulaUI({client:supabase,getContext:()=>({householdId:activeHousehold?.id,role:householdRole,people:householdPeople,wall:isWall()||mode()==='kiosk'}),onRender:()=>render({preserveDialogs:true}),onAccepted:()=>refreshHousehold()})
 let shoppingDraft={title:'',note:''},shoppingBusy=false,shoppingOpen=false
 let foodRoute='meals'
 let productRoute='calendar',settingsTab='people',taskRange='today',newCalendarType='Aktivitet'
@@ -236,7 +240,7 @@ function applyNativeReviewState(){
 async function init() {
   installProductRuntime()
   void clearNativeExports().catch(()=>{})
-  if (!platform.native && import.meta.env.PROD && 'serviceWorker' in navigator) navigator.serviceWorker.register(import.meta.env.BASE_URL + 'sw.js').catch(() => {})
+  if (!platform.native && import.meta.env.PROD) installShellUpdates({url:import.meta.env.BASE_URL+'sw.js',isWall:()=>mode()==='kiosk',canReload:()=>!syncStatus.syncing&&!syncEngine?.state.queue.length&&!wallService.activeActions&&!shoppingBusy&&!pendingAvatarFiles.size&&!aulaUI.scanning})
   if(isPublicPage){app.innerHTML=renderPublicPage(location.pathname);return}
   if (configurationError) { app.innerHTML = '<main class="app-shell"><p>' + escapeHtml(configurationError) + '</p></main>'; return }
   app.innerHTML=("<main class=\"app-shell native-onboarding\"><p class=\"eyebrow\">Familiekalender</p><h1>"+t("app.just_a_moment")+"</h1><p role=\"status\">"+t("app.finding_your_family_and_this_device_s_settings")+"</p></main>")
@@ -405,6 +409,7 @@ function clearSessionState() {
 function canManageFeeds() { return ['owner', 'admin'].includes(householdRole) }
 
 function render({ preserveDialogs = false } = {}) {
+  aulaUI.syncContext()
   if(isPublicPage){app.innerHTML=renderPublicPage(location.pathname);return}
   if(accountPath&&session&&authScreen!=='recovery'){renderAccountPage();return}
   if(nativeBootReady&&authScreen!=='recovery'&&!pendingInvite){
@@ -858,7 +863,7 @@ function renderDayCard(date,full=false) {
 function renderWeekItem(item,day){if(eventInterval(item).multiDay)return renderDailyIntervalItem(item,day,true);return '<button class="compact-activity" data-calendar-item="'+escapeHtml(item.id)+'" style="--item-color:'+escapeHtml(getCalendarItemColor(item))+'"><strong>'+renderCalendarItemIcon(item)+escapeHtml(getCalendarItemTitle(item))+'</strong><span class="compact-activity-meta"><time>'+escapeHtml(item.time||(t("calendar.all_day")))+'</time><span>'+renderItemAvatars(item)+'</span>'+(sourceLabel(item)?'<small>'+escapeHtml(sourceLabel(item))+'</small>':'')+'</span></button>'}
 function renderDailyIntervalItem(item,day,compact=false){
  const title=getCalendarItemTitle(item),people=calendarPeopleLabel(item),range=eventDisplayRange(item),label=eventDayLabel(item,day,{compact})
- return '<button class="compact-activity calendar-multiday" data-calendar-item="'+escapeHtml(item.id)+'" data-event-state="'+eventDayState(item,day)+'" aria-label="'+escapeHtml(title+' · '+range+' · '+people)+'" title="'+escapeHtml(range+' · '+people+(sourceLabel(item)?' · '+sourceLabel(item):''))+'" style="--item-color:'+escapeHtml(getCalendarItemColor(item))+'"><strong>'+renderCalendarItemIcon(item)+escapeHtml(title)+'</strong>'+(!compact?'<span class="event-range">'+escapeHtml(eventDateRange(item)+' · '+people)+'</span>':'')+'<span class="compact-activity-meta event-day-label">'+escapeHtml(label)+renderItemAvatars(item)+'</span></button>'
+ return '<button class="compact-activity calendar-multiday" data-calendar-item="'+escapeHtml(item.id)+'" data-event-state="'+eventDayState(item,day)+'" aria-label="'+escapeHtml(title+' · '+range+' · '+people)+'" title="'+escapeHtml(range+' · '+people+(sourceLabel(item)?' · '+sourceLabel(item):''))+'" style="--item-color:'+escapeHtml(getCalendarItemColor(item))+'"><strong>'+renderCalendarItemIcon(item)+escapeHtml(title)+'</strong>'+(!compact?'<span class="event-range">'+escapeHtml(eventDateRange(item)+' · '+people)+'</span>':'')+'<span class="compact-activity-meta event-day-label">'+escapeHtml(label)+renderItemAvatars(item)+(sourceLabel(item)?'<span class="calendar-source-badge">'+escapeHtml(sourceLabel(item))+'</span>':'')+'</span></button>'
 }
 function renderItemAvatars(item){return personStack(item,householdPeople,rewardState)}
 function renderCompactTask(item){return compactTask(item,{avatars:renderItemAvatars(item),people:calendarPeopleLabel(item),done:taskComplete(item,householdPeople,rewardState,activePersonFilter),reward:rewardRule(item)})}
@@ -1279,7 +1284,7 @@ function renderCalendarFeedForm() {
         <div>
           <label for="calendar-feed-source">${t("app.source")}</label>
           <select id="calendar-feed-source" name="source" data-calendar-feed-field>
-            ${renderCalendarFeedSourceOption('aula', calendarFeedDraft.source)}
+            ${isEditing && calendarFeedDraft.source==='aula' ? renderCalendarFeedSourceOption('aula', calendarFeedDraft.source) : ''}
             ${renderCalendarFeedSourceOption('google', calendarFeedDraft.source)}
             ${renderCalendarFeedSourceOption('ics', calendarFeedDraft.source)}
           </select>
@@ -1324,7 +1329,7 @@ function renderCalendarFeedPersonOptions(currentPerson) {
   return options.map(person => '<option value="' + escapeHtml(person.id) + '" ' + (person.id === currentPerson ? 'selected' : '') + '>' + escapeHtml(person.name) + '</option>').join('')
 }
 
-function createEmptyCalendarFeedDraft() { return { source: 'aula', feed_url: '', assigned_person_id: '', assigned_person_name: '', is_active: true } }
+function createEmptyCalendarFeedDraft() { return { source: 'ics', feed_url: '', assigned_person_id: '', assigned_person_name: '', is_active: true } }
 
 function createCalendarFeedDraft(feed) {
   return { source: normalizeCalendarFeedSource(feed.source), feed_url: String(feed.feed_url || ''),
@@ -1360,7 +1365,7 @@ function normalizeCalendarFeedSource(source) {
 
 function getCalendarFeedSourceLabel(source) {
   const labels = {
-    aula: 'Aula',
+    aula: t('aula.legacy'),
     google: 'Google',
     ics: 'ICS',
   }
@@ -1780,7 +1785,7 @@ async function loadHouseholdPeople() {
   if(isWall())return
   if (!syncEngine || !navigator.onLine) return
   const engine = syncEngine, version = ++peopleLoadVersion
-  const { data, error } = await supabase.from('household_people').select('*').eq('household_id',activeHousehold.id).order('sort_order').order('name').abortSignal(AbortSignal.timeout(6000))
+  const { data, error } = await supabase.from('household_people').select('*').eq('household_id',activeHousehold.id).order('sort_order').order('name').order('id').abortSignal(AbortSignal.timeout(6000))
   if (error || engine !== syncEngine || version !== peopleLoadVersion) return
   const people = await resolveAvatarUrls(supabase, data || [])
   if (engine !== syncEngine || version !== peopleLoadVersion) return
@@ -2787,23 +2792,23 @@ function renderProductHeader() {
  return '<div class="ux-brand"><span class="ux-brand-icon">'+icon('calendar')+'</span><div><p class="eyebrow">Familiekalender</p><h1>'+escapeHtml(getHouseholdName(activeHousehold))+'</h1></div></div>'
 }
 function renderHome() {
- if(mode()==='mobile'){const now=new Date(),greeting=now.getHours()<10?(t("app.good_morning")):now.getHours()<17?(t("app.hello")):(t("app.good_evening"));return '<div class="mobile-today"><header class="mobile-today-heading"><h2>'+escapeHtml(dateFormatter({weekday:'long',day:'numeric',month:'long'}).format(now))+'</h2><p>'+greeting+' · '+escapeHtml(getHouseholdName(activeHousehold))+'</p></header>'+renderMobileDay(now,{heading:false})+'</div>'}
+ if(mode()==='mobile'){const now=new Date(),greeting=now.getHours()<10?(t("app.good_morning")):now.getHours()<17?(t("app.hello")):(t("app.good_evening"));return '<div class="mobile-today"><header class="mobile-today-heading"><h2>'+escapeHtml(dateFormatter({weekday:'long',day:'numeric',month:'long'}).format(now))+'</h2><p>'+greeting+' · '+escapeHtml(getHouseholdName(activeHousehold))+'</p></header>'+aulaUI.todayCard()+renderMobileDay(now,{heading:false})+'</div>'}
  const now=new Date(),today=toDateIso(now),upcoming=upcomingItems(calendarItems,householdPeople,activePersonFilter)
  const next=upcoming[0],later=upcoming.filter(item=>item.date>today).slice(0,4),kiosk=mode()==='kiosk'
  const daily=allowanceTasks(materialize(calendarOnly(calendarItems),[today]),rewardState,[today]).filter(doesItemMatchPersonFilter)
  const tasks=daily.filter(item=>item.type==='Opgave'),completed=tasks.filter(item=>taskComplete(item,householdPeople,rewardState,activePersonFilter)).length,meals=mealsOn(calendarItems,today),shopping=shoppingItems(calendarItems).filter(item=>!item.done)
- const eventButton=item=>'<button class="upcoming-event" data-upcoming="'+escapeHtml(item.id)+'" style="border-left-color:'+escapeHtml(getCalendarItemColor(item))+'"><span class="upcoming-date">'+escapeHtml(formatShortDate(parseDateIso(item.date)))+' · '+escapeHtml(item.time||(t("calendar.all_day")))+'</span><strong>'+escapeHtml(getCalendarItemTitle(item))+'</strong><span>'+escapeHtml(calendarPeopleLabel(item))+'</span></button>'
+ const eventButton=item=>'<button class="upcoming-event" data-upcoming="'+escapeHtml(item.id)+'" style="border-left-color:'+escapeHtml(getCalendarItemColor(item))+'"><span class="upcoming-date">'+escapeHtml(formatShortDate(parseDateIso(item.date)))+' · '+escapeHtml(item.time||(t("calendar.all_day")))+'</span><strong>'+escapeHtml(getCalendarItemTitle(item))+'</strong><span>'+renderItemAvatars(item)+'</span>'+(sourceLabel(item)?'<span class="calendar-source-badge">'+escapeHtml(sourceLabel(item))+'</span>':'')+'</button>'
  const mealCard='<section class="ux-dinner"><div class="ux-dinner-top"><span>'+icon('meals')+("</span><p class=\"eyebrow\">"+t("app.on_the_menu_tonight")+"</p></div>")+(meals.length?meals.map(meal=>'<button data-plan-edit="'+meal.id+'" class="ux-dinner-name"><strong>'+escapeHtml(meal.title)+'</strong>'+(meal.time||!kiosk?'<small>'+escapeHtml(meal.time||(t("app.enjoy_your_meal_everyone")))+'</small>':'')+'</button>').join(''):("<h3>"+t("app.what_would_you_like")+"</h3><p>")+(kiosk?(t("app.plan_dinner_from_the_family_s_phone")):(t("app.a_little_planning_makes_afternoons_easier")))+'</p>')+(!kiosk?'<button class="ux-link" data-go-route="meals">'+(meals.length?(t("app.view_this_week_s_meal_plan")):(t("app.plan_dinner")))+' '+icon('arrow')+'</button>':'')+'</section>'
  const greeting=now.getHours()<10?(t("app.good_morning")):now.getHours()<17?(t("app.hello_everyone")):(t("app.good_evening"))
  return (!kiosk?'<section class="ux-welcome"><div><p class="eyebrow">'+escapeHtml(formatDayHeaderDate(now))+'</p><h3>'+greeting+(" <span>"+t("app.here_is_your_day")+"</span></h3><p>")+ (daily.length?(t("app.there_are")+" ")+daily.filter(item=>item.type!=='Opgave').length+(" "+t("app.events_and")+" ")+(tasks.length-completed)+(" "+t("app.open_tasks_today")):(t("app.a_day_with_room_for_new_plans")))+'</p></div><span class="ux-welcome-sun">'+icon('sun')+'</span></section><div class="ux-day-stats"><button data-go-route="calendar">'+icon('calendar')+'<span><strong>'+daily.filter(item=>item.type!=='Opgave').length+("</strong> "+t("app.events_today")+"</span>")+icon('arrow')+'</button><button data-go-route="tasks">'+icon('tasks')+'<span><strong>'+completed+' / '+tasks.length+("</strong> "+t("app.tasks_completed")+"</span>")+icon('arrow')+'</button><button data-go-route="shopping">'+icon('shopping')+'<span><strong>'+shopping.length+("</strong> "+t("app.items_on_the_list")+"</span>")+icon('arrow')+'</button></div>':'')+
  (!kiosk&&next?'<button class="ux-next-inline" data-upcoming="'+escapeHtml(next.id)+'"><span>'+icon('calendar')+("<small>"+t("app.next_event")+" ")+escapeHtml(next.date===today?(next.time||(t("nav.today"))):formatShortDate(parseDateIso(next.date)))+'</small></span><strong>'+escapeHtml(getCalendarItemTitle(next))+'</strong>'+icon('arrow')+'</button>':'')+
- '<div class="home-layout"><div class="day-view">'+renderDayCard(calendarCursorDate)+'</div><aside class="home-aside">'+mealCard+(kiosk?renderKioskProgress(tasks,completed,today):'')+("<section class=\"panel next-panel\"><p class=\"eyebrow\">"+t("app.next_event_n_ste_aftale")+"</p>")+(next?eventButton(next):'<div class="ux-quiet-empty">'+icon('sun')+("<p>"+t("app.the_calendar_is_quiet")+"</p></div>"))+'</section>'+
+ aulaUI.todayCard()+'<div class="home-layout"><div class="day-view">'+renderDayCard(calendarCursorDate)+'</div><aside class="home-aside">'+mealCard+(kiosk?renderKioskProgress(tasks,completed,today):'')+("<section class=\"panel next-panel\"><p class=\"eyebrow\">"+t("app.next_event_n_ste_aftale")+"</p>")+(next?eventButton(next):'<div class="ux-quiet-empty">'+icon('sun')+("<p>"+t("app.the_calendar_is_quiet")+"</p></div>"))+'</section>'+
  (kiosk?(later.filter(item=>item.id!==next?.id).length?("<section class=\"panel upcoming-panel\"><h3>"+t("app.the_coming_days")+"</h3>")+later.filter(item=>item.id!==next?.id).slice(0,2).map(eventButton).join('')+'</section>':'')+renderShortcuts():'')+'</aside></div>'
 }
 function renderKioskProgress(tasks,completed,today){return '<section class="kiosk-progress"><button data-go-route="tasks"><span>'+icon('tasks')+(" "+t("app.today_s_tasks")+"</span><strong>")+completed+' / '+tasks.length+(" "+t("app.completed_klaret")+"</strong></button>")+rewardsUI.summary(true)+'</section>'}
 function renderFamilyHome(){
  const people=householdPeople.filter(isActiveHouseholdPerson)
- return ("<div class=\"family-view\"><section class=\"ux-family-intro\"><div><p class=\"eyebrow\">"+t("app.everyday_life_together")+"</p><h3>")+escapeHtml(getHouseholdName(activeHousehold))+'</h3><p>'+people.length+(" "+t("app.family_profiles_your_role_is")+" ")+escapeHtml(roleLabel(householdRole)).toLocaleLowerCase('da')+'</p></div>'+icon('family')+'</section><div class="ux-family-grid">'+people.map(person=>'<article class="ux-family-person" style="--person-color:'+escapeHtml(person.color||'#64748b')+'">'+renderPersonAvatar(person,'ux-family-avatar')+'<h4>'+escapeHtml(person.name)+'</h4><p>'+escapeHtml(personRoleLabel(person.role))+'</p>'+(rewardEnabled(person)?'<button data-child-day="'+person.id+("\">"+t("app.my_day")+"</button>"):'')+(rewardsUI.adult?'<button data-reward-config="'+person.id+("\">"+t("app.tasks_rewards")+"</button>"):'')+("<button data-open-settings=\"people\">"+t("app.view_profile")+" ")+icon('arrow')+'</button></article>').join('')+'<button class="ux-add-person" data-open-settings="people">'+icon('plus')+("<strong>"+t("app.add_a_person")+"</strong><span>"+t("app.children_do_not_need_their_own_login")+"</span></button></div><div class=\"ux-family-tools\">")+nativeFamily.links()+[['family',(t("app.members_and_invitations")),(t("app.give_others_access_to_the_family")),'family'],['feeds',(t("app.calendar_import")),(t("app.bring_together_aula_google_and_other_calendars")),'calendar'],['device',(t("app.wall_display_and_device")),(t("app.set_up_this_screen_for_your_home")),'today'],['appearance',(t("app.appearance")),(t("app.colours_and_density_on_this_device")),'sun'],['account',(t("app.your_account")),(t("app.sign_out_export_and_privacy")),'settings']].map(([tab,title,description,i])=>'<button data-open-settings="'+tab+'">'+icon(i)+'<span><strong>'+title+'</strong><small>'+description+'</small></span>'+icon('arrow')+'</button>').join('')+'</div></div>'
+ return ("<div class=\"family-view\"><section class=\"ux-family-intro\"><div><p class=\"eyebrow\">"+t("app.everyday_life_together")+"</p><h3>")+escapeHtml(getHouseholdName(activeHousehold))+'</h3><p>'+people.length+(" "+t("app.family_profiles_your_role_is")+" ")+escapeHtml(roleLabel(householdRole)).toLocaleLowerCase('da')+'</p></div>'+icon('family')+'</section><div class="ux-family-grid">'+people.map(person=>'<article class="ux-family-person" style="--person-color:'+escapeHtml(person.color||'#64748b')+'">'+renderPersonAvatar(person,'ux-family-avatar')+'<h4>'+escapeHtml(person.name)+'</h4><p>'+escapeHtml(personRoleLabel(person.role))+'</p>'+(rewardEnabled(person)?'<button data-child-day="'+person.id+("\">"+t("app.my_day")+"</button>"):'')+(rewardsUI.adult?'<button data-reward-config="'+person.id+("\">"+t("app.tasks_rewards")+"</button>"):'')+("<button data-open-settings=\"people\">"+t("app.view_profile")+" ")+icon('arrow')+'</button></article>').join('')+'<button class="ux-add-person" data-open-settings="people">'+icon('plus')+("<strong>"+t("app.add_a_person")+"</strong><span>"+t("app.children_do_not_need_their_own_login")+"</span></button></div><div class=\"ux-family-tools\">")+aulaUI.familyCard()+nativeFamily.links()+[['family',(t("app.members_and_invitations")),(t("app.give_others_access_to_the_family")),'family'],['feeds',(t("app.calendar_import")),(t("aula.other_calendars")),'calendar'],['device',(t("app.wall_display_and_device")),(t("app.set_up_this_screen_for_your_home")),'today'],['appearance',(t("app.appearance")),(t("app.colours_and_density_on_this_device")),'sun'],['account',(t("app.your_account")),(t("app.sign_out_export_and_privacy")),'settings']].map(([tab,title,description,i])=>'<button data-open-settings="'+tab+'">'+icon(i)+'<span><strong>'+title+'</strong><small>'+description+'</small></span>'+icon('arrow')+'</button>').join('')+'</div></div>'
 }
 function renderShortcuts() {
   const config=settingsForDevice().shortcuts,links=[['Homey',config.homey],['Sonos',config.sonos],[config.label||(t("app.shortcut")),config.custom]]

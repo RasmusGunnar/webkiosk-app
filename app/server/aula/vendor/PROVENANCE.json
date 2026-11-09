@@ -1,0 +1,121 @@
+{
+  "repository": "https://github.com/Casperjuel/aula-mcp",
+  "commit": "5c64e98eaba98288770650f8cafe1636facf01d2",
+  "license": "MIT",
+  "files": [
+    {
+      "name": "aula-login-client.ts",
+      "upstreamSha256": "b301ad58819625278d45b79737db08e9dc7040cfe4d89e02dfddf6600ecaccdb",
+      "localSha256": "b301ad58819625278d45b79737db08e9dc7040cfe4d89e02dfddf6600ecaccdb",
+      "adapted": false
+    },
+    {
+      "name": "aula-oauth.ts",
+      "upstreamSha256": "ca4cbc5fffa0723e625df0cd1479216b943dd46bdfefa043c4ff6097069b59de",
+      "localSha256": "ca4cbc5fffa0723e625df0cd1479216b943dd46bdfefa043c4ff6097069b59de",
+      "adapted": false
+    },
+    {
+      "name": "aula-saml-flow.ts",
+      "upstreamSha256": "b2ad1241c87d13a50bebc5f19aee3dfcae173f88964b05105ec9cb3c6473b490",
+      "localSha256": "b2ad1241c87d13a50bebc5f19aee3dfcae173f88964b05105ec9cb3c6473b490",
+      "adapted": false
+    },
+    {
+      "name": "cookies.ts",
+      "upstreamSha256": "a368dbc1e2d165cf068d37d5850d52da9d0edf1aa00afe599e826b344d65d99e",
+      "localSha256": "a368dbc1e2d165cf068d37d5850d52da9d0edf1aa00afe599e826b344d65d99e",
+      "adapted": false
+    },
+    {
+      "name": "crypto.ts",
+      "upstreamSha256": "54bc41945d070154e2def6c32b4a19c6a2d712586962aadb97743a52d652ed07",
+      "localSha256": "54bc41945d070154e2def6c32b4a19c6a2d712586962aadb97743a52d652ed07",
+      "adapted": false
+    },
+    {
+      "name": "encoding.ts",
+      "upstreamSha256": "53174f06527dce7d9e80bd8a67e4e491145e2c8287a88a8c41036dafe0bd508e",
+      "localSha256": "53174f06527dce7d9e80bd8a67e4e491145e2c8287a88a8c41036dafe0bd508e",
+      "adapted": false
+    },
+    {
+      "name": "errors.ts",
+      "upstreamSha256": "221af5c44cbb12f86742052cd87b9960700b33762e33b436a14134c6fcd38bf3",
+      "localSha256": "d3ea2c81bfd37647d0981c60bda5cb77fff1ae6bd5293688d1fa70d64ec1027b",
+      "adapted": true
+    },
+    {
+      "name": "html.ts",
+      "upstreamSha256": "8db7ca1f98b7de5afcc135d30d1bba6fb967c60795b88a584a692d0bdb5db05f",
+      "localSha256": "8db7ca1f98b7de5afcc135d30d1bba6fb967c60795b88a584a692d0bdb5db05f",
+      "adapted": false
+    },
+    {
+      "name": "http.ts",
+      "upstreamSha256": "f48151326e5e37797f6a0a8217ac0ce9ab6ae6f50117cd52e5aa7f1057a62f0e",
+      "localSha256": "fed570431a79c0220b2ad398246b1391fa7652b77f4a70b1951180d9d88cc0ff",
+      "adapted": true
+    },
+    {
+      "name": "logger.ts",
+      "upstreamSha256": "9eb742ba8ff0846a9b7e5fcfa76062cb3067c48f0deb4128215446bc8bded9c2",
+      "localSha256": "4767473dddb8010296e5be055911c5eec1627574d32bc6778c92f16202ef224e",
+      "adapted": true
+    },
+    {
+      "name": "mitid-client.ts",
+      "upstreamSha256": "cb37d1fc2aa7f70baa41dcb1040f334ebd03baf6dbee4fc2e70d15bc1a084aa0",
+      "localSha256": "cb37d1fc2aa7f70baa41dcb1040f334ebd03baf6dbee4fc2e70d15bc1a084aa0",
+      "adapted": false
+    },
+    {
+      "name": "mitid-flow-proof.ts",
+      "upstreamSha256": "d788be7da9c67838f0166071dcb269d80822231cc6a7aedfcfc8872c7d738bf6",
+      "localSha256": "d788be7da9c67838f0166071dcb269d80822231cc6a7aedfcfc8872c7d738bf6",
+      "adapted": false
+    },
+    {
+      "name": "mitid-poll-machine.ts",
+      "upstreamSha256": "d3aca159aa540a925bdc43bd15a2755240fbb8e5a2969b72a53f5c782b92121c",
+      "localSha256": "d3aca159aa540a925bdc43bd15a2755240fbb8e5a2969b72a53f5c782b92121c",
+      "adapted": false
+    },
+    {
+      "name": "mitid-types.ts",
+      "upstreamSha256": "a5a17c5e050a29e19b6724fed10e141fd24b8d2c07a7943ea0ff4291a1ed15c7",
+      "localSha256": "a5a17c5e050a29e19b6724fed10e141fd24b8d2c07a7943ea0ff4291a1ed15c7",
+      "adapted": false
+    },
+    {
+      "name": "mitid-urls.ts",
+      "upstreamSha256": "a81cb17b9e3d65427e4a7cccbf8e4bad7cb60b3395412c23c66760fb19f1a381",
+      "localSha256": "a81cb17b9e3d65427e4a7cccbf8e4bad7cb60b3395412c23c66760fb19f1a381",
+      "adapted": false
+    },
+    {
+      "name": "pkce.ts",
+      "upstreamSha256": "017ce5ddd8016c513a85cbf0338e5da25a4a54313c3717768f2f276d513d6c52",
+      "localSha256": "017ce5ddd8016c513a85cbf0338e5da25a4a54313c3717768f2f276d513d6c52",
+      "adapted": false
+    },
+    {
+      "name": "srp.ts",
+      "upstreamSha256": "6a2b9bc58ce1b8a84abb6e6f3ad61ef688cd642b93e62b5fd280b0949f318633",
+      "localSha256": "6a2b9bc58ce1b8a84abb6e6f3ad61ef688cd642b93e62b5fd280b0949f318633",
+      "adapted": false
+    },
+    {
+      "name": "state.ts",
+      "upstreamSha256": "e19a9ee87d441885dbf268b699d105a625e316c429d9bb7852a507040fb334d2",
+      "localSha256": "e19a9ee87d441885dbf268b699d105a625e316c429d9bb7852a507040fb334d2",
+      "adapted": false
+    },
+    {
+      "name": "wire-tracer.ts",
+      "upstreamSha256": "343cc217d84af8057addaa493fe8029370a1971053f66dbb817ca1bd12eca935",
+      "localSha256": "400ecb8cde6d40f579f78f665b2f04c8a7349ba9e14cd1afc307acb9ff86269b",
+      "adapted": true
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 import {t} from '../i18n/index.js'
+import {resolveAvatarUrls} from './avatars.js'
 export function pairingValue(input) {
  const raw=String(input||'').trim()
  if(/^[0-9a-f]{64}$/.test(raw)||/^[0-9a-f]{5}-?[0-9a-f]{5}$/i.test(raw))return raw
@@ -39,16 +40,26 @@ export class WallDeviceService {
    const r=await this.client.rpc('wall_snapshot').abortSignal(AbortSignal.timeout(8000))
    if(version!==this.generation)return
    if(r.error){if(r.error.code==='42501')this.revoke();else this.onStatus((t("wall_device.reconnecting_to_the_family")));return}
-   this.device=r.data.device;this.onStatus('');this.onSnapshot(r.data)
+   const snapshot=r.data,people=snapshot.people||[],key=JSON.stringify([snapshot.household.id,people.map(p=>[p.id,p.avatar_path])])
+   if(this.avatarCache?.key!==key||this.avatarCache.until<Date.now()){
+    const resolved=await resolveAvatarUrls(this.client,people,300)
+    if(version!==this.generation)return
+    this.avatarCache={key,until:Date.now()+240000,urls:new Map(resolved.map(p=>[p.id,p.avatar_display_url]))}
+   }
+   snapshot.people=people.map(p=>({...p,avatar_display_url:this.avatarCache.urls.get(p.id)||''}))
+   this.device=snapshot.device;this.onStatus('');this.onSnapshot(snapshot)
   })().finally(()=>{this.pending=null})
   return this.pending
  }
  async rename(name){const r=await this.client.rpc('manage_wall_device',{p_device_id:this.device.id,p_action:'name',p_name:name});if(r.error)throw Error((t("wall_device.the_name_could_not_be_saved")));await this.refresh()}
  async complete({itemId,dueDate,personId=null,done=true,action='complete'}){
+  this.activeActions=(this.activeActions||0)+1
+  try{
   const r=await this.client.rpc('complete_task_as_device',{p_request_id:crypto.randomUUID(),p_item_id:itemId,p_due_date:dueDate,p_person_id:personId,p_done:done,p_action:action})
   if(r.error)throw Error((t("wall_device.the_task_could_not_be_updated")+" ")+r.error.message)
   await this.refresh();return r.data
+  }finally{this.activeActions--}
  }
  revoke(){this.stop();this.device=null;this.onRevoked()}
- stop(){this.generation++;clearInterval(this.timer);this.timer=null;if(this.channel)void this.client.removeChannel(this.channel);this.channel=null}
+ stop(){this.generation++;this.avatarCache=null;clearInterval(this.timer);this.timer=null;if(this.channel)void this.client.removeChannel(this.channel);this.channel=null}
 }

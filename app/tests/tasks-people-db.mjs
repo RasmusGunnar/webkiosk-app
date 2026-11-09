@@ -21,8 +21,11 @@ grant usage on schema auth,storage to authenticated,service_role;grant all on al
 grant all on all tables in schema public to authenticated,service_role;
 alter default privileges in schema public grant all on tables to authenticated,service_role;`)
 const files=readdirSync(migrations).filter(n=>n.endsWith('.sql')).sort()
-for(const file of files.filter(n=>n<'20261107120323'&&!n.includes('calendar_import_cron'))){
- try{await db.exec(readFileSync(new URL(file,migrations),'utf8'))}catch(e){console.error('MIGRATION FAIL',file,e.message,e.detail);await db.close();process.exit(1)}
+const taskMigration=files.find(n=>n.endsWith('_tasks_people_status.sql'))
+assert.ok(taskMigration,'Task status migration must exist')
+const migrationSql=file=>readFileSync(new URL(file,migrations),'utf8').replaceAll('\r\n','\n')
+for(const file of files.filter(n=>n<taskMigration&&!n.includes('calendar_import_cron'))){
+ try{await db.exec(migrationSql(file))}catch(e){console.error('MIGRATION FAIL',file,e.message,e.detail);await db.close();process.exit(1)}
 }
 console.log('BASE MIGRATIONS PASS (cron excluded; no scheduler/network extensions)')
 const ids={adult:randomUUID(),child:randomUUID(),stranger:randomUUID(),hid:randomUUID(),rasmus:randomUUID(),carl:randomUUID(),legacy:randomUUID()}
@@ -33,10 +36,10 @@ await query("insert into public.household_members(household_id,user_id,role) val
 await query("insert into public.household_people(id,household_id,name,role) values($1,$3,'Rasmus','adult'),($2,$3,'Carl','child')",[ids.rasmus,ids.carl,ids.hid])
 const today=(await query('select private.reward_today()::text as day')).rows[0].day
 await query("insert into public.calendar_items(id,household_id,created_by,title,type,date,done,person_ids) values($1,$2,$3,'Legacy','Opgave',$4,true,$5)",[ids.legacy,ids.hid,ids.adult,today,[ids.rasmus,ids.carl]])
-await db.exec(readFileSync(new URL(files.find(n=>n.includes('tasks_people_status')),migrations),'utf8'))
+await db.exec(migrationSql(taskMigration))
 assert.equal((await query("select count(*)::int n from public.task_reward_occurrences where task_id=$1 and status='completed'",[ids.legacy])).rows[0].n,2)
 console.log('BACKFILL PASS')
-for(const file of files.filter(n=>n>'20261107120323_tasks_people_status.sql'))await db.exec(readFileSync(new URL(file,migrations),'utf8'))
+for(const file of files.filter(n=>n>taskMigration))await db.exec(migrationSql(file))
 const checks=['legacy shared DONE backfill'],check=(name,ok)=>{assert.ok(ok,name);checks.push(name);console.log('PASS '+name)}
 const actor=async uid=>{await db.exec('reset role');await query("select set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claim.role','authenticated',false)",[uid||'']);if(uid)await db.exec('set role authenticated')}
 const act=async(action,payload,user=ids.adult,request=randomUUID())=>{await actor(user);return (await query('select public.reward_action($1,$2,$3,$4::jsonb) result',[request,ids.hid,action,JSON.stringify(payload)])).rows[0].result}

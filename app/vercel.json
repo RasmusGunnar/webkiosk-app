@@ -4,9 +4,18 @@
   "installCommand": "npm ci",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "fluid": true,
+  "functions": {
+    "api/aula-connect.ts": {
+      "maxDuration": 300
+    },
+    "api/aula-scan.ts": {
+      "maxDuration": 300
+    }
+  },
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/((?!api(?:/|$)|(?:src|assets|node_modules|@vite|@fs|@id)(?:/|$)|.*\\.[^/]+$).*)",
       "destination": "/index.html"
     }
   ],
@@ -40,6 +49,33 @@
           "value": "no-cache, no-store, must-revalidate"
         }
       ]
+    },
+    {
+      "source": "/",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/index.html",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/manifest.webmanifest",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, must-revalidate"
+        }
+      ]
     }
   ],
   "git": {
@@ -47,7 +83,8 @@
       "polish/calendar-meals-imports": false,
       "feature/calendar-import-sync": false,
       "feature/native-subscription-wall": false,
-      "feature/tasks-people-ux": false
+      "feature/tasks-people-ux": false,
+      "feature/aula-integration-10": false
     }
   }
 }

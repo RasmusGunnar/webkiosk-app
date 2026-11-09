@@ -3,9 +3,11 @@ const PREFIX='familiekalender-shell:'+new URL(self.registration.scope).pathname+
 const CACHE=PREFIX+'__VERSION__'
 const FILES=__PRECACHE__
 const absolute=FILES.map(file=>new URL(file,self.registration.scope).href)
-self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(absolute)).then(()=>self.skipWaiting())))
+self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(absolute.map(url=>new Request(url,{cache:'reload'})))).then(()=>self.skipWaiting())))
 self.addEventListener('activate',event=>event.waitUntil((async()=>{
-  for(const name of await caches.keys())if(name.startsWith(PREFIX)&&name!==CACHE)await caches.delete(name)
+  // Keep the previous immutable assets while an old page finishes editing.
+  const names=(await caches.keys()).filter(name=>name.startsWith(PREFIX)),keep=new Set([CACHE,...names.filter(name=>name!==CACHE).slice(-1)])
+  for(const name of names)if(!keep.has(name))await caches.delete(name)
   await self.clients.claim()
 })()))
 self.addEventListener('fetch',event=>{
@@ -20,5 +22,7 @@ self.addEventListener('fetch',event=>{
     })())
   }else if(absolute.includes(url.origin+url.pathname)){
     event.respondWith(caches.open(CACHE).then(async cache=>await cache.match(url.origin+url.pathname,{ignoreVary:true})||fetch(request)))
+  }else if(url.pathname.startsWith(new URL('assets/',self.registration.scope).pathname)&&/\.(js|css)$/.test(url.pathname)&&!url.search){
+    event.respondWith((async()=>{for(const name of await caches.keys())if(name.startsWith(PREFIX)){const hit=await(await caches.open(name)).match(url.href);if(hit)return hit}return fetch(request)})())
   }
 })

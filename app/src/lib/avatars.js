@@ -10,10 +10,10 @@ export function avatarDisplayUrl(person) {
   const value = person.avatar_display_url || person.avatar_url || ''
   return /^(https?:\/\/|data:image\/(?:png|jpeg|webp|gif);base64,)/i.test(value) ? value : ''
 }
-export async function resolveAvatarUrls(client, people) {
+export async function resolveAvatarUrls(client, people, expiresIn=3600) {
   const withPaths = people.filter(person => person.avatar_path)
   if (!withPaths.length) return people
-  const { data, error } = await client.storage.from(AVATAR_BUCKET).createSignedUrls(withPaths.map(person => person.avatar_path), 3600)
+  const { data, error } = await client.storage.from(AVATAR_BUCKET).createSignedUrls(withPaths.map(person => person.avatar_path), expiresIn)
   if (error) return people // Existing DataURLs/URLs remain usable.
   const urls = new Map((data || []).map(item => [item.path, item.signedUrl]))
   return people.map(person => ({ ...person, avatar_display_url: urls.get(person.avatar_path) || '' }))

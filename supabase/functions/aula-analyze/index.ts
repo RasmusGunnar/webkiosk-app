@@ -1,7 +1,7 @@
 import {analysisSchemaForSources,ANALYSIS_INSTRUCTIONS,validateAnalysis,validateSources} from '../../../app/server/aula/analysis.ts';
 type Diagnostic={stage:string;counts:{sources:number};duration_ms:number;code:string};
 type Options={secret:string;apiKey:string;model?:string;fetcher?:typeof fetch;log?:(event:Diagnostic)=>void};
-const SAFE_CODES=new Set(['AULA_INVALID_BATCH','AULA_ANALYSIS_INVALID','AULA_ANALYSIS_INVALID_SOURCE','AULA_ANALYSIS_INVALID_CLASSIFICATION','AULA_ANALYSIS_INVALID_PEOPLE','AULA_ANALYSIS_INVALID_DATE','AULA_ANALYSIS_INVALID_TIME','AULA_ANALYSIS_INVALID_TITLE','AULA_ANALYSIS_INVALID_REASON','AULA_ANALYSIS_INVALID_SUMMARY','AULA_ANALYSIS_INVALID_LOCATION']);
+const SAFE_CODES=new Set(['AULA_INVALID_BATCH','AULA_ANALYSIS_INVALID','AULA_ANALYSIS_INVALID_SOURCE','AULA_ANALYSIS_INVALID_CLASSIFICATION','AULA_ANALYSIS_INVALID_PEOPLE','AULA_ANALYSIS_INVALID_DATE','AULA_ANALYSIS_INVALID_TIME','AULA_ANALYSIS_INVALID_TITLE','AULA_ANALYSIS_INVALID_REASON','AULA_ANALYSIS_INVALID_SUMMARY','AULA_ANALYSIS_INVALID_LOCATION','AULA_ANALYSIS_INVALID_EVIDENCE']);
 async function same(a:string,b:string){if(b.length<32)return false;const hash=async(s:string)=>new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s)));const [x,y]=await Promise.all([hash(a),hash(b)]);let diff=0;for(let i=0;i<x.length;i++)diff|=x[i]^y[i];return diff===0;}
 const json=(status:number,body:unknown)=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json','cache-control':'no-store'}});
 export function makeHandler(options:Options){return async(req:Request)=>{

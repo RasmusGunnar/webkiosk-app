@@ -12,4 +12,4 @@ export const schoolExamples=[
  ['CALENDAR_EVENT','Forældremøde','2026-11-12'],
 ]
 export const source={source_key:'a'.repeat(64),source_kind:'message',title:'3.C',text:'3.C skal huske tuscher onsdag',updated_at:'2026-11-09T12:00:00Z',person_ids:[ida,carl],date:null,time:null,end_date:null,end_time:null,location:'',explicit_scope:true}
-export const finding=(overrides={})=>({source_key:source.source_key,source_kind:'message',person_id:ida,person_ids:[ida],type:'REMINDER',title:'Husk tuscher',date:'2026-11-11',time:null,end_date:null,end_time:null,location:'',confidence:'HIGH',reason:'Konkret besked til 3.C.',summary:'Husk tuscher til onsdag.',proposed_action:'CREATE_ACTIVITY',status:'new',...overrides})
+export const finding=(overrides={})=>({actionability:'BRING',evidence:'3.C skal huske tuscher onsdag',source_key:source.source_key,source_kind:'message',person_id:ida,person_ids:[ida],type:'REMINDER',title:'Husk tuscher',date:'2026-11-11',time:null,end_date:null,end_time:null,location:'',confidence:'HIGH',reason:'Konkret besked til 3.C.',summary:'Husk tuscher til onsdag.',proposed_action:'CREATE_ACTIVITY',status:'new',...overrides})

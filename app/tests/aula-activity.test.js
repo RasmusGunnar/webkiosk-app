@@ -12,8 +12,8 @@ test('structured output allows only the three Aula actions',()=>{
  assert.deepEqual(ACTIONS,['CREATE_ACTIVITY','NO_ACTION','MATCH_EXISTING'])
  assert.deepEqual(ANALYSIS_SCHEMA.properties.findings.items.properties.proposed_action.enum,ACTIONS)
  for(const action of ['CREATE_TASK','CREATE_EVENT'])assert.throws(()=>validateAnalysis({findings:[finding({proposed_action:action})]},[source]),/AULA_ANALYSIS_INVALID/)
- assert.match(ANALYSIS_INSTRUCTIONS,/All actionable school findings use CREATE_ACTIVITY/)
- assert.doesNotMatch(ANALYSIS_INSTRUCTIONS,/CREATE_TASK|CREATE_EVENT/)
+ assert.match(ANALYSIS_INSTRUCTIONS,/All accepted suggestions become CREATE_ACTIVITY/)
+ assert.match(ANALYSIS_INSTRUCTIONS,/NEVER CREATE_TASK/)
 })
 test('information, no action and uncertain date retain their review gates',()=>{
  const rows=validateAnalysis({findings:[finding({type:'GENERAL_INFO'}),finding({confidence:'LOW'}),finding({proposed_action:'NO_ACTION'}),finding({date:null})]},[source])

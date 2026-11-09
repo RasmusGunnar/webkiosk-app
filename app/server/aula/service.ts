@@ -7,7 +7,7 @@ import {AulaHttpClient} from './vendor/http.ts';
 import {type AulaTokens} from './vendor/aula-oauth.ts';
 import {ReadProvider,collect,refreshSession,type RecordData} from './provider.ts';
 import {AulaError,equalSecret,key,safeError,seal,sourceKey,unseal,uuid,type Envelope} from './security.ts';
-import {validateAnalysis,type AnalysisSource,type AnalysisFinding,findExisting,normalizedTitle} from './analysis.ts';
+import {validateAnalysis,type AnalysisSource,type AnalysisFinding,findExisting,normalizedTitle,samePlanningEvent} from './analysis.ts';
 import {hostedSseProbe,openEventStream} from './hosted-probe.ts';
 import {analyzeBatches} from './scan-analysis.ts';
 export type Request=IncomingMessage & {body?:unknown};
@@ -93,15 +93,24 @@ export function makeHandlers(deps:Dependencies={}){
    // Persist rotation BEFORE any subsequent reads or AI call can fail.
    await call('scan_save_session',hid,uid,{lease,encrypted_session:seal(hid,{refresh_token:tokens.refresh_token})});
    log('refresh.ok');stage='collect';
-   const data=await(deps.collect??collect)(new ReadProvider(tokens.access_token,http),hid,claim.mappings,claim.last_success_at,p.full===true,new Date(),log);
+   const data=await(deps.collect??collect)(new ReadProvider(tokens.access_token,http,log),hid,claim.mappings,claim.last_success_at,p.full===true,new Date(),log);
    stage='analysis';
-   const existing=await(deps.items??items)(hid);const findings:RecordData[]=[];const seen=new Set<string>();
+   const existing=await(deps.items??items)(hid);const findings:RecordData[]=[];const seen=new Set<string>(),events:AnalysisFinding[]=[];
    const analyzed=await analyzeBatches(data.sources,deps.analyze??analyze,signal);log('analysis.ok',{sources:data.sources.length,batches:analyzed.length});
    for(const {batch,results} of analyzed){signal.throwIfAborted();
-    for(const f of results){const s=batch.find(s=>s.source_key===f.source_key)!;const people=[...f.person_ids].sort();const match=f.proposed_action==='NO_ACTION'?null:findExisting(f,people,existing);
+    for(const f of results){
+     if(f.proposed_action==='NO_ACTION'||f.actionability==='GENERAL_INFO'||f.confidence==='LOW')continue;
+     // Old messages remain inputs for future plans, not for recreating expired reminders.
+     const today=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Copenhagen'}).format(new Date());
+     if(f.date&&f.date<today)continue;
+     if(events.some(e=>samePlanningEvent(e,f)))continue;
+     if(f.actionability==='ATTEND')events.push(f);
+     const s=batch.find(s=>s.source_key===f.source_key)!;const people=[...f.person_ids].sort();const match=findExisting(f,people,existing);
      const identity=`${people.join(',')}:${['CALENDAR_EVENT','TRIP'].includes(f.type)?'event':f.type}:${f.date}:${f.time}:${normalizedTitle(f.title)}`;
      if(seen.has(identity))continue;seen.add(identity);
-     findings.push({...f,person_ids:people,person_id:people.length===1?people[0]:null,source_kind:s.source_kind,source_key:sourceKey(hid,'finding',`${s.source_key}:${people.join(',')}:${f.type}:${normalizedTitle(f.title)}`),source_updated_at:s.updated_at,proposed_action:match?'MATCH_EXISTING':f.proposed_action});
+     const {evidence:_discardedEvidence,...safeFinding}=f;
+     findings.push({...safeFinding,person_ids:people,person_id:people.length===1?people[0]:null,source_kind:s.source_kind,source_key:sourceKey(hid,'finding',`${s.source_key}:${people.join(',')}:${f.type}:${normalizedTitle(f.title)}`),source_updated_at:s.updated_at,proposed_action:match?'MATCH_EXISTING':f.proposed_action});
+     const category='action_'+f.actionability;data.counts[category]=(data.counts[category]??0)+1;
     }
    }
    stage='finish';await call('scan_finish',hid,uid,{lease,children:data.children,findings,counts:data.counts,api_version:data.api_version});lease='';log('finish.ok',{...data.counts,children:data.children.length,findings:findings.length});json(res,200,{counts:data.counts,findings:findings.length});

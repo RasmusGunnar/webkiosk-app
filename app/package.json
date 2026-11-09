@@ -33,7 +33,9 @@
     "test:aula:activities:db": "node tests/aula-activity-db.mjs",
     "test:wall:avatars:api": "node tests/wall-avatar-api.mjs",
     "test:wall:avatars:browser": "node tests/wall-avatar-browser.mjs",
-    "test:pwa:update": "node tests/app-shell-update-browser.mjs"
+    "test:pwa:update": "node tests/app-shell-update-browser.mjs",
+    "test:aula:handoff:db": "node tests/aula-handoff-db.mjs",
+    "test:aula:handoff:api": "node tests/aula-handoff-api.mjs"
   },
   "devDependencies": {
     "@babel/parser": "8.0.7",

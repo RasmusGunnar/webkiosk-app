@@ -12,24 +12,24 @@ import {hostedSseProbe,openEventStream} from './hosted-probe.ts';
 export type Request=IncomingMessage & {body?:unknown};
 type RPC=(action:string,hid:string,uid:string|null,payload?:RecordData)=>Promise<any>;
 type Dependencies={rpc?:RPC;authorize?:(req:Request,hid:string)=>Promise<string>;login?:(opts:AulaLoginOptions)=>Promise<AulaTokens>;refresh?:typeof refreshSession;collect?:typeof collect;analyze?:(sources:AnalysisSource[],signal:AbortSignal)=>Promise<AnalysisFinding[]>;items?:(hid:string)=>Promise<RecordData[]>;timeoutMs?:number};
-function adminClient(){const url=process.env.SUPABASE_URL,k=process.env.SUPABASE_SERVICE_ROLE_KEY;if(!url||!k)throw new AulaError('AULA_NOT_CONFIGURED',503);return createClient(url,k,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});}
+export function adminClient(){const url=process.env.SUPABASE_URL,k=process.env.SUPABASE_SERVICE_ROLE_KEY;if(!url||!k)throw new AulaError('AULA_NOT_CONFIGURED',503);return createClient(url,k,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});}
 export const rpc:RPC=async(action,hid,uid,payload={})=>{
  const {data,error}=await adminClient().rpc('aula_server',{p_action:action,p_household_id:hid,p_user_id:uid,p_payload:payload});
  if(error){const code=error.message.match(/\bAULA_(FORBIDDEN|BUSY|RATE_LIMIT|FLOW_EXPIRED|INVALID_IDENTITY|REAUTH_REQUIRED|LEASE_EXPIRED|UNMAPPED_PERSON)\b/)?.[0]??'AULA_STORAGE_ERROR';throw new AulaError(code,code==='AULA_FORBIDDEN'?403:code==='AULA_RATE_LIMIT'?429:409);}return data;
 };
-async function authorize(req:Request,hid:string):Promise<string>{
+export async function authorize(req:Request,hid:string):Promise<string>{
  const header=req.headers.authorization;if(typeof header!=='string'||!header.startsWith('Bearer '))throw new AulaError('AULA_UNAUTHORIZED',401);
  const db=adminClient();const {data,error}=await db.auth.getUser(header.slice(7));
  if(error||!data.user||data.user.is_anonymous)throw new AulaError('AULA_UNAUTHORIZED',401);
  const {data:member,error:membershipError}=await db.from('household_members').select('role').eq('household_id',hid).eq('user_id',data.user.id).maybeSingle();
  if(membershipError||!member||!['owner','admin','adult'].includes(member.role))throw new AulaError('AULA_FORBIDDEN',403);return data.user.id;
 }
-export async function body(req:Request):Promise<RecordData>{
- if(Number(req.headers['content-length']??0)>4096)throw new AulaError('INVALID_REQUEST',413);
+export async function body(req:Request,maxBytes=4096):Promise<RecordData>{
+ if(Number(req.headers['content-length']??0)>maxBytes)throw new AulaError('INVALID_REQUEST',413);
  let value=req.body;
- if(value===undefined){const chunks:Buffer[]=[];let size=0;for await(const part of req){const chunk=Buffer.isBuffer(part)?part:Buffer.from(part);size+=chunk.length;if(size>4096)throw new AulaError('INVALID_REQUEST',413);chunks.push(chunk);}value=Buffer.concat(chunks).toString('utf8');}
- if(typeof value==='string'){if(value.length>4096)throw new AulaError('INVALID_REQUEST',413);try{value=JSON.parse(value);}catch{throw new AulaError('INVALID_REQUEST');}}
- if(!value||typeof value!=='object'||Array.isArray(value)||JSON.stringify(value).length>4096)throw new AulaError('INVALID_REQUEST');return value as RecordData;
+ if(value===undefined){const chunks:Buffer[]=[];let size=0;for await(const part of req){const chunk=Buffer.isBuffer(part)?part:Buffer.from(part);size+=chunk.length;if(size>maxBytes)throw new AulaError('INVALID_REQUEST',413);chunks.push(chunk);}value=Buffer.concat(chunks).toString('utf8');}
+ if(typeof value==='string'){if(Buffer.byteLength(value)>maxBytes)throw new AulaError('INVALID_REQUEST',413);try{value=JSON.parse(value);}catch{throw new AulaError('INVALID_REQUEST');}}
+ if(!value||typeof value!=='object'||Array.isArray(value)||Buffer.byteLength(JSON.stringify(value))>maxBytes)throw new AulaError('INVALID_REQUEST');return value as RecordData;
 }
 function json(res:ServerResponse,status:number,value:unknown){res.statusCode=status;res.setHeader('content-type','application/json');res.setHeader('cache-control','no-store');res.setHeader('x-content-type-options','nosniff');res.end(JSON.stringify(value));}
 async function analyze(sources:AnalysisSource[],signal:AbortSignal){
@@ -57,6 +57,7 @@ export function makeHandlers(deps:Dependencies={}){
    key('AULA_SESSION_ENCRYPTION_KEY');key('AULA_HMAC_KEY');
    const p=await body(req);hid=uuid(p.household_id);uid=await auth(req,hid);
    if(typeof p.username!=='string'||p.username.length<2||p.username.length>128||/[\r\n\x00]/.test(p.username)||p.password!==undefined)throw new AulaError('INVALID_REQUEST');
+   if(!deps.login)throw new AulaError('AULA_LOGIN_BLOCKED',409);
    const username=p.username;delete p.username;req.body=undefined;
    flow=(await call('begin',hid,uid)).flow_id;
    openEventStream(res);

@@ -46,14 +46,12 @@ Playwright login or browser automation in production. Attribution, adaptations a
 file hashes are in [aula-third-party.md](aula-third-party.md) and
 `app/server/aula/vendor/PROVENANCE.json`.
 
-1. `aula-connect`: username → OAuth/UniLogin/MitID/SAML, in-memory cookies and auth
-   state, SSE `waiting`, `qr`, `otp`, `verified`, `identity`, `identity-selected`,
-   `success`, `error`. Required auth POST/PUT requests are permitted. No password
-   is accepted. Closing the dialog aborts the flow and removes QR display data.
-2. `aula-identity`: records an index for the initiating user, household and flow.
-   The ongoing login invocation polls it. No process-global auth session is shared
-   between serverless requests. Flows expire after five minutes; login has a
-   270-second application deadline and a 300-second function budget.
+1. Interactive MitID runs on the user's own device/network. The hosted
+   `aula-connect` entry point returns `AULA_LOGIN_BLOCKED` before provider I/O;
+   STIL's cloud bot defence is not bypassed or retried. Synthetic injected login
+   tests and the separately authenticated SSE transport probe remain available.
+2. `aula-handoff-create` and `aula-handoff` implement the device-to-server
+   session contract below. Legacy identity/login storage is retained for compatibility.
 3. `aula-status`: safe connection, child mapping and finding metadata only.
 4. `aula-scan`: manual adult authorization, or constant-time `AULA_SYNC_SECRET`
    authentication for a future scheduler. A database lease and generation fence
@@ -70,7 +68,64 @@ rotated credentials are encrypted and saved **before** reads or AI can fail.
 provider failures retain the connection. Key rotation requires a planned
 re-encryption/reconnect; replacing a key blindly makes saved sessions unreadable.
 
-## Read model and AI
+## Device session handoff (production pilot)
+
+Production target: **native iOS/Android device = interactive MitID/Aula login;
+backend = encrypted refresh session and scanning**. The Windows helper is pilot
+bootstrap, not the final native UX. Neither path bypasses STIL bot protection.
+
+1. An authenticated owner/admin/adult calls `POST /api/aula-handoff-create` with
+   `{household_id}` and the existing app Bearer session. The service-only RPC
+   `create_aula_handoff` persists a SHA-256 hash of a fresh 256-bit random code.
+   The response contains `handoff_secret` once and `expires_at` (10 minutes).
+   The UI keeps the code only in memory/DOM until close, expiry or completion;
+   copy is explicit. It never receives an Aula refresh token.
+2. On Windows, run `app/scripts/connect-aula-production.bat` (Node 24 and the
+   existing app dependencies). Paste the code and enter the MitID user ID in the
+   hidden terminal prompts. The helper opens an ephemeral loopback QR page. Only
+   APP authentication is offered; there is no password prompt. Identity selection,
+   when needed, stays in the terminal. No automatic retries or cloud login.
+3. The device sends `POST https://familiekalender-alpha.vercel.app/api/aula-handoff`
+   with `{handoff_secret, refresh_token, identity_label?}`. This generic JSON
+   contract is shared with future native clients. There is no household override,
+   redirect following, browser Origin/CORS access, or token in a URL.
+4. PostgreSQL atomically consumes the code before provider verification. The
+   server must refresh the supplied token and read `profiles.getProfilesByLogin`.
+   Only then does it save the **rotated** token using the existing AES-256-GCM
+   envelope with household associated data. Response: `{connected:true}` only.
+   Invalid tokens never establish a connection or replace existing credentials.
+5. Return to the app and choose **Kontrollér forbindelse**, then explicitly
+   discover children/map/scan. Findings remain review-only. No automatic calendar
+   creation and no new scheduler are introduced.
+
+The local helper writes no token, username, cookies or login response to files,
+stdout, logs, CLI arguments or clipboard. It clears references and stops the QR
+server in `finally`; JavaScript memory is garbage collected, not a guaranteed
+physical zeroisation facility. Cookies/access tokens live only in process memory.
+The fixed HTTPS destination rejects redirects. QR HTTP binds only `127.0.0.1`,
+uses a random path and no-store/CSP/Host/Origin/Fetch-Metadata restrictions.
+
+Every attempt consumes its code, including failed verification or a lost response.
+Generate a new code for retry. Shared DB limits: 4 creates per household/creator
+per 15 minutes; 30 redemption attempts per minute for this small pilot. There is
+no IP logging. Errors are bounded codes such as `AULA_HANDOFF_INVALID`,
+`AULA_RATE_LIMIT`, `AULA_REAUTH_REQUIRED`, `AULA_BUSY`, `AULA_TIMEOUT`; raw provider
+errors are never returned or logged. Request bodies are capped at 16 KiB.
+Pending and in-flight codes are revoked by a new code or disconnect. Completion
+rechecks adult membership, household, claim nonce, 90-second verification lease,
+expiry and scan/login locks. Browser/anonymous/wall/child cannot bypass the
+service-only database gateway. Only hashes and metadata enter the handoff table.
+
+Validation: `npm run test:aula`, `npm run test:aula:handoff:db`,
+`npm run test:aula:handoff:api` (isolated local Supabase and Vercel dev),
+`npm run test:aula:browser`, existing DB/activity tests, typecheck, i18n and build.
+Concurrent redemption is tested through independent real PostgREST transactions.
+Provider refresh/profile verification and scanner profiles/calendar/messages/
+MeeBook are tested using synthetic transport responses. A real device handoff and
+subsequent live scan require the user's MitID approval after deployment; automated
+tests must never claim that user step has already passed.
+
+## Read model and AI (unchanged)
 
 The provider adapter exposes a finite Aula read allowlist. The calendar read uses
 POST; this is not a blanket method guard. Presence, send/write, calendar mutations,

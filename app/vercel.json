@@ -11,6 +11,9 @@
     },
     "api/aula-scan.ts": {
       "maxDuration": 300
+    },
+    "api/aula-handoff.ts": {
+      "maxDuration": 90
     }
   },
   "rewrites": [
@@ -84,7 +87,8 @@
       "feature/calendar-import-sync": false,
       "feature/native-subscription-wall": false,
       "feature/tasks-people-ux": false,
-      "feature/aula-integration-10": false
+      "feature/aula-integration-10": false,
+      "bugfix/aula-session-handoff": false
     }
   }
 }

@@ -47,6 +47,10 @@ verify_jwt = false
 [functions.recipe-preview]
 verify_jwt = false
 
+# Server-to-server only; aula-analyze validates AULA_ANALYZE_SECRET itself.
+[functions.aula-analyze]
+verify_jwt = false
+
 [functions.sync-calendar-feeds]
 # Dedicated server secret, never a frontend key.
 verify_jwt = false

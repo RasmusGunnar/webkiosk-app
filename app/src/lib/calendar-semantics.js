@@ -6,7 +6,7 @@ const aliases={durationMin:'duration_min',repeatWeekly:'repeat_weekly',repeatYea
 Object.assign(aliases,{endDate:'end_date',endTime:'end_time',allDay:'all_day'})
 export function value(item,key) { const alias=aliases[key]; return item?.[key]??(alias?item?.[alias]:undefined)??item?.data?.[key]??(alias?item?.data?.[alias]:undefined)??'' }
 export function imported(item) { return Boolean(item && (['aula','google','ics'].includes(String(value(item,'source')).toLowerCase()) || item.external_id || item.calendar_id || item.data?.importFeedId)) }
-export function sourceLabel(item) { const source=String(value(item,'source')).toLowerCase(); return imported(item)?({aula:'Aula',google:'Google'}[source]||'ICS'):'' }
+export function sourceLabel(item) { if(item?.data?.aulaAssisted)return t(item.data.aulaSourceKind==='meebook'?'aula.source_meebook':'aula.title');const source=String(value(item,'source')).toLowerCase(); return imported(item)?({aula:'Aula',google:'Google'}[source]||'ICS'):'' }
 export function birthday(item) { return ['Fødselsdag','FÃ¸dselsdag'].includes(value(item,'type')) || Boolean(value(item,'birthYear')) }
 export function displayTitle(item) {
   if(item.isVirtualMilestone)return t('milestones.'+item.id.split('|')[1])

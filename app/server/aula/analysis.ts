@@ -11,13 +11,33 @@ export function validateSources(value:unknown):AnalysisSource[]{
  for(const s of value){if(!s||!/^[a-f0-9]{64}$/.test(s.source_key)||!['calendar','message','meebook','post','notification'].includes(s.source_kind)||typeof s.text!=='string'||s.text.length>6000||typeof s.title!=='string'||s.title.length>160||!Array.isArray(s.person_ids)||s.person_ids.length>30||!s.person_ids.every((p:unknown)=>typeof p==='string'&&/^[a-f0-9-]{36}$/.test(p))||!Number.isFinite(Date.parse(s.updated_at))||typeof s.explicit_scope!=='boolean')throw new Error('AULA_INVALID_BATCH');}
  return value as AnalysisSource[];
 }
+// Bind each generated finding to ONE supplied source and that source's people.
+// A global people enum would still allow swapping children between sources.
+export function analysisSchemaForSources(sources:AnalysisSource[]){
+ validateSources(sources);
+ if(sources.some(s=>!s.person_ids.length))throw new Error('AULA_INVALID_BATCH');
+ const item=ANALYSIS_SCHEMA.properties.findings.items;
+ return {...ANALYSIS_SCHEMA,properties:{findings:{...ANALYSIS_SCHEMA.properties.findings,items:{anyOf:sources.map(s=>({...item,properties:{...item.properties,
+  source_key:{type:'string',enum:[s.source_key]},
+  person_ids:{type:'array',minItems:1,maxItems:30,items:{type:'string',enum:[...new Set(s.person_ids)]}},
+ }}))}}}};
+}
 export function validateAnalysis(value:unknown,sources:AnalysisSource[]):AnalysisFinding[]{
  const rows=(value as {findings?:unknown})?.findings;if(!Array.isArray(rows)||rows.length>40)throw new Error('AULA_ANALYSIS_INVALID');
  const date=(v:unknown)=>v===null||(typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v)&&new Date(v).toISOString().slice(0,10)===v);
  const time=(v:unknown)=>v===null||(typeof v==='string'&&/^([01]\d|2[0-3]):[0-5]\d$/.test(v));
  return rows.map(row=>{
   const s=sources.find(x=>x.source_key===row.source_key);
-  if(!s||!TYPES.includes(row.type)||!ACTIONS.includes(row.proposed_action)||!['HIGH','MEDIUM','LOW'].includes(row.confidence)||!Array.isArray(row.person_ids)||!row.person_ids.length||!row.person_ids.every((id:string)=>s.person_ids.includes(id))||!date(row.date)||!date(row.end_date)||!time(row.time)||!time(row.end_time)||typeof row.title!=='string'||!row.title.trim()||row.title.length>160||typeof row.reason!=='string'||row.reason.length>300||typeof row.summary!=='string'||row.summary.length>500||typeof row.location!=='string'||row.location.length>200)throw new Error('AULA_ANALYSIS_INVALID');
+  // Static field categories only: never put provider values into exceptions/logs.
+  if(!s)throw new Error('AULA_ANALYSIS_INVALID_SOURCE');
+  if(!TYPES.includes(row.type)||!ACTIONS.includes(row.proposed_action)||!['HIGH','MEDIUM','LOW'].includes(row.confidence))throw new Error('AULA_ANALYSIS_INVALID_CLASSIFICATION');
+  if(!Array.isArray(row.person_ids)||!row.person_ids.length||!row.person_ids.every((id:string)=>s.person_ids.includes(id)))throw new Error('AULA_ANALYSIS_INVALID_PEOPLE');
+  if(!date(row.date)||!date(row.end_date))throw new Error('AULA_ANALYSIS_INVALID_DATE');
+  if(!time(row.time)||!time(row.end_time))throw new Error('AULA_ANALYSIS_INVALID_TIME');
+  if(typeof row.title!=='string'||!row.title.trim()||row.title.length>160)throw new Error('AULA_ANALYSIS_INVALID_TITLE');
+  if(typeof row.reason!=='string'||row.reason.length>300)throw new Error('AULA_ANALYSIS_INVALID_REASON');
+  if(typeof row.summary!=='string'||row.summary.length>500)throw new Error('AULA_ANALYSIS_INVALID_SUMMARY');
+  if(typeof row.location!=='string'||row.location.length>200)throw new Error('AULA_ANALYSIS_INVALID_LOCATION');
   const f={...row,person_ids:[...new Set<string>(row.person_ids)]} as AnalysisFinding;
   // Independently enforce action invariants after AI output.
   if(f.type==='GENERAL_INFO'||f.confidence==='LOW'){f.type='GENERAL_INFO';f.confidence='LOW';f.proposed_action='NO_ACTION';}

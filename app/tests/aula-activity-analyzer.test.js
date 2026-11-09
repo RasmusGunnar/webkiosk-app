@@ -9,7 +9,7 @@ test('Edge analyzer uses the activity schema and returns school classifications 
  const handler=makeHandler({secret,apiKey:'synthetic-key-not-used',fetcher:async(url,options)=>{
   requests++;assert.equal(url,'https://api.openai.com/v1/responses')
   const request=JSON.parse(options.body)
-  assert.deepEqual(request.text.format.schema.properties.findings.items.properties.proposed_action.enum,['CREATE_ACTIVITY','NO_ACTION','MATCH_EXISTING'])
+  for(const choice of request.text.format.schema.properties.findings.items.anyOf)assert.deepEqual(choice.properties.proposed_action.enum,['CREATE_ACTIVITY','NO_ACTION','MATCH_EXISTING'])
   assert.equal(request.store,false)
   return Response.json({output_text:JSON.stringify({findings:rows})})
  }})

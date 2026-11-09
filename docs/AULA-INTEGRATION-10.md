@@ -141,6 +141,15 @@ only analysis, not login, encrypted sessions, child assignments or review rules.
 Diagnostics contain static stage/code, source count and duration only. No raw
 provider content, source keys, person IDs or credentials are logged.
 
+The first scan after this correction passed 13 analysis batches (HTTP 200) but
+hit the scanner's existing 240-second deadline while awaiting further sequential
+batches. Analysis now runs in a bounded pool of three, keeping the same 12-source
+batches, total source limit and deadline. Results retain source order for stable
+deduplication; failure cancels and joins all workers before returning, and no
+partial findings are saved. Safe scan-stage logs contain only counters, duration,
+static error codes and an HMAC-derived household identifier. Optional-source
+failures remain visible without being confused with a failed token refresh.
+
 The provider adapter exposes a finite Aula read allowlist. The calendar read uses
 POST; this is not a blanket method guard. Presence, send/write, calendar mutations,
 mark-as-read and unknown methods have no route. Authentication is separate from

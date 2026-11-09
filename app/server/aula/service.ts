@@ -9,9 +9,10 @@ import {ReadProvider,collect,refreshSession,type RecordData} from './provider.ts
 import {AulaError,equalSecret,key,safeError,seal,sourceKey,unseal,uuid,type Envelope} from './security.ts';
 import {validateAnalysis,type AnalysisSource,type AnalysisFinding,findExisting,normalizedTitle} from './analysis.ts';
 import {hostedSseProbe,openEventStream} from './hosted-probe.ts';
+import {analyzeBatches} from './scan-analysis.ts';
 export type Request=IncomingMessage & {body?:unknown};
 type RPC=(action:string,hid:string,uid:string|null,payload?:RecordData)=>Promise<any>;
-type Dependencies={rpc?:RPC;authorize?:(req:Request,hid:string)=>Promise<string>;login?:(opts:AulaLoginOptions)=>Promise<AulaTokens>;refresh?:typeof refreshSession;collect?:typeof collect;analyze?:(sources:AnalysisSource[],signal:AbortSignal)=>Promise<AnalysisFinding[]>;items?:(hid:string)=>Promise<RecordData[]>;timeoutMs?:number};
+type Dependencies={log?:(event:RecordData)=>void;rpc?:RPC;authorize?:(req:Request,hid:string)=>Promise<string>;login?:(opts:AulaLoginOptions)=>Promise<AulaTokens>;refresh?:typeof refreshSession;collect?:typeof collect;analyze?:(sources:AnalysisSource[],signal:AbortSignal)=>Promise<AnalysisFinding[]>;items?:(hid:string)=>Promise<RecordData[]>;timeoutMs?:number};
 export function adminClient(){const url=process.env.SUPABASE_URL,k=process.env.SUPABASE_SERVICE_ROLE_KEY;if(!url||!k)throw new AulaError('AULA_NOT_CONFIGURED',503);return createClient(url,k,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});}
 export const rpc:RPC=async(action,hid,uid,payload={})=>{
  const {data,error}=await adminClient().rpc('aula_server',{p_action:action,p_household_id:hid,p_user_id:uid,p_payload:payload});
@@ -78,29 +79,33 @@ export function makeHandlers(deps:Dependencies={}){
   finally{complete=true;clearInterval(heartbeat);abort.abort();req.off('aborted',cancel);res.off('close',cancel);if(!res.writableEnded)res.end();}
  };
  const scan=async(req:Request,res:ServerResponse)=>{
-  let hid='',uid:string|null=null,lease='';const abort=new AbortController();const signal=AbortSignal.any([abort.signal,AbortSignal.timeout(deps.timeoutMs??240_000)]);
+  let hid='',uid:string|null=null,lease='',traceHash='',stage='start';const started=Date.now();const log=(name:string,counts:Record<string,number>={},code?:string)=>{if(!traceHash)return;try{(deps.log??(event=>console.info(JSON.stringify(event))))({stage:'aula.scan.'+name,counts,duration_ms:Date.now()-started,household_hash:traceHash,...(code?{code}:{})});}catch{}};const abort=new AbortController();const signal=AbortSignal.any([abort.signal,AbortSignal.timeout(deps.timeoutMs??240_000)]);
   const cancel=()=>abort.abort();res.once('close',cancel);
   try{
    if(req.method!=='POST')throw new AulaError('METHOD_NOT_ALLOWED',405);const p=await body(req);hid=uuid(p.household_id);
    const serverSecret=req.headers['x-aula-sync-secret'];
    if(serverSecret!==undefined){if(!equalSecret(typeof serverSecret==='string'?serverSecret:undefined,process.env.AULA_SYNC_SECRET))throw new AulaError('AULA_UNAUTHORIZED',401);}else uid=await auth(req,hid);
    key('AULA_SESSION_ENCRYPTION_KEY');key('AULA_HMAC_KEY');
+   traceHash=sourceKey(hid,'scan-log','household').slice(0,16);log('start');stage='refresh';
    const claim=await call('scan_claim',hid,uid);lease=claim.lease;
    const saved=unseal<{refresh_token:string}>(hid,claim.encrypted_session as Envelope);if(typeof saved.refresh_token!=='string')throw new AulaError('AULA_SESSION_INVALID',409);
    const http=new AulaHttpClient({signal}),tokens=await(deps.refresh??refreshSession)(http,saved.refresh_token);
    // Persist rotation BEFORE any subsequent reads or AI call can fail.
    await call('scan_save_session',hid,uid,{lease,encrypted_session:seal(hid,{refresh_token:tokens.refresh_token})});
-   const data=await(deps.collect??collect)(new ReadProvider(tokens.access_token,http),hid,claim.mappings,claim.last_success_at,p.full===true);
+   log('refresh.ok');stage='collect';
+   const data=await(deps.collect??collect)(new ReadProvider(tokens.access_token,http),hid,claim.mappings,claim.last_success_at,p.full===true,new Date(),log);
+   stage='analysis';
    const existing=await(deps.items??items)(hid);const findings:RecordData[]=[];const seen=new Set<string>();
-   for(let i=0;i<data.sources.length;i+=12){signal.throwIfAborted();const batch=data.sources.slice(i,i+12),results=validateAnalysis({findings:await(deps.analyze??analyze)(batch,signal)},batch);
+   const analyzed=await analyzeBatches(data.sources,deps.analyze??analyze,signal);log('analysis.ok',{sources:data.sources.length,batches:analyzed.length});
+   for(const {batch,results} of analyzed){signal.throwIfAborted();
     for(const f of results){const s=batch.find(s=>s.source_key===f.source_key)!;const people=[...f.person_ids].sort();const match=f.proposed_action==='NO_ACTION'?null:findExisting(f,people,existing);
      const identity=`${people.join(',')}:${['CALENDAR_EVENT','TRIP'].includes(f.type)?'event':f.type}:${f.date}:${f.time}:${normalizedTitle(f.title)}`;
      if(seen.has(identity))continue;seen.add(identity);
      findings.push({...f,person_ids:people,person_id:people.length===1?people[0]:null,source_kind:s.source_kind,source_key:sourceKey(hid,'finding',`${s.source_key}:${people.join(',')}:${f.type}:${normalizedTitle(f.title)}`),source_updated_at:s.updated_at,proposed_action:match?'MATCH_EXISTING':f.proposed_action});
     }
    }
-   await call('scan_finish',hid,uid,{lease,children:data.children,findings,counts:data.counts,api_version:data.api_version});lease='';json(res,200,{counts:data.counts,findings:findings.length});
-  }catch(e){const error=safeError(e);if(lease)await call('scan_fail',hid,uid,{lease,error:error.code}).catch(()=>{});json(res,error.status,{code:error.code});}
+   stage='finish';await call('scan_finish',hid,uid,{lease,children:data.children,findings,counts:data.counts,api_version:data.api_version});lease='';log('finish.ok',{...data.counts,children:data.children.length,findings:findings.length});json(res,200,{counts:data.counts,findings:findings.length});
+  }catch(e){const error=safeError(e);log(stage+'.failed',{},error.code);if(lease)await call('scan_fail',hid,uid,{lease,error:error.code}).catch(()=>{});json(res,error.status,{code:error.code});}
   finally{res.off('close',cancel);abort.abort();}
  };
  return {connect,identity,status,disconnect,scan};

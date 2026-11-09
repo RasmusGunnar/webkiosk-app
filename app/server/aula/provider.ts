@@ -3,7 +3,7 @@
 import {load} from 'cheerio';
 import {AulaHttpClient} from './vendor/http.ts';
 import {DEFAULT_OAUTH_CONFIG,oauthUrls,parseTokenResponse,type AulaTokens} from './vendor/aula-oauth.ts';
-import {AulaError,sourceKey} from './security.ts';
+import {AulaError,sourceKey,safeError} from './security.ts';
 export type RecordData=Record<string,any>; // Untrusted provider boundary; normalize before storage/AI.
 export type Child={id:string;userId:string;name:string;school:string;className:string;groups:string[];key:string;personId:string|null};
 export type Source={source_key:string;source_kind:'calendar'|'message'|'meebook'|'post'|'notification';title:string;text:string;updated_at:string;person_ids:string[];date:string|null;time:string|null;end_date:string|null;end_time:string|null;location:string;explicit_scope:boolean};
@@ -76,7 +76,7 @@ export function relevantChildren(row:RecordData,children:Child[],text:string):{c
  return {children:named.length?named:children,explicit:false};
 }
 function isoWeek(date:Date):string{const d=new Date(Date.UTC(date.getUTCFullYear(),date.getUTCMonth(),date.getUTCDate()));d.setUTCDate(d.getUTCDate()+4-(d.getUTCDay()||7));return String(Math.ceil((((d.getTime()-Date.UTC(d.getUTCFullYear(),0,1))/86400000)+1)/7));}
-export async function collect(provider:ReadProvider,hid:string,mappings:RecordData[],lastSuccess:string|null,full=false,now=new Date()){
+export async function collect(provider:ReadProvider,hid:string,mappings:RecordData[],lastSuccess:string|null,full=false,now=new Date(),report:(stage:string,counts:Record<string,number>,code?:string)=>void=()=>{}){
  const profiles=await provider.read('profiles.getProfilesByLogin');
  const ctx=await provider.read('profiles.getProfileContext',{portalrole:'guardian'});
  const rawChildren=(profiles?.profiles??[]).filter((p:RecordData)=>!p.portalRole||p.portalRole==='guardian').flatMap((p:RecordData)=>p.children??[]);
@@ -86,8 +86,10 @@ export async function collect(provider:ReadProvider,hid:string,mappings:RecordDa
   return {id:String(c.id),userId:String(c.userId??''),name:textOnly(c.name,120),school:textOnly(c.institutionProfile?.institutionName??relations.find((r:RecordData)=>r.children?.some((x:RecordData)=>x.id===c.id))?.institutionName,200),className:textOnly(c.mainGroup?.name??c.className,80),groups:[],key,personId:map?.person_id??null};
  });
  const counts:Record<string,number>={calendar:0,messages:0,meebook:0,posts:0,notifications:0,sensitive_skipped:0,unavailable:0,truncated:0};
+ report('profiles.ok',{children:children.length});
  const groups=await provider.read('groups.getGroupsByContext',{'childInstitutionProfileIds[]':children.map(c=>c.id)});
  for(const group of Array.isArray(groups)?groups:groups?.groups??[]){for(const c of children){const members=group.childInstitutionProfileIds??group.institutionProfileIds??[];if(members.map(String).includes(c.id)){const name=textOnly(group.name,80);c.groups.push(name);if(/^\d{1,2}\.?\s*[a-z]$/i.test(name))c.className=name;}}}
+ report('groups.ok',{children:children.length});
  const sources:Source[]=[];
  const add=(kind:Source['source_kind'],row:RecordData,id:unknown,title:unknown,body:unknown,start?:unknown,end?:unknown)=>{
   if(sensitive(row)){counts.sensitive_skipped++;return;}
@@ -100,6 +102,7 @@ export async function collect(provider:ReadProvider,hid:string,mappings:RecordDa
  const events=children.length?await provider.read('calendar.getEventsByProfileIdsAndResourceIds',{}, {instProfileIds:children.map(c=>Number(c.id)),resourceIds:[],start:start.toISOString(),end:end.toISOString()}):[];
  if((events?.length??0)>300)counts.truncated+=events.length-300;
  for(const e of (events??[]).slice(0,300))add('calendar',e,e.id??`${e.startDateTime}:${e.title}`,e.title,e.description,e.startDateTime,e.endDateTime);
+ report('calendar.ok',{events:events?.length??0,sources:counts.calendar});
  const cutoff=new Date(Math.max(now.getTime()-14*864e5,!full&&lastSuccess?Date.parse(lastSuccess)-864e5:0)).toISOString();
  for(let page=0;page<3;page++){
   const batch=await provider.read('messaging.getThreads',{page:String(page),sortOn:'date',orderDirection:'desc'});let old=false;
@@ -114,16 +117,18 @@ export async function collect(provider:ReadProvider,hid:string,mappings:RecordDa
   }
   if(!batch?.moreMessagesExist||old)break;if(page===2)counts.truncated++;
  }
- const optional=async(fn:()=>Promise<void>)=>{try{await fn();}catch(e){if(e instanceof AulaError&&e.code==='AULA_ACCESS_EXPIRED')throw e;counts.unavailable++;}};
- await optional(async()=>{const posts=await provider.read('posts.getAllPosts',{parent:'profile',index:'0',limit:'50',isUnread:'false','institutionProfileIds[]':children.map(c=>c.id)});for(const p of posts?.posts??[])if((p.publishAt??p.timestamp??cutoff)>=cutoff)add('post',p,p.id,p.title,p.content?.html);});
- await optional(async()=>{const ns=await provider.read('notifications.getNotificationsForActiveProfile');counts.notifications=(Array.isArray(ns)?ns:ns?.notifications??[]).length;});
+ report('messages.ok',{sources:counts.messages,sensitive_skipped:counts.sensitive_skipped});
+ const optional=async(name:string,fn:()=>Promise<void>)=>{try{await fn();report(name+'.ok',{sources:counts[name]??0});}catch(e){report(name+'.failed',{},safeError(e).code);if(e instanceof AulaError&&e.code==='AULA_ACCESS_EXPIRED')throw e;counts.unavailable++;}};
+ await optional('posts',async()=>{const posts=await provider.read('posts.getAllPosts',{parent:'profile',index:'0',limit:'50',isUnread:'false','institutionProfileIds[]':children.map(c=>c.id)});for(const p of posts?.posts??[])if((p.publishAt??p.timestamp??cutoff)>=cutoff)add('post',p,p.id,p.title,p.content?.html);});
+ await optional('notifications',async()=>{const ns=await provider.read('notifications.getNotificationsForActiveProfile');counts.notifications=(Array.isArray(ns)?ns:ns?.notifications??[]).length;});
  const widgets=ctx?.pageConfiguration?.widgetConfigurations??[];
- if(widgets.some((w:RecordData)=>(w.widget?.widgetId??w.widgetId)==='0004'))await optional(async()=>{
+ if(widgets.some((w:RecordData)=>(w.widget?.widgetId??w.widgetId)==='0004'))await optional('meebook',async()=>{
   for(const offset of [0,7])for(const person of await provider.meebook(ctx,children,isoWeek(new Date(now.getTime()+offset*864e5)))){
    const child=children.find(c=>c.userId===String(person.unilogin??'')||c.id===String(person.id??''));if(!child)continue;
    for(const day of person.weekPlan??[])for(const task of day.tasks??[])add('meebook',{belongsToProfiles:[child.id]},task.id??`${child.id}:${day.date}:${task.title??task.type}:${task.pill??''}`,task.title??task.pill,task.content,day.date);
   }
  });
+ else report('meebook.skipped',{sources:0});
  if(sources.length>300)counts.truncated+=sources.length-300;
  return {children:children.map(c=>({provider_child_key:c.key,display_name:c.name,school:c.school,class_name:c.className,group_names:c.groups})),sources:sources.slice(0,300),counts,api_version:provider.version};
 }

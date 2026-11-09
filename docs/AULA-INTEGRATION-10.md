@@ -127,6 +127,29 @@ tests must never claim that user step has already passed.
 
 ## Read model and AI (unchanged)
 
+### Production scan correction, 9 November 2026
+
+The connected production session reached analysis successfully, but the third AI
+batch returned HTTP 422 after two HTTP 200 batches. `/api/aula-scan` reported 502
+and stored `AULA_ANALYSIS_UNAVAILABLE`. Content-free Edge diagnostics identified
+`AULA_ANALYSIS_INVALID_PEOPLE`: the static output schema allowed an empty or
+out-of-source person selection that the shared validator correctly rejected.
+The model schema now binds each finding's source key and nonempty person enum
+together in a source-specific `anyOf` branch. Server validation remains strict;
+invalid people are never silently reassigned, dropped or broadened. This changes
+only analysis, not login, encrypted sessions, child assignments or review rules.
+Diagnostics contain static stage/code, source count and duration only. No raw
+provider content, source keys, person IDs or credentials are logged.
+
+The first scan after this correction passed 13 analysis batches (HTTP 200) but
+hit the scanner's existing 240-second deadline while awaiting further sequential
+batches. Analysis now runs in a bounded pool of three, keeping the same 12-source
+batches, total source limit and deadline. Results retain source order for stable
+deduplication; failure cancels and joins all workers before returning, and no
+partial findings are saved. Safe scan-stage logs contain only counters, duration,
+static error codes and an HMAC-derived household identifier. Optional-source
+failures remain visible without being confused with a failed token refresh.
+
 The provider adapter exposes a finite Aula read allowlist. The calendar read uses
 POST; this is not a blanket method guard. Presence, send/write, calendar mutations,
 mark-as-read and unknown methods have no route. Authentication is separate from

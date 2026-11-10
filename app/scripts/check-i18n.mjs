@@ -12,6 +12,7 @@ for(const key of new Set(catalogs.flatMap(Object.keys)))for(const [i,locale]of [
 // Explicit non-UI literals: CSS selectors/classes, platform names, codes and developer diagnostics.
 const technical=new Set(['SLET MIN KONTO','Dansk','English','Familiekalender','Homey','Sonos','Web','iPad / iPhone','Android','DeviceScreen','Enter','SHA-256','T12:00:00','T12:00:00Z','XXXXX-XXXXX','https://','https://…','Provider startup timeout','person-avatar recipe-avatar','is-empty','is-task','is-title-only','is-milestone','task-advanced full','task-quick-fields full','(max-width: 699px)','(display-mode: standalone)','(prefers-reduced-motion: reduce)','FÃ¸dselsdag'])
 technical.add('Bearer');technical.add('aula-text danger-button')
+technical.add('aula-text aula-inline-edit')
 for(const file of ['src/main.js',...readdirSync(new URL('src/lib',root)).filter(n=>n.endsWith('.js')&&!['milestones.js','native-review.js'].includes(n)).map(n=>'src/lib/'+n)]){
  for(const node of nodes(read(file))){
   const {parent,value}=node

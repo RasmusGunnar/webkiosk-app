@@ -20,20 +20,23 @@ export async function readEvents(response,onEvent,signal){
 export class AulaUI {
  constructor({client,getContext,onRender,onAccepted=onRender}){
   this.client=client;this.getContext=getContext;this.onRender=onRender;this.onAccepted=onAccepted;this.state={connection:null,mappings:[],findings:[]};this.context='';this.pending=false;this.loaded=false;this.errorCode='';this.view='';this.generation=0
+  this.reviewDrafts=new Map()
   this.root=document.createElement('div');this.root.id='aula-dialog-root';document.body.append(this.root)
   document.addEventListener('click',e=>{const b=e.target.closest('[data-aula]');if(b&&!b.disabled&&this.allowed){e.preventDefault();void this.action(b.dataset.aula,b)}})
   this.root.addEventListener('dismiss-dialog',()=>this.close())
+  this.root.addEventListener('input',e=>{if(e.target.matches('[data-aula-edit]'))this.updateReviewCard(e.target.closest('[data-aula-finding]'))})
   this.root.addEventListener('change',e=>{
+   if(e.target.matches('[data-aula-edit]')){this.updateReviewCard(e.target.closest('[data-aula-finding]'));return}
    if(e.target.matches('[data-child-key]')){e.target.closest('article').querySelector('[data-aula-mapping-avatar]').innerHTML=this.avatar(e.target.value);return}
    if(!e.target.matches('[data-aula-person-choice]'))return
-   const card=e.target.closest('[data-aula-finding]'),ids=this.selectedPeople(card)
+   const card=e.target.closest('[data-aula-finding]')
    e.target.closest('.person-choice')?.classList.toggle('selected',e.target.checked)
    const finding=this.state.findings.find(f=>f.id===card.dataset.aulaFinding)
-   if(finding){card.querySelector('[data-aula="accept"]').disabled=!finding.date||!ids.length;card.querySelector('[data-aula-avatars]').innerHTML=this.findingAvatars({...finding,person_ids:ids,person_id:null})}
+   if(finding)this.updateReviewCard(card)
   })
  }
  get allowed(){const c=this.getContext();return Boolean(c.householdId&&!c.wall&&['owner','admin','adult'].includes(c.role))}
- syncContext(){const context=this.allowed?this.getContext().householdId:'';if(context===this.context)return;this.close();this.context=context;this.generation++;this.state={connection:null,mappings:[],findings:[]};this.loaded=false;this.pending=false;this.errorCode=''}
+ syncContext(){const context=this.allowed?this.getContext().householdId:'';if(context===this.context)return;this.close();this.reviewDrafts.clear();this.context=context;this.generation++;this.state={connection:null,mappings:[],findings:[]};this.loaded=false;this.pending=false;this.errorCode=''}
  async request(endpoint,payload={},signal){const {data}=await this.client.auth.getSession();if(!data.session)throw Object.assign(new Error(),{code:'AULA_UNAUTHORIZED'});const base=import.meta.env.VITE_AULA_API_BASE_URL||'';const response=await fetch(`${base}/api/aula-${endpoint}`,{method:'POST',headers:{authorization:`Bearer ${data.session.access_token}`,'content-type':'application/json'},body:JSON.stringify({household_id:this.context,...payload}),signal,cache:'no-store',credentials:'omit'});if(endpoint==='connect')return response;const result=await response.json().catch(()=>({}));if(!response.ok)throw Object.assign(new Error(),{code:result.code});return result}
  async refresh(){this.syncContext();if(!this.context||this.pending)return;this.pending=true;const generation=this.generation;try{const state=await this.request('status');if(generation===this.generation){this.state=state;this.errorCode=''}}catch(e){if(generation===this.generation)this.errorCode=e.code||'AULA_TEMPORARY_ERROR'}finally{if(generation===this.generation){this.pending=false;this.loaded=true;this.onRender()}}}
  ensure(){this.syncContext();if(!this.loaded&&!this.pending&&this.context)queueMicrotask(()=>this.refresh())}
@@ -51,6 +54,20 @@ export class AulaUI {
  findingPeople(f){return [...new Set(f.person_ids?.length?f.person_ids:f.person_id?[f.person_id]:[])]}
  findingAvatars(f){const ids=this.findingPeople(f);return ids.length?personStack({type:'Aktivitet',person_ids:ids},this.getContext().people||[],null):''}
  selectedPeople(card){return [...card.querySelectorAll('[data-aula-person-choice]:checked')].map(input=>input.value)}
+ reviewValues(f){return f.status==='new'?{...f,...this.reviewDrafts?.get(f.id)}:f}
+ validReview(f){return typeof f.date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(f.date)&&Number.isFinite(Date.parse(f.date))&&new Date(f.date).toISOString().slice(0,10)===f.date&&Boolean(f.title?.trim())&&f.title.trim().length<=160&&(!f.time||/^([01]\d|2[0-3]):[0-5]\d$/.test(f.time))&&this.findingPeople(f).length>0}
+ updateReviewCard(card){
+  const original=this.state.findings.find(f=>f.id===card.dataset.aulaFinding);if(!original)return
+  const draft={title:card.querySelector('[data-aula-edit="title"]').value,date:card.querySelector('[data-aula-edit="date"]').value||null,time:card.querySelector('[data-aula-edit="time"]').value||null,person_ids:this.selectedPeople(card),person_id:null}
+  this.reviewDrafts.set(original.id,draft)
+  card.querySelector('[data-aula="accept"]').disabled=!this.validReview(draft)
+  card.querySelector('[data-aula-avatars]').innerHTML=this.findingAvatars(draft)
+  card.querySelector('[data-aula-title-label]').textContent=draft.title
+  card.querySelector('[data-aula-date-label]').textContent=draft.date?this.date(draft.date):t('aula.date_unclear')
+  card.querySelector('[data-aula-time-label]').textContent=draft.time||t('aula.add_time')
+  card.querySelector('[data-aula-date-hint]').hidden=Boolean(draft.date)
+  const match=card.querySelector('.aula-match');if(match)match.hidden=draft.date!==original.date||draft.time!==original.time||draft.title!==original.title||[...draft.person_ids].sort().join()!==this.findingPeople(original).sort().join()
+ }
  avatar(id){const p=(this.getContext().people||[]).find(p=>p.id===id);return p?personAvatar(p):''}
  date(date){try{return dateFormatter({day:'numeric',month:'short'}).format(new Date(date+'T12:00:00'))}catch{return date}}
  shell(title,body,footer=''){const returnFocus=document.activeElement;this.root.innerHTML=`<div class="modal-backdrop aula-backdrop"><section role="dialog" aria-modal="true" aria-labelledby="aula-dialog-title" class="aula-dialog"><header><div><p class="eyebrow">${esc(t('aula.title'))}</p><h2 id="aula-dialog-title">${esc(title)}</h2></div>${button('close',t('aula.close'),'aula-close')}</header><div class="aula-body">${body}</div>${footer?`<footer>${footer}</footer>`:''}</section></div>`;this.returnFocus??=returnFocus;this.root.querySelector('form')?.addEventListener('submit',e=>{e.preventDefault();void this.login(e.target)});this.root.querySelector('.aula-body input')?.focus();this.root.querySelector('.aula-dialog')?.addEventListener('keydown',e=>{if(e.key==='Escape'){e.stopPropagation();this.close()}})}
@@ -80,17 +97,24 @@ export class AulaUI {
  overview(){this.view='overview';const c=this.state.connection,needs=this.status==='reauth_required';this.shell(t(needs?'aula.reauth':'aula.connected'),`<p>${esc(t(needs?'aula.reauth_description':'aula.connected_description'))}</p>${c?.identity_label?`<p>${esc(c.identity_label)}</p>`:''}${this.errorMarkup()}<dl class="aula-details"><dt>${esc(t('aula.last_scan'))}</dt><dd>${esc(c?.last_success_at?dateFormatter({dateStyle:'medium',timeStyle:'short'}).format(new Date(c.last_success_at)):t('aula.never'))}</dd><dt>${esc(t('aula.children'))}</dt><dd>${(this.state.mappings||[]).filter(m=>m.person_id).length}</dd></dl><p class="hint">${esc(t('aula.manual_scan'))}</p><div class="aula-card-actions">${button('mapping',t('aula.map_children'),'aula-secondary')}${button('review',t('aula.review'),'aula-secondary')}${button('disconnect-confirm',t('aula.disconnect'),'aula-text danger-button')}</div>`,button(needs?'handoff':'scan',t(needs?'aula.reconnect':'aula.scan')))}
  async scan(discover=false){if(this.scanning)return;this.scanning=true;this.errorCode='';this.view='scanning';this.shell(t('aula.scanning'),`<div class="aula-progress" role="status">${icon('calendar')}<p>${esc(t('aula.scanning_description'))}</p></div><p class="hint">${esc(t('aula.sensitive_skipped'))}</p>`);const generation=this.generation;try{await this.request('scan');if(generation!==this.generation)return;await this.refresh();if(this.view==='scanning'){if(discover||this.state.mappings.some(m=>!m.person_id))this.mapping();else this.review()}}catch(e){if(generation===this.generation){this.errorCode=e.code||'AULA_TEMPORARY_ERROR';await this.refresh();this.errorCode=e.code||'AULA_TEMPORARY_ERROR';this.overview()}}finally{this.scanning=false}}
  mapping(){this.view='mapping';const people=(this.getContext().people||[]).filter(p=>p.is_active!==false);this.shell(t('aula.map_children'),`<p>${esc(t('aula.mapping_description'))}</p>${this.errorMarkup()}<div class="aula-mappings">${this.state.mappings.map((m,index)=>{const suggestion=people.find(p=>p.name.trim().toLocaleLowerCase()===m.display_name.trim().toLocaleLowerCase());return `<article><div class="aula-card-heading"><span data-aula-mapping-avatar>${this.avatar(m.person_id)}</span><div><strong>${esc(m.display_name)}</strong><small>${esc([m.school,m.class_name].filter(Boolean).join(' · '))}</small></div></div><label for="aula-map-${index}">${esc(t('aula.family_person'))}</label><select id="aula-map-${index}" data-child-key="${esc(m.provider_child_key)}"><option value="">${esc(t('aula.not_mapped'))}</option>${people.map(p=>`<option value="${esc(p.id)}" ${p.id===m.person_id?'selected':''}>${esc(p.name)}</option>`).join('')}</select>${!m.person_id&&suggestion?`<p class="hint">${esc(t('aula.suggested',{name:suggestion.name}))}</p>`:''}</article>`}).join('')||`<p>${esc(t('aula.no_children'))}</p>`}</div>`,button('save-mapping',t('aula.confirm_mapping')))}
- findingCard(f){
-  const info=f.type==='GENERAL_INFO'||f.proposed_action==='NO_ACTION'||f.confidence==='LOW'
-  const matched=f.proposed_action==='MATCH_EXISTING',accepted=f.status!=='new'
+ findingCard(original){
+  const f=this.reviewValues(original),info=f.type==='GENERAL_INFO'||f.proposed_action==='NO_ACTION'||f.confidence==='LOW'
+  const matched=f.proposed_action==='MATCH_EXISTING',accepted=f.status!=='new',editable=!info&&!accepted
   const people=(this.getContext().people||[]).filter(p=>p.is_active!==false)
   const ids=this.findingPeople(f).filter(id=>people.some(p=>p.id===id))
-  const picker=!info&&!accepted?'<fieldset class="aula-person-selection"><legend>'+esc(t('aula.activity_people'))+'</legend><div class="calendar-person-pills">'+personPicker(people,ids).replaceAll('data-calendar-person-choice','data-aula-person-choice')+'</div></fieldset>':''
-  return `<article class="aula-finding" data-aula-finding="${esc(f.id)}" data-confidence="${esc(f.confidence)}"><div class="aula-finding-meta"><span data-aula-avatars>${this.findingAvatars({...f,person_ids:ids,person_id:null})}</span><span class="aula-type">${icon(typeIcons[f.type])} ${esc(t(typeKeys[f.type]))}</span><span class="aula-confidence">${esc(t(confidenceKeys[f.confidence]))}</span></div><h3>${esc(f.title)}</h3><p class="aula-date">${icon('calendar')} ${esc(f.date?this.date(f.date):t('aula.date_unclear'))}${f.time?' · '+esc(f.time):''}</p><p>${esc(f.summary)}</p><details><summary>${esc(t('aula.why'))}</summary><p>${esc(f.reason)}</p></details><small class="aula-source">${esc(t(f.source_kind==='meebook'?'aula.source_meebook':'aula.title'))}</small>${info?'':'<p class="hint">'+esc(t('aula.activity_destination'))+'</p>'}${picker}${matched?`<p class="aula-match">${icon('check')} ${esc(t('aula.exists'))}</p>`:''}<div class="aula-card-actions">${accepted?`<p role="status">${icon('check')} ${esc(t(f.status==='ignored'?'aula.ignored':info?'aula.info_reviewed':'aula.accepted'))}</p>`:button(info?'mark-reviewed':'accept',t(info?'aula.mark_reviewed':matched?'aula.confirm_match':'aula.add_activity'),'aula-primary',`data-finding="${esc(f.id)}" ${!info&&(!f.date||!ids.length)?'disabled':''}`)+button('ignore',t('aula.ignore'),'aula-text',`data-finding="${esc(f.id)}"`)}</div>${!info&&!f.date?`<p class="hint">${esc(t('aula.needs_date'))}</p>`:''}</article>`
+  const edit=(field,label)=>button('edit-finding',t(label),'aula-text aula-inline-edit',`data-field="${field}" aria-label="${esc(t(label))}"`)
+  const field=(name,type,label,visible=false)=>`<label class="aula-review-field" data-aula-field="${name}" ${visible?'':'hidden'}><span>${esc(t(label))}</span><input type="${type}" data-aula-edit="${name}" value="${esc(f[name]||'')}" ${name==='title'?'maxlength="160" required':name==='date'?'required min="0001-01-01" max="9999-12-31"':''}></label>`
+  const heading=`<div class="aula-finding-title"><h3 data-aula-title-label>${esc(f.title)}</h3>${editable?edit('title','aula.edit_title'):''}</div>`
+  const date=`<div class="aula-date">${icon('calendar')}<span data-aula-date-label>${esc(f.date?this.date(f.date):t('aula.date_unclear'))}</span>${editable&&f.date?edit('date','aula.change_date'):''}</div>`
+  const time=editable?`<button type="button" class="aula-text aula-inline-edit" data-aula="edit-finding" data-field="time" aria-label="${esc(t('aula.edit_time'))}"><span data-aula-time-label>${esc(f.time||t('aula.add_time'))}</span>${f.time?' · '+esc(t('aula.change')):''}</button>`:f.time?`<p class="aula-date">${esc(f.time)}</p>`:''
+  const fields=editable?field('title','text','aula.field_title')+'<div class="aula-review-fields">'+field('date','date','aula.field_date',!f.date)+field('time','time','aula.field_time')+'</div>':''
+  const picker=editable?'<fieldset class="aula-person-selection"><legend>'+esc(t('aula.activity_people'))+'</legend><div class="calendar-person-pills">'+personPicker(people,ids).replaceAll('data-calendar-person-choice','data-aula-person-choice')+'</div></fieldset>':''
+  return `<article class="aula-finding" data-aula-finding="${esc(f.id)}" data-confidence="${esc(f.confidence)}"><div class="aula-finding-meta"><span data-aula-avatars>${this.findingAvatars({...f,person_ids:ids,person_id:null})}</span><span class="aula-type">${icon(typeIcons[f.type])} ${esc(t(typeKeys[f.type]))}</span><span class="aula-confidence">${esc(t(confidenceKeys[f.confidence]))}</span></div>${heading}${date}${time}${fields}<p>${esc(f.summary)}</p><details><summary>${esc(t('aula.why'))}</summary><p>${esc(f.reason)}</p></details><small class="aula-source">${esc(t(f.source_kind==='meebook'?'aula.source_meebook':'aula.title'))}</small>${info?'':'<p class="hint">'+esc(t('aula.activity_destination'))+'</p>'}${picker}${matched?`<p class="aula-match">${icon('check')} ${esc(t('aula.exists'))}</p>`:''}<div class="aula-card-actions">${accepted?`<p role="status">${icon('check')} ${esc(t(f.status==='ignored'?'aula.ignored':info?'aula.info_reviewed':'aula.accepted'))}</p>`:button(info?'mark-reviewed':'accept',t(info?'aula.mark_reviewed':matched?'aula.confirm_match':'aula.add_activity'),'aula-primary',`data-finding="${esc(f.id)}" ${!info&&!this.validReview({...f,person_ids:ids,person_id:null})?'disabled':''}`)+button('ignore',t('aula.ignore'),'aula-text',`data-finding="${esc(f.id)}"`)} </div>${editable?`<p class="hint" data-aula-date-hint ${f.date?'hidden':''}>${esc(t('aula.needs_date'))}</p>`:''}</article>`
  }
 
  review(){this.view='review';const rows=this.state.findings||[];this.shell(t('aula.review'),`<p>${esc(t('aula.review_description'))}</p>${this.errorMarkup()}${rows.filter(f=>f.status==='new').length?['HIGH','MEDIUM','LOW'].map(level=>{const group=rows.filter(f=>f.status==='new'&&f.confidence===level);return group.length?`<section class="aula-review-group"><h3>${esc(t(confidenceKeys[level]))}<span>${group.length}</span></h3>${group.map(f=>this.findingCard(f)).join('')}</section>`:''}).join(''):`<div class="aula-empty">${icon('check')}<h3>${esc(t('aula.all_reviewed'))}</h3><p>${esc(t('aula.all_reviewed_description'))}</p></div>`}${rows.some(f=>f.status==='accepted')?`<details class="aula-accepted"><summary>${esc(t('aula.recent_accepted'))}</summary>${rows.filter(f=>f.status==='accepted').slice(0,8).map(f=>this.findingCard(f)).join('')}</details>`:''}`,button('scan',t('aula.scan'),'aula-secondary'))}
  async action(action,b){try{
+  if(action==='edit-finding'){const input=b.closest('[data-aula-finding]').querySelector('[data-aula-edit="'+b.dataset.field+'"]');input.closest('label').hidden=false;input.focus();return}
   if(action==='close'){this.close();return}
   if(action==='open'){this.errorCode='';if(['connected','reauth_required'].includes(this.status))this.overview();else this.intro()}
   if(action==='username'||action==='handoff'){b.disabled=true;await this.handoff()}
@@ -101,7 +125,16 @@ export class AulaUI {
   if(action==='identity'){b.disabled=true;await this.request('identity',{flow_id:this.flowId,index:Number(b.dataset.index)})}
   if(action==='scan'||action==='discover')await this.scan(action==='discover')
   if(action==='save-mapping'){b.disabled=true;const mappings=[...this.root.querySelectorAll('[data-child-key]')].map(s=>({provider_child_key:s.dataset.childKey,person_id:s.value||null}));const {error}=await this.client.rpc('aula_set_child_mappings',{p_household_id:this.context,p_mappings:mappings});if(error)throw error;await this.refresh();await this.scan()}
-  if(['accept','ignore','mark-reviewed'].includes(action)){b.disabled=true;const {error}=await this.client.rpc('aula_review',{p_household_id:this.context,p_finding_id:b.dataset.finding,p_action:action==='mark-reviewed'?'review':action,...(action==='accept'?{p_person_ids:this.selectedPeople(b.closest('[data-aula-finding]'))}:{})});if(error)throw error;await this.refresh();this.review();await this.onAccepted?.()}
+  if(['accept','ignore','mark-reviewed'].includes(action)){
+   const card=b.closest('[data-aula-finding]');let overrides={}
+   if(action==='accept'){
+    this.updateReviewCard(card);const f=this.reviewDrafts.get(b.dataset.finding);if(!this.validReview(f))return
+    overrides={p_person_ids:f.person_ids,p_date:f.date,p_time:f.time,p_title:f.title.trim(),p_override_time:true}
+   }
+   card.querySelectorAll('input,button').forEach(control=>control.disabled=true)
+   const {error}=await this.client.rpc('aula_review',{p_household_id:this.context,p_finding_id:b.dataset.finding,p_action:action==='mark-reviewed'?'review':action,...overrides})
+   if(error)throw error;this.reviewDrafts.delete(b.dataset.finding);await this.refresh();this.review();await this.onAccepted?.()
+  }
   if(action==='disconnect-confirm'){this.view='disconnect';this.shell(t('aula.disconnect_title'),`<p>${esc(t('aula.disconnect_description'))}</p>`,button('disconnect',t('aula.disconnect'),'danger-button')+button('open',t('aula.cancel'),'aula-secondary'))}
   if(action==='disconnect'){b.disabled=true;await this.request('disconnect');this.close();await this.refresh()}
  }catch(e){b.disabled=false;this.errorCode=e.code||'AULA_TEMPORARY_ERROR';if(this.view==='mapping')this.mapping();else if(this.view==='review')this.review();else this.overview()}}

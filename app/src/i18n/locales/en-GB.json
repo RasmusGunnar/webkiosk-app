@@ -1360,7 +1360,7 @@
   "aula.mark_reviewed": "Mark as reviewed",
   "aula.confirm_match": "Confirm existing event",
   "aula.ignore": "Ignore",
-  "aula.needs_date": "Check the date in Aula before planning this.",
+  "aula.needs_date": "Choose a date on this suggestion before adding the activity.",
   "aula.review_description": "School events, homework and reminders become activities. Choose the people and add the suggestions you want in your calendar.",
   "aula.all_reviewed_description": "New suggestions will appear here the next time you check Aula.",
   "aula.recent_accepted": "Recently reviewed",
@@ -1396,5 +1396,13 @@
   "aula.handoff_check": "Check connection",
   "aula.handoff_pending": "The connection is not ready yet. Finish signing in with the tool and try again.",
   "aula.handoff_expired": "This code has expired or has already been used. Create a new connection code.",
-  "aula.handoff_new": "Create new code"
+  "aula.handoff_new": "Create new code",
+  "aula.edit_title": "Edit title",
+  "aula.change_date": "Change date",
+  "aula.edit_time": "Change time",
+  "aula.add_time": "Add time (optional)",
+  "aula.change": "Change",
+  "aula.field_title": "Title",
+  "aula.field_date": "Date",
+  "aula.field_time": "Time (optional)"
 }

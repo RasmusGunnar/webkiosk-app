@@ -27,6 +27,7 @@ try{
  for(const name of readdirSync(migrations).filter(n=>n.endsWith('.sql')&&n<aula&&!n.includes('calendar_import_cron')).sort())try{await db.exec(readFileSync(new URL(name,migrations),'utf8').replaceAll('\r\n','\n'))}catch(e){throw Error(name+': '+e.code+' '+e.message)}
  // Use this checkout's proposed migration when testing an isolated patch.
  await db.exec(readFileSync(new URL('../../supabase/migrations/'+aula,import.meta.url),'utf8'))
+ await db.exec(readFileSync(new URL('../../supabase/migrations/20261110124355_aula_review_overrides.sql',import.meta.url),'utf8'))
  pass('Actual migrations and Aula acceptance function apply locally')
  const adult=randomUUID(),child=randomUUID(),stranger=randomUUID(),hid=randomUUID(),otherHid=randomUUID(),outsider=randomUUID()
  await q('insert into auth.users(id) values($1),($2),($3)',[adult,child,stranger])
@@ -82,6 +83,23 @@ try{
  const trip=await make({type:'TRIP',title:'Lejrskole',extra:{end_date:'2026-11-13'}}),tripRow=await item((await review(trip)).item_id)
  assert.equal(tripRow.end_date,'2026-11-13');assert.equal(tripRow.all_day,true)
  pass('Activity interval survives the existing calendar mutation API')
+
+ const corrected=async(fid,patch={},uid=adult)=>{await actor(uid);return (await q('select public.aula_review($1,$2,$3,$4::uuid[],$5,$6,$7,$8) result',[hid,fid,'accept',patch.people??[carl],patch.date??'2026-11-12',patch.time??null,patch.title??'Corrected title',patch.overrideTime??true])).rows[0].result}
+ const missing=await make({date:null,confidence:'MEDIUM'}),fixed=await corrected(missing),fixedRow=await item(fixed.item_id)
+ assert.equal(fixedRow.date,'2026-11-12');assert.equal(fixedRow.time||null,null);assert.equal(fixedRow.all_day,true);assert.equal(fixedRow.title,'Corrected title');assert.deepEqual(fixedRow.person_ids,[carl]);assert.equal(fixedRow.type,'Aktivitet');assert.equal(fixedRow.data.aulaAssisted,true)
+ assert.equal((await corrected(missing,{date:'2026-12-01',title:'Second click'})).item_id,fixed.item_id);assert.equal((await item(fixed.item_id)).title,'Corrected title')
+ const snapshot=(await q('select title,date,time,status from public.aula_findings where id=$1',[missing])).rows[0];assert.equal(snapshot.status,'accepted');assert.equal(snapshot.title,'Corrected title')
+ pass('Missing date, null time, edited title/person create activity; final snapshot and duplicate-accept idempotency preserved')
+ const timed=await make({extra:{time:'14:00',end_time:'15:30'}}),moved=await corrected(timed,{date:'2026-11-14',time:'16:00',people:[ida,carl]}),movedRow=await item(moved.item_id)
+ assert.equal(movedRow.date,'2026-11-14');assert.equal(movedRow.time,'16:00');assert.equal(movedRow.end_time.slice(0,5),'17:30');assert.deepEqual(movedRow.person_ids,[ida,carl])
+ const clear=await make({extra:{time:'14:00',end_time:'15:00'}}),cleared=await item((await corrected(clear)).item_id);assert.equal(cleared.time||null,null);assert.equal(cleared.end_time||null,null);assert.equal(cleared.all_day,true)
+ const legacy=await make({extra:{time:'14:00'}});assert.equal((await item((await review(legacy)).item_id)).time,'14:00')
+ pass('Existing date/time can change; interval duration, multiple people and old-client omission are safe; explicit null clears time')
+ for(const patch of [{date:'2026-02-30'},{date:'12/11/2026'},{date:''},{time:'24:00'},{time:'8:30'},{time:''},{title:'   '},{title:'x'.repeat(161)},{people:[outsider]},{people:[]}]){const fid=await make({title:'Keep original'});await assert.rejects(corrected(fid,patch));await actor(null);const unchanged=(await q('select title,date::text,status from public.aula_findings where id=$1',[fid])).rows[0];assert.equal(unchanged.title,'Keep original');assert.equal(unchanged.status,'new');assert.equal(unchanged.date,'2026-11-11')}
+ const guarded=await make();for(const uid of [child,stranger])await assert.rejects(corrected(guarded,{},uid),/AULA_FORBIDDEN/)
+ await actor(adult);await assert.rejects(q('select public.aula_review($1,$2,$3,$4::uuid[],$5,$6,$7,$8)',[otherHid,guarded,'accept',[ida],'2026-11-12',null,'No',true]),/AULA_FORBIDDEN/)
+ pass('Invalid dates/times/titles and cross-household people/reviewers roll back atomically')
+ assert.deepEqual(await before(),rewardBefore);pass('Corrected acceptance leaves all reward, stars and allowance records untouched')
  console.log(JSON.stringify({AULA_ACTIVITY_DB:'PASS',checks:checks.length}))
 }catch(e){console.error(JSON.stringify({code:e.code,message:e.message,detail:e.detail,where:e.where,stack:e.stack?.split('\n').filter(x=>x.includes('aula-activity-db')).join('\n')}));failed=true}finally{await db.close()}
 if(failed)process.exitCode=1

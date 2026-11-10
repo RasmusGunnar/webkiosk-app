@@ -1360,7 +1360,7 @@
   "aula.mark_reviewed": "Markér gennemgået",
   "aula.confirm_match": "Bekræft eksisterende",
   "aula.ignore": "Ignorér",
-  "aula.needs_date": "Afklar datoen i Aula, før du planlægger dette.",
+  "aula.needs_date": "Vælg dato her på fundet, før du tilføjer aktiviteten.",
   "aula.review_description": "Skoleaftaler, lektier og påmindelser bliver til aktiviteter. Vælg personerne, og tilføj de forslag, I vil have i kalenderen.",
   "aula.all_reviewed_description": "Nye fund vises her, næste gang du henter fra Aula.",
   "aula.recent_accepted": "Senest gennemgået",
@@ -1396,5 +1396,13 @@
   "aula.handoff_check": "Kontrollér forbindelse",
   "aula.handoff_pending": "Forbindelsen er ikke klar endnu. Afslut login i værktøjet og prøv igen.",
   "aula.handoff_expired": "Koden er udløbet eller allerede brugt. Opret en ny forbindelseskode.",
-  "aula.handoff_new": "Opret ny kode"
+  "aula.handoff_new": "Opret ny kode",
+  "aula.edit_title": "Redigér titel",
+  "aula.change_date": "Ændr dato",
+  "aula.edit_time": "Ændr tidspunkt",
+  "aula.add_time": "Tilføj tidspunkt (valgfrit)",
+  "aula.change": "Ændr",
+  "aula.field_title": "Titel",
+  "aula.field_date": "Dato",
+  "aula.field_time": "Tidspunkt (valgfrit)"
 }

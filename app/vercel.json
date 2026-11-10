@@ -10,7 +10,8 @@
       "maxDuration": 300
     },
     "api/aula-scan.ts": {
-      "maxDuration": 300
+      "maxDuration": 300,
+      "regions": ["fra1"]
     },
     "api/aula-handoff.ts": {
       "maxDuration": 90

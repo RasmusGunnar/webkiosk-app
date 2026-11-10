@@ -55,6 +55,16 @@ The model now selects a bounded, source-specific `evidence_index` from supplied 
 
 The next production scan at 10:29 UTC identified the intermittent transport failure: `meebook.token.ok` followed by `meebook.fetch.failed / AULA_NETWORK_CONNECT_TIMEOUT` after about ten seconds, before any HTTP response from MeeBook. A single retry now covers only this idempotent MeeBook GET connection failure, sharing the original scan deadline and one retry budget across token-expiry attempts. TLS errors, cancellation, HTTP errors and token refresh are not retried by this change. The evidence proves the connection timeout, not its underlying network cause.
 
+### Isolated Vercel transport comparison (10 November 2026)
+
+The 10:52 UTC production scan failed on both MeeBook connection attempts. A separate, expiring diagnostic preview in the **same existing Vercel project**, behind its existing Deployment Protection, reproduced this without any Aula token, cookie, user ID or request body. It made requests only to the fixed public MeeBook/Aula root URLs; it never accepted a target URL or read production credentials.
+
+- Local Windows: MeeBook DNS resolved to public IPv4 `91.209.190.6`; TCP/TLS and HTTP 200 succeeded.
+- Vercel `iad1`, Node 24.22.2: the same address resolved. Default fetch timed out after about 10.5 seconds; a separate `node:https` request pinned to that resolved address also failed to establish TCP within 14 seconds. Aula returned HTTP 302 normally from the same runtime. The result repeated across two preview deployments.
+- Vercel `fra1`, same code, Node version and destination: **3/3** default-fetch HTTP 200 responses (236/81/81 ms), and **3/3** pinned TCP/TLS/HTTP 200 responses. TCP connected in 18–21 ms. Aula also succeeded.
+
+This isolates a region-dependent network connectivity problem before TLS/HTTP; neither DNS resolution, IPv6, credentials, parsing nor AI explains these failures. The exact upstream routing/firewall policy is not visible and is not asserted. The minimal fix sets `functions["api/aula-scan.ts"].regions` to `["fra1"]`. Other functions, project settings, credentials and session storage remain unchanged. Per-function configuration follows https://vercel.com/docs/functions/configuring-functions/region .
+
 The old scan cohort has exact `created_at=2026-11-09T16:30:35.231472Z`. Before cleanup there were 240 `new`, 36 `ignored`, and **one accepted** finding. Only still-new rows in this exact cohort may become stale. Do not change the accepted row, calendar item, ignored rows, session, person assignments, feeds or rewards. Cleanup is a narrowly scoped data correction, not a schema migration.
 
 After deployment run one production scan through the user's existing authenticated app. Verify stage counters, completion, new-only findings, zero ordinary lesson findings and preserved accepted/calendar/mapping state. Then stop: the user reviews `Familie → Aula → Fund fra Aula`. Technical tests cannot substitute for that relevance review.

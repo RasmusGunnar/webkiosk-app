@@ -1,4 +1,4 @@
-import {analysisSchemaForSources,ANALYSIS_INSTRUCTIONS,validateAnalysis,validateSources} from '../../../app/server/aula/analysis.ts';
+import {analysisSchemaForSources,ANALYSIS_INSTRUCTIONS,analysisModelSources,validateModelAnalysis,validateSources} from '../../../app/server/aula/analysis.ts';
 type Diagnostic={stage:string;counts:{sources:number};duration_ms:number;code:string};
 type Options={secret:string;apiKey:string;model?:string;fetcher?:typeof fetch;log?:(event:Diagnostic)=>void};
 const SAFE_CODES=new Set(['AULA_INVALID_BATCH','AULA_ANALYSIS_INVALID','AULA_ANALYSIS_INVALID_SOURCE','AULA_ANALYSIS_INVALID_CLASSIFICATION','AULA_ANALYSIS_INVALID_PEOPLE','AULA_ANALYSIS_INVALID_DATE','AULA_ANALYSIS_INVALID_TIME','AULA_ANALYSIS_INVALID_TITLE','AULA_ANALYSIS_INVALID_REASON','AULA_ANALYSIS_INVALID_SUMMARY','AULA_ANALYSIS_INVALID_LOCATION','AULA_ANALYSIS_INVALID_EVIDENCE']);
@@ -14,11 +14,11 @@ export function makeHandler(options:Options){return async(req:Request)=>{
   const sources=validateSources(JSON.parse(text).sources);
   count=sources.length;
   if(!options.apiKey)return json(503,{code:'AULA_ANALYSIS_UNAVAILABLE'});
-  const response=await(options.fetcher??fetch)('https://api.openai.com/v1/responses',{method:'POST',headers:{authorization:`Bearer ${options.apiKey}`,'content-type':'application/json'},signal:AbortSignal.timeout(45_000),body:JSON.stringify({model:options.model??'gpt-4.1-mini',store:false,max_output_tokens:6000,instructions:ANALYSIS_INSTRUCTIONS,input:JSON.stringify({timezone:'Europe/Copenhagen',sources}),text:{format:{type:'json_schema',name:'aula_findings',strict:true,schema:analysisSchemaForSources(sources)}}})});
+  const response=await(options.fetcher??fetch)('https://api.openai.com/v1/responses',{method:'POST',headers:{authorization:`Bearer ${options.apiKey}`,'content-type':'application/json'},signal:AbortSignal.timeout(45_000),body:JSON.stringify({model:options.model??'gpt-4.1-mini',store:false,max_output_tokens:6000,instructions:ANALYSIS_INSTRUCTIONS,input:JSON.stringify({timezone:'Europe/Copenhagen',sources:analysisModelSources(sources)}),text:{format:{type:'json_schema',name:'aula_findings',strict:true,schema:analysisSchemaForSources(sources)}}})});
   if(!response.ok)return json(502,{code:'AULA_ANALYSIS_UNAVAILABLE'});
   const data=await response.json();if(data.status==='incomplete')return json(502,{code:'AULA_ANALYSIS_INVALID'});
   const output=data.output_text??data.output?.flatMap((o:any)=>o.content??[]).filter((c:any)=>c.type==='output_text').map((c:any)=>c.text).join('');
-  return json(200,{findings:validateAnalysis(JSON.parse(output),sources)});
+  return json(200,{findings:validateModelAnalysis(JSON.parse(output),sources)});
  }catch(error){const code=error instanceof Error&&SAFE_CODES.has(error.message)?error.message:'AULA_ANALYSIS_INVALID';(options.log??(event=>console.info(JSON.stringify(event))))({stage:'aula.scan.analysis.failed',counts:{sources:count},duration_ms:Date.now()-started,code});return json(422,{code:'AULA_ANALYSIS_INVALID'});}
 };}
 if(import.meta.main)Deno.serve(makeHandler({secret:Deno.env.get('AULA_ANALYZE_SECRET')??'',apiKey:Deno.env.get('OPENAI_API_KEY')??'',model:Deno.env.get('AULA_ANALYSIS_MODEL')}));

@@ -12,7 +12,7 @@ DO NOT create findings for ordinary lessons.
 DO NOT summarise every Aula message.
 ONLY extract information that a family realistically needs to remember, prepare for, act on, attend, respond to, bring, pay, or know because it changes normal routine.
 Use BRING (materials/clothing/food), DO (concrete action), PREPARE (read/practise/homework), DEADLINE (deliver/return), RESPOND (reply/choose/register), PAY (payment), ATTEND (exceptional trip/meeting/event), CHANGE (early finish/cancellation/changed time or practical location), IMPORTANT_INFO (significant family planning consequence). Thanks, newsletters without practical consequences and ordinary lessons produce ZERO findings. GENERAL_INFO is noise, never a review item. A substitute teacher or routine subject by itself has no family consequence.
-One source can produce zero, one or several findings. 'Tur torsdag; husk stor madpakke, drikkedunk og varmt tøj' may produce an ATTEND trip plus separate BRING reminders. Do not invent details. Write short Danish titles, summaries and reasons, never full private messages. evidence is a short exact substring of the source text or title, solely for in-memory scope verification; include its class qualifier. It is NEVER stored or shown.
+One source can produce zero, one or several findings. 'Tur torsdag; husk stor madpakke, drikkedunk og varmt tøj' may produce an ATTEND trip plus separate BRING reminders. Do not invent details. Write short Danish titles, summaries and reasons, never full private messages. The source text is supplied as ordered evidence_options. Select the evidence_index of the specific sentence/paragraph supporting EACH finding. Never copy, paraphrase or generate evidence text. The server resolves that index to the original text for in-memory scope verification; it is NEVER stored or shown.
 Use only each source's source_key and person_ids. person_scopes maps people to classes. Recipients bound the possible children; a shared notice does NOT make each paragraph apply to all recipients. For '3.A maling. 3.B pap. 3.C tuscher' only the tuscher finding applies to 3.C. A whole-year 3 notice includes 3.C. Apply scope per sentence/paragraph, not just per message. Keep all applicable people on ONE shared finding. Never invent a person or infer another class's action for them.
 Interpret relative dates against SOURCE updated_at in Europe/Copenhagen, NEVER scan/server date. A Monday message saying Thursday means that following Thursday, even if scanned a week later. source_timestamp_known=false means relative dates remain null with MEDIUM confidence. Keep explicit future actions from older messages. Use supplied calendar/MeeBook dates when appropriate. Uncertain date=null and MEDIUM; HIGH requires a definite person and date. IMPORTANT_INFO can be MEDIUM without a date.
 All accepted suggestions become CREATE_ACTIVITY; NEVER CREATE_TASK. Schoolwork does not award stars or affect allowance. Map BRING to REMINDER, PREPARE to HOMEWORK, DEADLINE to DEADLINE, trips to TRIP, other exceptional meetings/changes to CALENDAR_EVENT or REMINDER. Keep an ATTEND calendar event separate from a BRING reminder about it; do not duplicate the same trip. No extra fields.`;
@@ -21,14 +21,34 @@ export function validateSources(value:unknown):AnalysisSource[]{
  for(const s of value){if(!s||!/^[a-f0-9]{64}$/.test(s.source_key)||!['calendar','message','meebook','post','notification'].includes(s.source_kind)||typeof s.text!=='string'||s.text.length>6000||typeof s.title!=='string'||s.title.length>160||!Array.isArray(s.person_ids)||s.person_ids.length>30||!s.person_ids.every((p:unknown)=>typeof p==='string'&&/^[a-f0-9-]{36}$/.test(p))||!Number.isFinite(Date.parse(s.updated_at))||typeof s.explicit_scope!=='boolean')throw new Error('AULA_INVALID_BATCH');}
  return value as AnalysisSource[];
 }
+// IDs reference original source spans. The model never has to reproduce private
+// text byte-for-byte; source-specific integer bounds forbid invented references.
+export function evidenceOptions(s:AnalysisSource):{index:number;text:string}[]{
+ const texts:string[]=[];
+ for(const field of [s.title,s.text])for(const raw of field.split(/\n+|(?<=[.!?;])\s+(?=[A-ZÆØÅ0-9])/u)){
+  const section=raw.trim();for(let start=0;start<section.length;start+=300){const span=section.slice(start,start+300).trim();if(span)texts.push(span);}
+ }
+ return texts.map((text,index)=>({index,text}));
+}
+export function analysisModelSources(sources:AnalysisSource[]){return sources.map(({text:_text,...s})=>({...s,evidence_options:evidenceOptions({...s,text:_text})}));}
+export function validateModelAnalysis(value:unknown,sources:AnalysisSource[]):AnalysisFinding[]{
+ const rows=(value as {findings?:unknown})?.findings;if(!Array.isArray(rows)||rows.length>40)throw new Error('AULA_ANALYSIS_INVALID');
+ const resolved=rows.map(row=>{
+  if(!row||typeof row!=='object')throw new Error('AULA_ANALYSIS_INVALID');
+  const s=sources.find(s=>s.source_key===row.source_key);if(!s)throw new Error('AULA_ANALYSIS_INVALID_SOURCE');
+  const options=evidenceOptions(s);if(!Number.isInteger(row.evidence_index)||!options[row.evidence_index])throw new Error('AULA_ANALYSIS_INVALID_EVIDENCE');
+  const {evidence_index:_index,...rest}=row;return {...rest,evidence:options[row.evidence_index].text};
+ });
+ return validateAnalysis({findings:resolved},sources);
+}
 // Bind each generated finding to ONE supplied source and that source's people.
 // A global people enum would still allow swapping children between sources.
 export function analysisSchemaForSources(sources:AnalysisSource[]){
  validateSources(sources);
- if(sources.some(s=>!s.person_ids.length))throw new Error('AULA_INVALID_BATCH');
+ if(sources.some(s=>!s.person_ids.length||!evidenceOptions(s).length))throw new Error('AULA_INVALID_BATCH');
  const item=ANALYSIS_SCHEMA.properties.findings.items;
- return {...ANALYSIS_SCHEMA,properties:{findings:{...ANALYSIS_SCHEMA.properties.findings,items:{anyOf:sources.map(s=>({...item,required:[...item.required,'actionability','evidence'],properties:{...item.properties,
-  actionability:{type:'string',enum:ACTIONABILITY},evidence:{type:'string',maxLength:300},
+ return {...ANALYSIS_SCHEMA,properties:{findings:{...ANALYSIS_SCHEMA.properties.findings,items:{anyOf:sources.map(s=>({...item,required:[...item.required,'actionability','evidence_index'],properties:{...item.properties,
+  actionability:{type:'string',enum:ACTIONABILITY},evidence_index:{type:'integer',minimum:0,maximum:evidenceOptions(s).length-1},
   source_key:{type:'string',enum:[s.source_key]},
   person_ids:{type:'array',minItems:1,maxItems:30,items:{type:'string',enum:[...new Set(s.person_ids)]}},
  }}))}}}};
@@ -51,7 +71,7 @@ export function validateAnalysis(value:unknown,sources:AnalysisSource[]):Analysi
   if(typeof row.location!=='string'||row.location.length>200)throw new Error('AULA_ANALYSIS_INVALID_LOCATION');
   if(!ACTIONABILITY.includes(row.actionability)||typeof row.evidence!=='string'||row.evidence.length>300||(!s.text.includes(row.evidence)&&!s.title.includes(row.evidence))||!row.evidence.trim())throw new Error('AULA_ANALYSIS_INVALID_EVIDENCE');
   const f={...row,person_ids:[...new Set<string>(row.person_ids)]} as AnalysisFinding;
-  const sections=(s.title+'\n'+s.text).split(/\n+|(?<=[.!?])\s+(?=[A-ZÆØÅ0-9])/u).filter(p=>p.includes(f.evidence));
+  const sections=(s.title+'\n'+s.text).split(/\n+|(?<=[.!?;])\s+(?=[A-ZÆØÅ0-9])/u).filter(p=>p.includes(f.evidence));
   const scope=sections.length===1?sections[0]:f.evidence;
   const classes=[...scope.matchAll(/\b(\d{1,2})\s*\.?\s*([a-z])\b/gi)].map(m=>(m[1]+m[2]).toLowerCase());
   const grade=scope.match(/\b(\d{1,2})\.?\s*årgang/iu)?.[1];

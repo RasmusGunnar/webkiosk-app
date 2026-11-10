@@ -11,7 +11,7 @@ test('Edge analyzer uses the activity schema and returns school classifications 
   const request=JSON.parse(options.body)
   for(const choice of request.text.format.schema.properties.findings.items.anyOf)assert.deepEqual(choice.properties.proposed_action.enum,['CREATE_ACTIVITY','NO_ACTION','MATCH_EXISTING'])
   assert.equal(request.store,false)
-  return Response.json({output_text:JSON.stringify({findings:rows})})
+  return Response.json({output_text:JSON.stringify({findings:rows.map(row=>({...row,evidence_index:1}))})})
  }})
  const response=await handler(new Request('https://local.test/analyze',{method:'POST',headers:{'x-aula-analyze-secret':secret},body:JSON.stringify({sources:[source]})}))
  assert.equal(response.status,200);assert.equal(requests,1)
@@ -20,7 +20,7 @@ test('Edge analyzer uses the activity schema and returns school classifications 
  assert.deepEqual(result.findings.map(f=>f.type),schoolExamples.map(([type])=>type))
 })
 test('Obsolete task output is rejected by the analyzer, never sent to acceptance',async()=>{
- const handler=makeHandler({secret,apiKey:'synthetic-key-not-used',fetcher:async()=>Response.json({output_text:JSON.stringify({findings:[finding({proposed_action:'CREATE_TASK'})]})})})
+ const handler=makeHandler({secret,apiKey:'synthetic-key-not-used',fetcher:async()=>Response.json({output_text:JSON.stringify({findings:[finding({proposed_action:'CREATE_TASK',evidence_index:1})]})})})
  const response=await handler(new Request('https://local.test/analyze',{method:'POST',headers:{'x-aula-analyze-secret':secret},body:JSON.stringify({sources:[source]})}))
  assert.equal(response.status,422)
 })

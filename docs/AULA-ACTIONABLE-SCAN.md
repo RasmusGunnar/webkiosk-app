@@ -47,6 +47,12 @@ Same-event dedupe across message/calendar batches is limited to ATTEND, same sel
 
 ## Production cleanup and acceptance
 
+### Production analysis validation (10 November 2026)
+
+The diagnostic production scan at 10:17 UTC read MeeBook successfully (HTTP 200 for both weeks, six plans / 55 sources), then failed in `aula-analyze` with `AULA_ANALYSIS_INVALID_EVIDENCE`. The previous contract asked the model to reproduce a literal source substring; the output did not satisfy the evidence validator. No raw evidence or source content was logged to diagnose this.
+
+The model now selects a bounded, source-specific `evidence_index` from supplied original text spans. The server resolves the index to the original span in memory and applies the existing exact-source and person/class checks. Invalid indices and cross-source people remain rejected; evidence is still removed before persistence. This also handles semicolon-separated class instructions. The earlier transport failure did not recur in this diagnostic scan; its precise network cause has not been established and is not claimed fixed by this change.
+
 The old scan cohort has exact `created_at=2026-11-09T16:30:35.231472Z`. Before cleanup there were 240 `new`, 36 `ignored`, and **one accepted** finding. Only still-new rows in this exact cohort may become stale. Do not change the accepted row, calendar item, ignored rows, session, person assignments, feeds or rewards. Cleanup is a narrowly scoped data correction, not a schema migration.
 
 After deployment run one production scan through the user's existing authenticated app. Verify stage counters, completion, new-only findings, zero ordinary lesson findings and preserved accepted/calendar/mapping state. Then stop: the user reviews `Familie → Aula → Fund fra Aula`. Technical tests cannot substitute for that relevance review.

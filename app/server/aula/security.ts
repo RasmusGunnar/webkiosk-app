@@ -33,6 +33,14 @@ export function safeError(error:unknown):AulaError{
   if(error instanceof AulaError)return error;
   if(error instanceof Error && ['AbortError','TimeoutError'].includes(error.name))return new AulaError('AULA_TIMEOUT',504);
   if(error instanceof Error && error.name==='AulaBotDefenseError')return new AulaError('AULA_LOGIN_BLOCKED',502);
+  // Node fetch hides transport failures behind TypeError. Inspect only known
+  // machine codes, never messages, stack traces, URLs or arbitrary provider text.
+  const transport:Record<string,string>={UND_ERR_CONNECT_TIMEOUT:'CONNECT_TIMEOUT',ENOTFOUND:'DNS',EAI_AGAIN:'DNS',ECONNRESET:'RESET',EPIPE:'RESET',UND_ERR_SOCKET:'RESET',ECONNREFUSED:'REFUSED',UND_ERR_HEADERS_TIMEOUT:'HEADERS_TIMEOUT',CERT_HAS_EXPIRED:'TLS',DEPTH_ZERO_SELF_SIGNED_CERT:'TLS',UNABLE_TO_VERIFY_LEAF_SIGNATURE:'TLS',ERR_TLS_CERT_ALTNAME_INVALID:'TLS'};
+  const queue:unknown[]=[error];for(let i=0;i<queue.length&&i<12;i++){
+    const e=queue[i];if(!e||typeof e!=='object')continue;const v=e as {code?:unknown;cause?:unknown;errors?:unknown};
+    if(typeof v.code==='string'&&Object.hasOwn(transport,v.code))return new AulaError('AULA_NETWORK_'+transport[v.code],502);
+    if(v.cause)queue.push(v.cause);if(Array.isArray(v.errors))queue.push(...v.errors.slice(0,5));
+  }
   return new AulaError('AULA_TEMPORARY_ERROR',502);
 }
 export function uuid(value:unknown):string{

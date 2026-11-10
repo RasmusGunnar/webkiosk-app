@@ -3,7 +3,7 @@
 import {load} from 'cheerio';
 import {AulaHttpClient} from './vendor/http.ts';
 import {DEFAULT_OAUTH_CONFIG,oauthUrls,parseTokenResponse,type AulaTokens} from './vendor/aula-oauth.ts';
-import {AulaError} from './security.ts';
+import {AulaError,safeError} from './security.ts';
 export type RecordData=Record<string,any>; // Untrusted provider boundary; normalize before storage/AI.
 export type Child={profileId?:string;institutionCode?:string;groupIds?:string[];id:string;userId:string;name:string;school:string;className:string;groups:string[];key:string;personId:string|null};
 export type Source={source_key:string;source_kind:'calendar'|'message'|'meebook'|'post'|'notification';title:string;text:string;updated_at:string;person_ids:string[];date:string|null;time:string|null;end_date:string|null;end_time:string|null;location:string;explicit_scope:boolean;source_timestamp_known?:boolean;person_scopes?:{person_id:string;class_name:string}[];calendar_exception?:boolean};
@@ -57,9 +57,11 @@ export class ReadProvider {
   const relations=[...(ctx.institutions??[]),...(ctx.institutionProfile?.relations??[]),...(ctx.institutionProfiles??[]).flatMap((p:RecordData)=>p.relations??[])];
   for(const code of new Set([...relations.map((r:RecordData)=>r.institutionCode),...children.map(c=>c.institutionCode)].filter(Boolean).map(String)))q.append('institutionFilter[]',code);
   for(let retry=0;retry<2;retry++){
-   const token=await this.read('aulaToken.getAulaToken',{widgetId:'0004'});
+   this.report('meebook.token.start',{});
+   let token:unknown;try{token=await this.read('aulaToken.getAulaToken',{widgetId:'0004'});}catch(e){this.report('meebook.token.failed',{},safeError(e).code);throw e;}
    if(typeof token!=='string')throw new AulaError('AULA_WIDGET_UNAVAILABLE',502);
-   const r=await this.http.request(`https://app.meebook.com/aulaapi/relatedweekplan/all?${q}`,{method:'GET',headers:{authorization:`Bearer ${token}`,sessionuuid:String(ctx.userId??''),'x-version':'1.0',origin:'https://www.aula.dk',referer:'https://www.aula.dk/',accept:'application/json'}});
+   this.report('meebook.token.ok',{});this.report('meebook.fetch.start',{});
+   let r;try{r=await this.http.request(`https://app.meebook.com/aulaapi/relatedweekplan/all?${q}`,{method:'GET',headers:{authorization:`Bearer ${token}`,sessionuuid:String(ctx.userId??''),'x-version':'1.0',origin:'https://www.aula.dk',referer:'https://www.aula.dk/',accept:'application/json'}});}catch(e){this.report('meebook.fetch.failed',{},safeError(e).code);throw e;}
    this.report('meebook.response',{http:r.status});
    if(([401,403].includes(r.status)||/JWT[- ]Token expired|token has expired|unauthorized/i.test(r.body))&&retry===0)continue;
    if(r.status!==200)throw new AulaError(r.status===400?'AULA_MEEBOOK_BAD_REQUEST':'AULA_WIDGET_UNAVAILABLE',502);

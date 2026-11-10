@@ -56,12 +56,19 @@ export class ReadProvider {
   for(const c of children)q.append('childFilter[]',c.userId);
   const relations=[...(ctx.institutions??[]),...(ctx.institutionProfile?.relations??[]),...(ctx.institutionProfiles??[]).flatMap((p:RecordData)=>p.relations??[])];
   for(const code of new Set([...relations.map((r:RecordData)=>r.institutionCode),...children.map(c=>c.institutionCode)].filter(Boolean).map(String)))q.append('institutionFilter[]',code);
+  let connectionRetryUsed=false;
   for(let retry=0;retry<2;retry++){
    this.report('meebook.token.start',{});
    let token:unknown;try{token=await this.read('aulaToken.getAulaToken',{widgetId:'0004'});}catch(e){this.report('meebook.token.failed',{},safeError(e).code);throw e;}
    if(typeof token!=='string')throw new AulaError('AULA_WIDGET_UNAVAILABLE',502);
    this.report('meebook.token.ok',{});this.report('meebook.fetch.start',{});
-   let r;try{r=await this.http.request(`https://app.meebook.com/aulaapi/relatedweekplan/all?${q}`,{method:'GET',headers:{authorization:`Bearer ${token}`,sessionuuid:String(ctx.userId??''),'x-version':'1.0',origin:'https://www.aula.dk',referer:'https://www.aula.dk/',accept:'application/json'}});}catch(e){this.report('meebook.fetch.failed',{},safeError(e).code);throw e;}
+   let r;for(;;)try{r=await this.http.request(`https://app.meebook.com/aulaapi/relatedweekplan/all?${q}`,{method:'GET',headers:{authorization:`Bearer ${token}`,sessionuuid:String(ctx.userId??''),'x-version':'1.0',origin:'https://www.aula.dk',referer:'https://www.aula.dk/',accept:'application/json'}});break;}catch(e){
+    const code=safeError(e).code;
+    // One retry across this week's token attempts, only before a connection was
+    // established. Keep the same read, token, destination and scan deadline.
+    if(code==='AULA_NETWORK_CONNECT_TIMEOUT'&&!connectionRetryUsed&&!this.http.signal.aborted){connectionRetryUsed=true;this.report('meebook.fetch.retry',{attempt:2},code);continue;}
+    this.report('meebook.fetch.failed',{},code);throw e;
+   }
    this.report('meebook.response',{http:r.status});
    if(([401,403].includes(r.status)||/JWT[- ]Token expired|token has expired|unauthorized/i.test(r.body))&&retry===0)continue;
    if(r.status!==200)throw new AulaError(r.status===400?'AULA_MEEBOOK_BAD_REQUEST':'AULA_WIDGET_UNAVAILABLE',502);

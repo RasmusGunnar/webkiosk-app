@@ -1331,11 +1331,11 @@
   "aula.last_scan": "Sidst hentet",
   "aula.never": "Ikke hentet endnu",
   "aula.children": "Tilknyttede børn",
-  "aula.manual_scan": "Du bestemmer, hvornår vi henter nyt. Scanning ændrer ikke din kalender.",
+  "aula.manual_scan": "Aula hentes automatisk ca. kl. 06.00 og 15.30. Du kan også scanne nu. Nye forslag kræver altid din godkendelse.",
   "aula.map_children": "Knyt børn til familien",
   "aula.review": "Fund fra Aula",
   "aula.disconnect": "Afbryd forbindelse",
-  "aula.scan": "Hent nyt fra Aula",
+  "aula.scan": "Scan nu",
   "aula.scanning": "Henter nyt fra Aula",
   "aula.scanning_description": "Vi læser aftaler og nye beskeder og finder det, der er relevant for børnene.",
   "aula.sensitive_skipped": "Følsomme beskeder læses ikke. Der kan gå et par minutter.",
@@ -1413,5 +1413,8 @@
   "aula.diagnose": "Undersøg ugeplan",
   "aula.diagnostic_done": "Den strukturelle kontrol er afsluttet. Ingen fund eller aktiviteter er ændret.",
   "aula.partial_scan": "Hentningen er delvist gennemført. De viste fund er gemt, men nogle kilder eller analyser kunne ikke gennemføres. Du kan gennemgå fundene nu og hente igen senere.",
-  "aula.updated_since_review": "Opdateret siden sidst – gennemgå ændringen."
+  "aula.updated_since_review": "Opdateret siden sidst – gennemgå ændringen.",
+  "aula.automatic_scan": "Automatisk scanning",
+  "aula.automatic_active": "Aktiv",
+  "aula.automatic_inactive": "Ikke aktiv"
 }

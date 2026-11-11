@@ -14,6 +14,7 @@ test('A partial scan persists validated findings and rotation, reports partial, 
  assert.equal(res.statusCode,200);assert.equal(response.status,'PARTIAL_SUCCESS');assert.equal(response.sources.meebook,'FAIL');assert.equal(response.counts.ai_failed_batches,1);assert.equal(response.findings,1);
  const saved=calls.find(c=>c.a==='scan_finish').p;assert.equal(saved.findings[0].evidence,undefined);assert.equal(saved.findings[0].status,undefined);assert.equal(saved.findings[0].proposed_action,'CREATE_ACTIVITY');assert.ok(calls.some(c=>c.a==='scan_save_session'));assert.ok(!calls.some(c=>c.a==='scan_fail'||c.a==='accept'));
  assert.ok(logs.some(l=>l.stage==='aula.scan.analysis.partial'));assert.ok(!JSON.stringify(logs).includes(source.text));
+ assert.equal(saved.checkpoints.length,1);assert.equal(saved.checkpoints[0].source_key,sources[12].source_key);
 });
 test('DB integrity failure after analysis cannot be presented as partial success',async()=>{
  const calls=[],h=makeHandlers({log:()=>{},authorize:async()=>ids.adult,rpc:async(a)=>{calls.push(a);if(a==='scan_finish')throw new AulaError('AULA_STORAGE_ERROR',502);return a==='scan_claim'?{lease:ids.flow,encrypted_session:seal(ids.household,{refresh_token:'synthetic'}),mappings:[]}:{}},refresh:async()=>({access_token:'synthetic',refresh_token:'rotated'}),collect:async()=>({sources:[],children:[],counts:{},api_version:25}),items:async()=>[]});

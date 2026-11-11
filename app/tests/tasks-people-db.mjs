@@ -20,7 +20,7 @@ create function storage.foldername(text) returns text[] language sql immutable a
 grant usage on schema auth,storage to authenticated,service_role;grant all on all tables in schema auth,storage to service_role;
 grant all on all tables in schema public to authenticated,service_role;
 alter default privileges in schema public grant all on tables to authenticated,service_role;`)
-const files=readdirSync(migrations).filter(n=>n.endsWith('.sql')).sort()
+const files=readdirSync(migrations).filter(n=>n.endsWith('.sql')&&!n.includes('aula_automatic_scans')).sort()
 const taskMigration=files.find(n=>n.endsWith('_tasks_people_status.sql'))
 assert.ok(taskMigration,'Task status migration must exist')
 const migrationSql=file=>readFileSync(new URL(file,migrations),'utf8').replaceAll('\r\n','\n')

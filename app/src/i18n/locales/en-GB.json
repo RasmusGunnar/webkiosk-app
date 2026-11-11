@@ -1331,11 +1331,11 @@
   "aula.last_scan": "Last checked",
   "aula.never": "Not checked yet",
   "aula.children": "Linked children",
-  "aula.manual_scan": "You decide when to check for updates. Scanning does not change your calendar.",
+  "aula.manual_scan": "Aula is checked automatically at around 06:00 and 15:30 Copenhagen time. You can also scan now. New suggestions always need your approval.",
   "aula.map_children": "Match children to your family",
   "aula.review": "Aula findings",
   "aula.disconnect": "Disconnect",
-  "aula.scan": "Check Aula for updates",
+  "aula.scan": "Scan now",
   "aula.scanning": "Checking Aula",
   "aula.scanning_description": "Reading events and new messages to find what is relevant to your children.",
   "aula.sensitive_skipped": "Sensitive messages are not read. This may take a few minutes.",
@@ -1413,5 +1413,8 @@
   "aula.diagnose": "Inspect week plan",
   "aula.diagnostic_done": "Structural check complete. No findings or activities have changed.",
   "aula.partial_scan": "Fetch partially completed. The findings shown have been saved, but some sources or analyses could not be completed. You can review these findings now and fetch again later.",
-  "aula.updated_since_review": "Updated since your review – check the change."
+  "aula.updated_since_review": "Updated since your review – check the change.",
+  "aula.automatic_scan": "Automatic scanning",
+  "aula.automatic_active": "Active",
+  "aula.automatic_inactive": "Inactive"
 }

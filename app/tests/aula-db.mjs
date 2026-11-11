@@ -22,7 +22,7 @@ create function storage.foldername(text) returns text[] language sql immutable a
 grant usage on schema auth,storage to authenticated,service_role;grant all on all tables in schema auth,storage to service_role;
 grant all on all tables in schema public to authenticated,service_role;
 alter default privileges in schema public grant all on tables to authenticated,service_role;`)
-for(const name of readdirSync(migrations).filter(n=>n.endsWith('.sql')&&!n.includes('calendar_import_cron')).sort()){
+for(const name of readdirSync(migrations).filter(n=>n.endsWith('.sql')&&!n.includes('calendar_import_cron')&&!n.includes('aula_automatic_scans')).sort()){
  try{await db.exec(readFileSync(new URL(name,migrations),'utf8').replaceAll('\r\n','\n'))}catch(e){console.error('Migration failed',name,e.message);await db.close();process.exit(1)}
 }
 const query=(sql,p=[])=>db.query(sql,p),ids=Object.fromEntries(['adult','child','outsider','wall','hid','other','person','strangerPerson'].map(k=>[k,randomUUID()]));

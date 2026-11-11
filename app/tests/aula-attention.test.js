@@ -38,3 +38,19 @@ test('A failed status read releases initial presentation loading and preserves e
  ui.onRender=()=>renders++;ui.request=async(endpoint,payload,signal)=>{assert.equal(endpoint,'status');assert.ok(signal instanceof AbortSignal);throw new DOMException('timeout','TimeoutError')}
  await ui.refresh();assert.equal(ui.loaded,true);assert.equal(ui.pending,false);assert.equal(ui.state,original);assert.equal(renders,1)
 })
+test('Background refresh updates attention only on changed data, keeps review drafts and stays quiet on failure',async()=>{
+ const ui=inbox([]);ui.context='fixture';ui.generation=1;ui.syncContext=()=>{};ui.pending=false;ui.loaded=true;ui.reviewDrafts=new Map([['draft',{title:'Edited title'}]])
+ let renders=0;ui.onRender=()=>renders++;ui.request=async()=>structuredClone(ui.state)
+ await ui.refresh(true);assert.equal(renders,0)
+ ui.request=async()=>({...ui.state,findings:[finding()],automatic:{active:true}})
+ await ui.refresh(true);assert.equal(renders,1);assert.match(ui.todayCard(),/1 ting at gennemgå/);assert.match(ui.automaticMarkup(),/Aktiv/);assert.equal(ui.reviewDrafts.get('draft').title,'Edited title')
+ ui.request=async()=>{throw Error('transient')};await ui.refresh(true);assert.equal(renders,1);assert.ok(!ui.errorCode);assert.equal(ui.state.findings.length,1)
+ ui.state.connection.status='reauth_required';assert.match(ui.automaticMarkup(),/Ikke aktiv/)
+})
+test('Scan nu requests the existing incremental endpoint while explicit discovery retains full mode',async()=>{
+ for(const discover of [false,true]){
+  const ui=inbox([]);ui.generation=1;ui.state.mappings=[];ui.shell=()=>{};ui.refresh=async()=>{};ui.review=()=>{};ui.mapping=()=>{}
+  let payload;ui.request=async(endpoint,p)=>{assert.equal(endpoint,'scan');payload=p}
+  await ui.scan(discover);assert.deepEqual(payload,{full:discover});assert.equal(ui.scanning,false)
+ }
+})

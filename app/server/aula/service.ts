@@ -14,12 +14,14 @@ import {diagnoseMeeBook,referenceExample} from './meebook-diagnostics.ts';
 import {retainStructuredTasks} from './meebook.ts';
 import {scanSources} from './scan-status.ts';
 import {atomicFindings,bindLegacy,bindLegacyCandidate,reviewIdentity,type HistoryRow} from './review-memory.ts';
+import {incrementalSources,sourceCheckpoint} from './incremental.ts';
 export type Request=IncomingMessage & {body?:unknown};
 type RPC=(action:string,hid:string,uid:string|null,payload?:RecordData)=>Promise<any>;
 type Dependencies={log?:(event:RecordData)=>void;rpc?:RPC;authorize?:(req:Request,hid:string)=>Promise<string>;login?:(opts:AulaLoginOptions)=>Promise<AulaTokens>;refresh?:typeof refreshSession;collect?:typeof collect;analyze?:(sources:AnalysisSource[],signal:AbortSignal)=>Promise<AnalysisFinding[]>;items?:(hid:string)=>Promise<RecordData[]>;timeoutMs?:number};
 export function adminClient(){const url=process.env.SUPABASE_URL,k=process.env.SUPABASE_SERVICE_ROLE_KEY;if(!url||!k)throw new AulaError('AULA_NOT_CONFIGURED',503);return createClient(url,k,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});}
 export const rpc:RPC=async(action,hid,uid,payload={})=>{
- const {data,error}=action==='diagnostic_release'?await adminClient().rpc('aula_diagnostic_release',{p_household_id:hid,p_lease:payload.lease}):await adminClient().rpc('aula_server',{p_action:action,p_household_id:hid,p_user_id:uid,p_payload:payload});
+ const scheduled:Record<string,string>={schedule_setup:'setup',schedule_status:'status',schedule_claim:'claim',source_checkpoints:'checkpoints',scan_finish:'finish',scan_fail:'fail'};
+ const {data,error}=scheduled[action]?await adminClient().rpc('aula_scheduler',{p_action:scheduled[action],p_household_id:hid||null,p_user_id:uid,p_payload:payload}):action==='diagnostic_release'?await adminClient().rpc('aula_diagnostic_release',{p_household_id:hid,p_lease:payload.lease}):await adminClient().rpc('aula_server',{p_action:action,p_household_id:hid,p_user_id:uid,p_payload:payload});
  if(error){const code=error.message.match(/\bAULA_(FORBIDDEN|BUSY|RATE_LIMIT|FLOW_EXPIRED|INVALID_IDENTITY|REAUTH_REQUIRED|LEASE_EXPIRED|UNMAPPED_PERSON)\b/)?.[0]??'AULA_STORAGE_ERROR';throw new AulaError(code,code==='AULA_FORBIDDEN'?403:code==='AULA_RATE_LIMIT'?429:409);}return data;
 };
 export async function authorize(req:Request,hid:string):Promise<string>{
@@ -48,7 +50,14 @@ export function makeHandlers(deps:Dependencies={}){
  const simple=(fn:(p:RecordData,hid:string,uid:string)=>Promise<unknown>)=>async(req:Request,res:ServerResponse)=>{
   try{if(req.method!=='POST')throw new AulaError('METHOD_NOT_ALLOWED',405);const p=await body(req),hid=uuid(p.household_id),uid=await auth(req,hid);json(res,200,await fn(p,hid,uid));}catch(e){const error=safeError(e);json(res,error.status,{code:error.code});}
  };
- const status=simple((_p,h,u)=>call('status',h,u));
+ const status=simple(async(_p,h,u)=>({...await call('status',h,u),automatic:await call('schedule_status',h,u)}));
+ const setup=async(req:Request,res:ServerResponse)=>{
+  try{if(req.method!=='POST')throw new AulaError('METHOD_NOT_ALLOWED',405);
+   const token=req.headers['x-aula-setup'];if(typeof token!=='string'||!/^[a-f0-9]{64}$/.test(token))throw new AulaError('AULA_UNAUTHORIZED',401);
+   const secret=process.env.AULA_SYNC_SECRET;if(!secret||secret.length<32)throw new AulaError('AULA_NOT_CONFIGURED',503);
+   await call('schedule_setup','',null,{token,secret});json(res,200,{configured:true});
+  }catch{json(res,401,{code:'AULA_UNAUTHORIZED'});}
+ };
  const identity=simple((p,h,u)=>call('identity_choose',h,u,{flow_id:uuid(p.flow_id),index:Number.isInteger(p.index)?p.index:0}));
  const disconnect=simple((_p,h,u)=>call('disconnect',h,u));
  const connect=async(req:Request,res:ServerResponse)=>{
@@ -91,7 +100,10 @@ export function makeHandlers(deps:Dependencies={}){
    if(serverSecret!==undefined){if(!equalSecret(typeof serverSecret==='string'?serverSecret:undefined,process.env.AULA_SYNC_SECRET))throw new AulaError('AULA_UNAUTHORIZED',401);}else uid=await auth(req,hid);
    key('AULA_SESSION_ENCRYPTION_KEY');key('AULA_HMAC_KEY');
    traceHash=sourceKey(hid,'scan-log','household').slice(0,16);log('start');stage='refresh';
-   const claim=await call('scan_claim',hid,uid);lease=claim.lease;
+   if(p.scheduled_slot!==undefined&&(uid!==null||typeof p.scheduled_slot!=='string'||!/^\d{4}-\d{2}-\d{2}:(morning|afternoon)$/.test(p.scheduled_slot)||p.full===true||p.diagnostic!==undefined))throw new AulaError('AULA_UNAUTHORIZED',401);
+   const claim=await call(p.scheduled_slot?'schedule_claim':'scan_claim',hid,uid,p.scheduled_slot?{slot:p.scheduled_slot}:{});
+   if(claim.skip){log('scheduled.skipped',{skipped:1});json(res,200,{status:'SKIPPED',reason:claim.skip});return;}
+   lease=claim.lease;
    const saved=unseal<{refresh_token:string}>(hid,claim.encrypted_session as Envelope);if(typeof saved.refresh_token!=='string')throw new AulaError('AULA_SESSION_INVALID',409);
    const http=new AulaHttpClient({signal}),tokens=await(deps.refresh??refreshSession)(http,saved.refresh_token);
    // Persist rotation BEFORE any subsequent reads or AI call can fail.
@@ -107,7 +119,11 @@ export function makeHandlers(deps:Dependencies={}){
    stage='memory';const history:HistoryRow[]=(await call('scan_memory',hid,uid,{lease})).findings??[];
    const bindings=bindLegacy(hid,data.sources,history);
    log('memory.loaded',{history:history.length,bound:bindings.length});stage='analysis';
-   const analysisStart=Date.now(),analyzed=await analyzeBatches(data.sources,deps.analyze??analyze,signal,log,Math.max(1,215_000-(Date.now()-started)));
+   const savedSources=(await call('source_checkpoints',hid,uid,{lease})).sources??[];
+   const incremental=p.full!==true&&Boolean(claim.last_success_at),selected=incrementalSources(hid,data.sources,savedSources,incremental);
+   data.counts.incremental=incremental?1:0;data.counts.sources_unchanged=selected.unchanged;data.counts.ai_candidates=selected.candidates.length;
+   log('incremental.ok',{incremental:data.counts.incremental,unchanged:selected.unchanged,candidates:selected.candidates.length});
+   const analysisStart=Date.now(),analyzed=await analyzeBatches(selected.candidates,deps.analyze??analyze,signal,log,Math.max(1,215_000-(Date.now()-started)));
    data.counts.ai_batches=analyzed.length;data.counts.ai_failed_batches=analyzed.filter(r=>r.error).length;data.counts.analysis_duration_ms=Date.now()-analysisStart;
    data.counts.ai_failed_sources=analyzed.filter(r=>r.error).reduce((n,r)=>n+r.batch.length,0);
    if(data.counts.ai_failed_batches)data.counts.partial=1;
@@ -134,12 +150,13 @@ export function makeHandlers(deps:Dependencies={}){
      const category='action_'+f.actionability;data.counts[category]=(data.counts[category]??0)+1;
     }
    }
-   stage='finish';const finishStart=Date.now();data.counts.scan_duration_ms=Date.now()-started;const finished=await call('scan_finish',hid,uid,{lease,children:data.children,findings,bindings,counts:data.counts,api_version:data.api_version});lease='';
+   const checkpoints=analyzed.filter(batch=>!batch.error).flatMap(batch=>batch.batch.map(s=>sourceCheckpoint(hid,s)));
+   stage='finish';const finishStart=Date.now();data.counts.scan_duration_ms=Date.now()-started;const finished=await call('scan_finish',hid,uid,{lease,children:data.children,findings,bindings,checkpoints,counts:data.counts,api_version:data.api_version});lease='';
    Object.assign(data.counts,finished?.memory_counts??{});log('memory.ok',finished?.memory_counts??{});
    // Reference-example storage counts are verified inside the same transaction.
    log('finish.ok',{...data.counts,children:data.children.length,generated_findings:findings.length,findings:data.counts.findings_stored??findings.length,stage_ms:Date.now()-finishStart});json(res,200,{status:data.counts.partial?'PARTIAL_SUCCESS':'SUCCESS',sources:scanSources(data.counts),counts:data.counts,findings:data.counts.findings_stored??findings.length});
   }catch(e){const error=safeError(e);log(stage+'.failed',{},error.code);if(lease)await call('scan_fail',hid,uid,{lease,error:error.code}).catch(()=>{});json(res,error.status,{code:error.code});}
   finally{res.off('close',cancel);abort.abort();}
  };
- return {connect,identity,status,disconnect,scan};
+ return {connect,identity,status,disconnect,scan,setup};
 }

@@ -93,6 +93,20 @@ try{
   failStatus=true;await load(390,0);await expect(page.locator('.mobile-agenda-day')).toBeVisible();await expect(page.locator('.surface-loading')).toHaveCount(0);await expect(page.locator('.aula-today')).toHaveCount(0);failStatus=false
   checks.push('Failed status read leaves the family day usable without a stale attention card')
  }
+ if(!before){
+  await page.clock.install();await load(390,0)
+  state={...makeState(3),automatic:{active:true}};state.connection.last_success_at=new Date().toISOString()
+  await page.clock.fastForward(61000)
+  await expect(page.locator('.aula-today [data-aula="review"]')).toHaveText('Gennemgå 3')
+  await expect(page.locator('.aula-today li')).toHaveCount(2)
+  await routeTo(page,'family');await page.locator('.aula-family-card [data-aula="open"]').click()
+  await expect(page.locator('.aula-details')).toContainText('Automatisk scanning');await expect(page.locator('.aula-details')).toContainText('Aktiv')
+  await expect(page.locator('[data-aula="scan"]')).toHaveText('Scan nu')
+  await snap('automatic-settings','Automatisk scanning aktiv og manuel Scan nu')
+  await page.locator('[data-aula="close"]').click();await routeTo(page,'today')
+  state=makeState(0);await page.clock.fastForward(61000);await expect(page.locator('.aula-today')).toHaveCount(0)
+  checks.push('Background polling updates compact actionable card, preserves zero state and displays automatic status/Scan nu')
+ }
  expect(writes).toBe(0);expect(errors).toEqual([]);expect(unknown).toEqual([])
  console.log(JSON.stringify({phase,checks,measurements,statusReads,writes,errors},null,2))
 }finally{

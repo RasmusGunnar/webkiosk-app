@@ -7,10 +7,12 @@ import {AulaHttpClient} from './vendor/http.ts';
 import {type AulaTokens} from './vendor/aula-oauth.ts';
 import {ReadProvider,collect,refreshSession,type RecordData} from './provider.ts';
 import {AulaError,equalSecret,key,safeError,seal,sourceKey,unseal,uuid,type Envelope} from './security.ts';
-import {validateAnalysis,type AnalysisSource,type AnalysisFinding,findExisting,normalizedTitle,samePlanningEvent} from './analysis.ts';
+import {validateAnalysis,ANALYSIS_ERRORS,type AnalysisSource,type AnalysisFinding,findExisting,normalizedTitle,samePlanningEvent} from './analysis.ts';
 import {hostedSseProbe,openEventStream} from './hosted-probe.ts';
 import {analyzeBatches} from './scan-analysis.ts';
 import {diagnoseMeeBook} from './meebook-diagnostics.ts';
+import {retainStructuredTasks} from './meebook.ts';
+import {scanSources} from './scan-status.ts';
 export type Request=IncomingMessage & {body?:unknown};
 type RPC=(action:string,hid:string,uid:string|null,payload?:RecordData)=>Promise<any>;
 type Dependencies={log?:(event:RecordData)=>void;rpc?:RPC;authorize?:(req:Request,hid:string)=>Promise<string>;login?:(opts:AulaLoginOptions)=>Promise<AulaTokens>;refresh?:typeof refreshSession;collect?:typeof collect;analyze?:(sources:AnalysisSource[],signal:AbortSignal)=>Promise<AnalysisFinding[]>;items?:(hid:string)=>Promise<RecordData[]>;timeoutMs?:number};
@@ -37,7 +39,7 @@ function json(res:ServerResponse,status:number,value:unknown){res.statusCode=sta
 async function analyze(sources:AnalysisSource[],signal:AbortSignal){
  const secret=process.env.AULA_ANALYZE_SECRET,url=process.env.SUPABASE_URL;if(!secret||secret.length<32||!url)throw new AulaError('AULA_NOT_CONFIGURED',503);
  const response=await fetch(`${url}/functions/v1/aula-analyze`,{method:'POST',headers:{'x-aula-analyze-secret':secret,'content-type':'application/json'},body:JSON.stringify({sources}),signal:AbortSignal.any([signal,AbortSignal.timeout(50_000)])});
- if(!response.ok)throw new AulaError('AULA_ANALYSIS_UNAVAILABLE',502);return validateAnalysis(await response.json(),sources);
+ if(!response.ok){const data=await response.json().catch(()=>({}));throw new AulaError(ANALYSIS_ERRORS.has(data?.code)?data.code:[401,403].includes(response.status)?'AULA_ANALYSIS_AUTH_FAILED':'AULA_ANALYSIS_UNAVAILABLE',502);}return validateAnalysis(await response.json(),sources);
 }
 async function items(hid:string){const {data,error}=await adminClient().from('calendar_items').select('id,title,date,time,type,person_ids,location,data').eq('household_id',hid).gte('date',new Date(Date.now()-7*864e5).toISOString().slice(0,10)).limit(1000);if(error)throw new AulaError('AULA_STORAGE_ERROR',502);return data??[];}
 export function makeHandlers(deps:Dependencies={}){
@@ -98,12 +100,18 @@ export function makeHandlers(deps:Dependencies={}){
     stage='diagnostic';await diagnoseMeeBook(new ReadProvider(tokens.access_token,http,log),log);
     await call('diagnostic_release',hid,uid,{lease});lease='';log('diagnostic.finish.ok');json(res,200,{diagnostic:'complete'});return;
    }
-   const data=await(deps.collect??collect)(new ReadProvider(tokens.access_token,http,log),hid,claim.mappings,claim.last_success_at,p.full===true,new Date(),log);
+   const data=await(deps.collect??collect)(new ReadProvider(tokens.access_token,http,log),hid,claim.mappings,claim.last_success_at,p.full===true,new Date(),log,signal);
    stage='analysis';
    const existing=await(deps.items??items)(hid);const findings:RecordData[]=[];const seen=new Set<string>(),events:AnalysisFinding[]=[];
-   const analyzed=await analyzeBatches(data.sources,deps.analyze??analyze,signal);log('analysis.ok',{sources:data.sources.length,batches:analyzed.length});
-   for(const {batch,results} of analyzed){signal.throwIfAborted();
-    for(const f of results){
+   const analysisStart=Date.now(),analyzed=await analyzeBatches(data.sources,deps.analyze??analyze,signal,log,Math.max(1,215_000-(Date.now()-started)));
+   data.counts.ai_batches=analyzed.length;data.counts.ai_failed_batches=analyzed.filter(r=>r.error).length;data.counts.analysis_duration_ms=Date.now()-analysisStart;
+   data.counts.ai_failed_sources=analyzed.filter(r=>r.error).reduce((n,r)=>n+r.batch.length,0);
+   if(data.counts.ai_failed_batches)data.counts.partial=1;
+   log(data.counts.ai_failed_batches?'analysis.partial':'analysis.ok',{sources:data.sources.length,batches:analyzed.length,failed_batches:data.counts.ai_failed_batches,stage_ms:data.counts.analysis_duration_ms});
+   for(const {batch,results,error} of analyzed){signal.throwIfAborted();
+    const retained=retainStructuredTasks(batch,results);data.counts.structured_tasks_retained=(data.counts.structured_tasks_retained??0)+retained.retained;
+    data.counts.general_meebook_filtered=(data.counts.general_meebook_filtered??0)+(error?0:batch.filter(s=>s.source_kind==='meebook'&&s.structured_type==='comment'&&!retained.results.some(f=>f.source_key===s.source_key&&f.actionability!=='GENERAL_INFO'&&f.proposed_action!=='NO_ACTION'&&f.confidence!=='LOW')).length);
+    for(const f of retained.results){
      if(f.proposed_action==='NO_ACTION'||f.actionability==='GENERAL_INFO'||f.confidence==='LOW')continue;
      // Old messages remain inputs for future plans, not for recreating expired reminders.
      const today=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Copenhagen'}).format(new Date());
@@ -115,10 +123,12 @@ export function makeHandlers(deps:Dependencies={}){
      if(seen.has(identity))continue;seen.add(identity);
      const {evidence:_discardedEvidence,...safeFinding}=f;
      findings.push({...safeFinding,person_ids:people,person_id:people.length===1?people[0]:null,source_kind:s.source_kind,source_key:sourceKey(hid,'finding',`${s.source_key}:${people.join(',')}:${f.type}:${normalizedTitle(f.title)}`),source_updated_at:s.updated_at,proposed_action:match?'MATCH_EXISTING':f.proposed_action});
+     if(s.source_kind==='meebook'&&s.structured_type==='task')data.counts.structured_task_findings=(data.counts.structured_task_findings??0)+1;
+     if(f.type==='HOMEWORK'||f.type==='DEADLINE')data.counts.homework_findings=(data.counts.homework_findings??0)+1;
      const category='action_'+f.actionability;data.counts[category]=(data.counts[category]??0)+1;
     }
    }
-   stage='finish';await call('scan_finish',hid,uid,{lease,children:data.children,findings,counts:data.counts,api_version:data.api_version});lease='';log('finish.ok',{...data.counts,children:data.children.length,findings:findings.length});json(res,200,{counts:data.counts,findings:findings.length});
+   stage='finish';const finishStart=Date.now();data.counts.scan_duration_ms=Date.now()-started;await call('scan_finish',hid,uid,{lease,children:data.children,findings,counts:data.counts,api_version:data.api_version});lease='';log('finish.ok',{...data.counts,children:data.children.length,findings:findings.length,stage_ms:Date.now()-finishStart});json(res,200,{status:data.counts.partial?'PARTIAL_SUCCESS':'SUCCESS',sources:scanSources(data.counts),counts:data.counts,findings:findings.length});
   }catch(e){const error=safeError(e);log(stage+'.failed',{},error.code);if(lease)await call('scan_fail',hid,uid,{lease,error:error.code}).catch(()=>{});json(res,error.status,{code:error.code});}
   finally{res.off('close',cancel);abort.abort();}
  };

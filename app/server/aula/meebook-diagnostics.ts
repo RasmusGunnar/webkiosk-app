@@ -1,4 +1,4 @@
-import {type ReadProvider,type RecordData,type Child,textOnly} from './provider.ts';
+import {type ReadProvider,type RecordData,type Child,textOnly,localDateTime} from './provider.ts';
 import {isoWeek} from './collection.ts';
 
 // Fixed structural counters only. Never return source bodies, IDs, URLs or names.
@@ -15,11 +15,11 @@ export function inspectMeeBook(rows:RecordData[],week:string){
    if(typeof task.content==='string'&&task.content.trim())inc('type_'+type+'_has_content');
    if(day.date!=null){inc('type_'+type+'_has_day_date');
     if(typeof day.date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(day.date)&&Number.isFinite(Date.parse(day.date))){inc('day_date_iso');if(isoWeek(new Date(day.date+'T12:00:00Z'))===week)inc('day_date_in_requested_week');}
-    else if(typeof day.date==='string'&&Number.isFinite(Date.parse(day.date)))inc('day_date_timestamp');else inc('day_date_other');
+    else if(typeof day.date==='string'&&Number.isFinite(Date.parse(day.date))){inc('day_date_timestamp');if(isoWeek(new Date(day.date))===week)inc('day_date_in_requested_week');if(/(Z|[+-]\d{2}:?\d{2})$/i.test(day.date))inc('day_date_has_zone');else inc('day_date_floating');if(/T00:00:00/.test(day.date))inc('day_date_midnight');}else inc('day_date_other');
    }
    // Only test the example explicitly supplied by the user; never output its contents.
-   const title=textOnly(task.title).replace(/\u00ad/g,'').toLocaleLowerCase('da');
-   if(title.includes('aflevering af ugetræningsside')){inc('reference_matches');inc('reference_type_'+type);if(task.deadline||task.dueDate||task.due_date)inc('reference_has_deadline');if(day.date)inc('reference_has_day_date');}
+   const title=textOnly((task.title??'')+' '+(task.content??'')).replace(/\u00ad/g,'').replace(/\s+/g,' ').toLocaleLowerCase('da');
+   if(title.includes('aflevering af ugetræningsside')){inc('reference_matches');inc('reference_type_'+type);if(task.deadline||task.dueDate||task.due_date)inc('reference_has_deadline');if(day.date){inc('reference_has_day_date');const date=localDateTime(day.date).date,today=localDateTime(new Date().toISOString()).date;if(date&&today)inc(date<today?'reference_day_past':'reference_day_current_or_future');}}
   }
  }
  return counts;

@@ -55,8 +55,18 @@ test('Full 45-day history ignores old success cursor, includes overview scopes, 
  const {api,calls}=fixture();const data=await collect(api,ids.household,[{provider_child_key:sourceKey(ids.household,'child','101'),person_id:ids.ida}],'2026-11-09T10:00:00Z',false,now);
  assert.equal(data.counts.messages,1);assert.equal(data.sources.find(s=>s.source_kind==='message').updated_at,'2026-10-10T10:00:00.000Z');assert.equal(data.counts.posts,1);assert.equal(data.counts.meebook,1);assert.equal(data.counts.routine_calendar_filtered,1);assert.equal(data.counts.calendar,0);assert.equal(data.children[0].class_name,'3.C');assert.equal(data.counts.sensitive_skipped,1);assert.ok(!calls.some(c=>c.p?.threadId==='sensitive'));
 });
-test('MeeBook failure blocks a falsely successful scan instead of silently dropping weekplans',async()=>{
- const {api}=fixture();api.meebook=async()=>{throw new AulaError('AULA_WIDGET_UNAVAILABLE',502)};await assert.rejects(()=>collect(api,ids.household,[],null,true,now),/AULA_WIDGET_UNAVAILABLE/);
+test('Optional MeeBook failure preserves messages/posts and explicitly marks the scan partial',async()=>{
+ const {api}=fixture();api.meebook=async()=>{throw new AulaError('AULA_WIDGET_UNAVAILABLE',502)};
+ const data=await collect(api,ids.household,[{provider_child_key:sourceKey(ids.household,'child','101'),person_id:ids.ida}],null,true,now);
+ assert.equal(data.counts.source_meebook_status,3);assert.equal(data.counts.partial,1);assert.equal(data.counts.messages,1);assert.equal(data.counts.posts,1);assert.equal(data.counts.source_messages_status,1);
+});
+test('Authentication/authorization failures remain fatal even in an optional widget',async()=>{
+ for(const code of ['AULA_FORBIDDEN','AULA_ACCESS_EXPIRED','AULA_REAUTH_REQUIRED','AULA_SESSION_INVALID']){const {api}=fixture();api.meebook=async()=>{throw new AulaError(code,403)};await assert.rejects(()=>collect(api,ids.household,[],null,true,now),new RegExp(code));}
+});
+test('One failing MeeBook week preserves the valid week, scoped child and structured metadata',async()=>{
+ const {api}=fixture();let calls=0;api.meebook=async()=>{if(calls++)throw new AulaError('AULA_WIDGET_UNAVAILABLE',502);return [{unilogin:'opaque',weekPlan:[{date:'2026-11-12T00:00:00+01:00',tasks:[{type:'task',pill:'Matematik',content:'Aflever opgaven',id:'synthetic'}]}]}];};
+ const data=await collect(api,ids.household,[{provider_child_key:sourceKey(ids.household,'child','101'),person_id:ids.ida}],null,true,now);
+ assert.equal(data.counts.source_meebook_status,2);assert.equal(data.sources[0].structured_type,'task');assert.equal(data.sources[0].subject,'Matematik');assert.equal(data.sources[0].date_context,'week_plan_day');assert.equal(data.sources[0].date,'2026-11-12');assert.equal(data.sources[0].time,null);assert.deepEqual(data.sources[0].person_ids,[ids.ida]);assert.equal(data.counts.meebook_plans,1);
 });
 test('Shared source keeps only the class in the actual evidence sentence; all-year notices include the child',()=>{
  const s={...source,title:'Årgang',text:'3.A skal huske maling. 3.B skal medbringe pap. 3.C skal have tuscher med.',person_scopes:[{person_id:ids.ida,class_name:'3.C'}]};

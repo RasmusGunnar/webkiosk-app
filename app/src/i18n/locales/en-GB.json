@@ -1406,5 +1406,6 @@
   "aula.field_date": "Date",
   "aula.field_time": "Time (optional)",
   "aula.diagnose": "Inspect week plan",
-  "aula.diagnostic_done": "Structural check complete. No findings or activities have changed."
+  "aula.diagnostic_done": "Structural check complete. No findings or activities have changed.",
+  "aula.partial_scan": "Fetch partially completed. The findings shown have been saved, but some sources or analyses could not be completed. You can review these findings now and fetch again later."
 }

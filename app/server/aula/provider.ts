@@ -4,9 +4,10 @@ import {load} from 'cheerio';
 import {AulaHttpClient} from './vendor/http.ts';
 import {DEFAULT_OAUTH_CONFIG,oauthUrls,parseTokenResponse,type AulaTokens} from './vendor/aula-oauth.ts';
 import {AulaError,safeError} from './security.ts';
+import {schoolClasses} from './school-scope.ts';
 export type RecordData=Record<string,any>; // Untrusted provider boundary; normalize before storage/AI.
 export type Child={profileId?:string;institutionCode?:string;groupIds?:string[];id:string;userId:string;name:string;school:string;className:string;groups:string[];key:string;personId:string|null};
-export type Source={source_key:string;source_kind:'calendar'|'message'|'meebook'|'post'|'notification';title:string;text:string;updated_at:string;person_ids:string[];date:string|null;time:string|null;end_date:string|null;end_time:string|null;location:string;explicit_scope:boolean;source_timestamp_known?:boolean;person_scopes?:{person_id:string;class_name:string}[];calendar_exception?:boolean};
+export type Source={source_key:string;source_kind:'calendar'|'message'|'meebook'|'post'|'notification';title:string;text:string;updated_at:string;person_ids:string[];date:string|null;time:string|null;end_date:string|null;end_time:string|null;location:string;explicit_scope:boolean;source_timestamp_known?:boolean;person_scopes?:{person_id:string;class_name:string}[];calendar_exception?:boolean;structured_type?:'task'|'comment'|'unknown';subject?:string;date_context?:'week_plan_day'|'deadline'|'unknown'};
 const READS=new Map([
  ['profiles.getProfilesByLogin','GET'],['profiles.getProfileContext','GET'],['groups.getGroupsByContext','GET'],
  ['calendar.getEventsByProfileIdsAndResourceIds','POST'],['messaging.getThreads','GET'],['messaging.getMessagesForThread','GET'],
@@ -34,6 +35,7 @@ export class ReadProvider {
  version=24; private token:string; private http:AulaHttpClient;
  constructor(token:string,http:AulaHttpClient,privateReport:(stage:string,counts:Record<string,number>,code?:string)=>void=()=>{}){this.token=token;this.http=http;this.report=privateReport;}
  private report:(stage:string,counts:Record<string,number>,code?:string)=>void;
+ withSignal(signal:AbortSignal){const child=new ReadProvider(this.token,this.http.withSignal(signal),this.report);child.version=this.version;return child;}
  async read(method:string,query:Record<string,string|string[]>={},body?:RecordData):Promise<any>{
   const verb=READS.get(method);if(!verb||(body!==undefined)!==(verb==='POST'))throw new AulaError('AULA_WRITE_BLOCKED',403);
   if(Object.keys(query).some(k=>['method','access_token'].includes(k)))throw new AulaError('AULA_WRITE_BLOCKED',403);
@@ -45,7 +47,8 @@ export class ReadProvider {
    if(r.status===410)continue;
    let envelope:RecordData={};try{envelope=JSON.parse(r.body);}catch{throw new AulaError('AULA_PROVIDER_FORMAT',502);}
    if(method==='messaging.getMessagesForThread'&&(r.status===403||envelope.status?.code===403))throw new AulaError('AULA_SENSITIVE_SKIPPED');
-   if(r.status===401)throw new AulaError('AULA_ACCESS_EXPIRED',409);
+   if(r.status===401||envelope.status?.code===401)throw new AulaError('AULA_ACCESS_EXPIRED',409);
+   if(r.status===403||envelope.status?.code===403)throw new AulaError('AULA_FORBIDDEN',403);
    if(r.status!==200||envelope.status?.code){if(method==='aulaToken.getAulaToken'){this.report('widget_token.failed',{http:r.status,envelope_code:Number(envelope.status?.code)||0},'AULA_WIDGET_TOKEN_UNAVAILABLE');throw new AulaError('AULA_WIDGET_TOKEN_UNAVAILABLE',502);}throw new AulaError('AULA_TEMPORARY_ERROR',502);}
    return envelope.data;
   }throw new AulaError('AULA_API_VERSION',502);
@@ -71,6 +74,7 @@ export class ReadProvider {
    }
    this.report('meebook.response',{http:r.status});
    if(([401,403].includes(r.status)||/JWT[- ]Token expired|token has expired|unauthorized/i.test(r.body))&&retry===0)continue;
+   if([401,403].includes(r.status))throw new AulaError('AULA_FORBIDDEN',403);
    if(r.status!==200)throw new AulaError(r.status===400?'AULA_MEEBOOK_BAD_REQUEST':'AULA_WIDGET_UNAVAILABLE',502);
    let rows:unknown;try{rows=JSON.parse(r.body);}catch{throw new AulaError('AULA_MEEBOOK_FORMAT',502);}if(!Array.isArray(rows))throw new AulaError('AULA_MEEBOOK_FORMAT',502);return rows;
   }throw new AulaError('AULA_WIDGET_UNAVAILABLE',502);
@@ -84,7 +88,7 @@ export function relevantChildren(row:RecordData,children:Child[],text:string):{c
  if(ids.length)return {children:children.filter(c=>ids.includes(c.id)),explicit:true};
  if(groups.length){const matches=children.filter(c=>c.groupIds?.some(id=>groupIds.includes(id))||c.groups.some(g=>groups.includes(g.toLocaleLowerCase('da')))||groups.includes(c.className.toLocaleLowerCase('da')));return {children:matches,explicit:true};}
  if(row.institutionCode)children=children.filter(c=>!c.institutionCode||c.institutionCode===String(row.institutionCode));
- const classes=[...text.matchAll(/\b(\d{1,2})\s*\.?\s*([a-z])(?:\b|(?=[,;]))/gi)].map(m=>`${m[1]}${m[2]}`.toLowerCase());
+ const classes=schoolClasses(text);
  if(classes.length)return {children:children.filter(c=>classes.includes(c.className.replace(/[.\s]/g,'').toLowerCase())),explicit:false};
  const grade=text.match(/\b(\d{1,2})\.?\s*årgang/i)?.[1];if(grade)return {children:children.filter(c=>c.className.match(/^\d+/)?.[0]===grade),explicit:false};
  const named=children.filter(c=>new RegExp(`\\b${c.name.split(' ')[0].replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\b`,'iu').test(text));

@@ -25,6 +25,7 @@ test('Analysis diagnostics identify static validation stage without content or i
  const handler=makeHandler({secret,apiKey:'synthetic',log:e=>logs.push(e),fetcher:async()=>Response.json({output_text:JSON.stringify({findings:[{...analyzed,person_ids:[],evidence_index:1,summary:'PRIVATE CONTENT NEVER LOG'}]})})});
  const response=await handler(new Request('https://example.invalid',{method:'POST',headers:{'x-aula-analyze-secret':secret},body:JSON.stringify({sources:[source]})}));
  assert.equal(response.status,422);assert.equal(logs[0].code,'AULA_ANALYSIS_INVALID_PEOPLE');assert.equal(logs[0].stage,'aula.scan.analysis.failed');
+ assert.equal((await response.json()).code,'AULA_ANALYSIS_INVALID_PEOPLE');
  assert.deepEqual(Object.keys(logs[0]).sort(),['code','counts','duration_ms','stage']);
  const output=JSON.stringify(logs);for(const privateValue of [source.source_key,...source.person_ids,source.text,'PRIVATE CONTENT NEVER LOG',secret])assert.ok(!output.includes(privateValue));
 });

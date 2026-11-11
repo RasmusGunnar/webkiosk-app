@@ -34,6 +34,9 @@ export class AulaHttpClient {
     if(reader) try { for(;;){const {done,value}=await reader.read(); if(done)break; size+=value.length; if(size>8*1024*1024)throw new Error('RESPONSE_TOO_LARGE'); chunks.push(value);} } finally {await reader.cancel().catch(()=>{});}
     return {status:response.status,headers:response.headers,body:Buffer.concat(chunks).toString('utf8'),url};
   }
+  withSignal(signal:AbortSignal):AulaHttpClient{
+    return new AulaHttpClient({jar:this.jar,defaultHeaders:this.headers,fetcher:this.fetcher,signal:AbortSignal.any([this.signal,signal])});
+  }
   async followRedirects(url:string,options:FollowOptions={}):Promise<FollowResult>{
     const history:FollowResult['history']=[]; let current=url, next:RequestOptions=options;
     for(let n=0;n<Math.min(options.maxHops??10,20);n++){

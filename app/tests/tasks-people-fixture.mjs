@@ -4,7 +4,7 @@
 import {chromium,expect} from '@playwright/test'
 import {createServer,build,preview} from 'vite'
 import {execFileSync} from 'node:child_process'
-import {randomUUID} from 'node:crypto'
+import {randomUUID as cryptoUUID} from 'node:crypto'
 import {mkdirSync,writeFileSync} from 'node:fs'
 import {fileURLToPath} from 'node:url'
 import sharp from 'sharp'
@@ -12,6 +12,8 @@ import {db,query,actor,today,ids} from './tasks-people-db.mjs'
 import {routeTo,openCreate} from './browser-actions.mjs'
 const out=new URL('../../supabase/.temp/tasks-people-ux/',import.meta.url),root='http://127.0.0.1:5196',api='http://127.0.0.1:47329'
 mkdirSync(out,{recursive:true})
+let visualId=0
+const randomUUID=()=>process.env.VISUAL_PHASE?'10000000-0000-4000-8000-'+String(++visualId).padStart(12,'0'):cryptoUUID()
 const hid=randomUUID(),rasmus=randomUUID(),carl=randomUUID(),ordinary=randomUUID(),approval=randomUUID(),activity=randomUUID(),overflow=randomUUID()
 const personIds=[rasmus,carl,...Array.from({length:3},()=>randomUUID())]
 await actor(null)

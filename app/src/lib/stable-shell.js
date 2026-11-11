@@ -2,12 +2,12 @@ import {ready} from './performance.js'
 // A small reconciliation boundary for the shared header, people and navigation.
 // Content editors keep their existing render/focus lifecycle.
 const markup=new WeakMap()
-const key=node=>{if(node.nodeType!==1)return null;for(const attr of ['id','data-person-filter','data-product-route','data-reward-task','data-task-person','data-task-detail','data-calendar-item','data-day'])if(node.hasAttribute(attr))return attr+':'+node.getAttribute(attr);return null}
+const key=node=>{if(node.nodeType!==1)return null;for(const attr of ['id','data-person-filter','data-product-route'])if(node.hasAttribute(attr))return attr+':'+node.getAttribute(attr);return null}
 function patch(current,next){
  if(current.nodeType!==next.nodeType||current.nodeName!==next.nodeName){current.replaceWith(next);return next}
  if(current.nodeType!==1){if(current.nodeValue!==next.nodeValue)current.nodeValue=next.nodeValue;return current}
  if(current.tagName==='IMG'&&current.getAttribute('src')!==next.getAttribute('src'))current.removeAttribute('data-avatar-loaded')
- for(const attr of [...current.attributes])if(!next.hasAttribute(attr.name)&&attr.name!=='data-avatar-loaded'&&!(current.tagName==='DETAILS'&&attr.name==='open'))current.removeAttribute(attr.name)
+ for(const attr of [...current.attributes])if(!next.hasAttribute(attr.name)&&attr.name!=='data-avatar-loaded')current.removeAttribute(attr.name)
  for(const attr of next.attributes)if(current.getAttribute(attr.name)!==attr.value)current.setAttribute(attr.name,attr.value)
  let cursor=current.firstChild
  for(const child of [...next.childNodes]){
@@ -31,11 +31,11 @@ export function renderDashboardShell(root,html,scope){
  const template=document.createElement('template');template.innerHTML=html
  const next=template.content.querySelector('.app-shell'),previous=root.querySelector('.app-shell')
  if(previous?.dataset.shellScope===scope){
-  for(const selector of ['.dashboard-header','.product-nav','#person-chipbar','#calendar-view']){
+  for(const selector of ['.dashboard-header','.product-nav','#person-chipbar']){
    const current=previous.querySelector(selector),target=next.querySelector(selector)
    if(!current||!target)continue
    const scrollLeft=current.scrollLeft
-   updateSharedElement(current,target.outerHTML);target.replaceWith(current);scroll.push([current,scrollLeft])
+   const kept=updateSharedElement(current,target.outerHTML);target.replaceWith(kept);scroll.push([kept,scrollLeft])
   }
  }
  next.dataset.shellScope=scope
@@ -48,7 +48,8 @@ export function updateContent(target,html){
  if(markup.get(target)===html)return false
  markup.set(target,html)
  if(target.innerHTML===html)return false
- const next=target.cloneNode(false);next.innerHTML=html
- patch(target,next)
- return false // No full surface replacement; individual changed nodes are reconciled.
+ // Complex content owns browser state (form values, details, animations).
+ // Replace that boundary from local state; cached avatar URLs still avoid I/O.
+ target.innerHTML=html
+ return true
 }

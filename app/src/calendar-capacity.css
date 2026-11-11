@@ -1,0 +1,7 @@
+/* Preserve existing typography, padding and groups. Only constrain the week
+   to its measured physical space; mobile and full-day dialogs scroll normally. */
+.week-grid[data-adaptive] { grid-template-rows: minmax(0,1fr); }
+body[data-mode] .week-grid[data-adaptive] .day-card { min-height:0; }
+.week-grid[data-adaptive] .day-card-header,
+.week-grid[data-adaptive] .day-sections > * { flex-shrink:0; }
+.week-grid[data-adaptive] [hidden] { display:none !important; }

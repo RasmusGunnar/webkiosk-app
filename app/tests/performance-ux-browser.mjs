@@ -5,7 +5,7 @@ import {randomBytes} from 'node:crypto'
 import sharp from 'sharp'
 import {routeTo} from './browser-actions.mjs'
 import {db,query,actor,ids,hid,carl,personIds,ordinary,root,api,server,browser,context,page,errors,unknown} from './tasks-people-fixture.mjs'
-const before=process.argv.includes('--baseline'),built=process.env.PERFORMANCE_BUILD==='1',phase=before?(built?'before-built':'before'):built?'after-built':'after',out=new URL('../../supabase/.temp/performance-ux/',import.meta.url)
+const before=process.argv.includes('--baseline'),built=process.env.PERFORMANCE_BUILD==='1',phase=before?(built?'before-built':'before'):built?'after-built':'after',out=new URL('../../supabase/.temp/'+(process.env.PERFORMANCE_REVIEW||'performance-ux')+'/',import.meta.url)
 mkdirSync(out,{recursive:true})
 const image=await sharp(randomBytes(2048*1536*3),{raw:{width:2048,height:1536,channels:3}}).jpeg({quality:70}).toBuffer()
 await actor(null)
@@ -20,7 +20,7 @@ await context.route(api+'/storage/v1/object/sign/household-avatars',async route=
 await context.route(api+'/storage/v1/object/sign/household-avatars/**',async route=>{images++;if(slow)await wait(1200);await route.fulfill({contentType:'image/jpeg',headers:{'cache-control':'public,max-age=3600','access-control-allow-origin':'*'},body:image})})
 await context.route(api+'/rest/**',async route=>{
  const name=new URL(route.request().url()).pathname.split('/').pop()
- if(name==='reward_action'){acks++;await wait(1800)}
+ if(name==='reward_action'){acks++;await wait(2000)}
  else if(slow&&['household_people','calendar_items','get_reward_state','subscription_access'].includes(name))await wait({household_people:800,calendar_items:400,get_reward_state:2800,subscription_access:900}[name])
  await route.fallback()
 })
@@ -41,12 +41,17 @@ try{
   await expect.poll(()=>page.evaluate(()=>window.perfUX.images.length)).toBe(1)
   const cold={...await metrics(),signs,images}
   slow=false;let n=images,signStart=signs
-  for(const route of ['calendar','tasks',...(width===1920?[]:['family']),'calendar'])await routeTo(page,route)
+  for(const route of ['calendar','tasks',...(width===1920?[]:['family']),'calendar']){
+   await routeTo(page,route)
+   if(route==='tasks'&&width!==1920){await page.locator('[data-task-range=rewards]').click();await expect(page.locator('[data-task-range=rewards]')).toHaveAttribute('aria-pressed','true');await page.locator('[data-task-range=today]').click()}
+  }
   await page.waitForLoadState('networkidle');const navigation={additionalImages:images-n,additionalSigns:signs-signStart}
+  // Only global shell identity is required. Complex pages/modals may replace
+  // nodes from local state while reusing the persistent avatar cache.
   // Modal is the previously network-blocked path: feedback includes a usable undo action.
   await page.locator('[data-task-detail="'+ordinary+'"]').first().click()
   const row=page.locator('.reward-modal [data-task-person="'+carl+'"]'),first=await row.locator('[data-reward-action=complete]').count()?'complete':'undo',opposite=first==='complete'?'undo':'complete'
-  await page.evaluate(()=>{window.keptTaskNodes=[...document.querySelectorAll(".dashboard-header,#person-chipbar,.product-nav,#calendar-view,.reward-modal img")]});
+  await page.evaluate(()=>{window.keptTaskNodes=[...document.querySelectorAll(".dashboard-header,#person-chipbar,.product-nav")]});
   n=images;const ackBefore=acks
   await row.locator('[data-reward-action='+first+']').evaluate((b,opposite)=>{
    const start=performance.now(),container=b.closest('[data-task-person]');window.taskVisualMs=null
@@ -56,9 +61,16 @@ try{
   await expect.poll(()=>page.evaluate(()=>window.taskVisualMs)).not.toBeNull()
   if(!before)await expect.poll(()=>page.evaluate(()=>performance.getEntriesByName('fk:task_optimistic_feedback').length)).toBeGreaterThan(0)
   const actionReady=await metrics(),retainedTaskNodes=await page.evaluate(()=>window.keptTaskNodes.every(n=>n.isConnected))
+  const modalLayout=()=>page.evaluate(()=>{const modal=document.querySelector('.reward-modal'),box=modal.getBoundingClientRect(),rows=[...modal.querySelectorAll('[data-task-person]')];return {width:box.width,inside:rows.every(row=>{const r=row.getBoundingClientRect();return r.left>=box.left&&r.right<=box.right}),classes:rows.map(row=>[...row.classList].filter(c=>!c.startsWith('reward-motion-')).join(' '))}})
+  const pendingLayout=await modalLayout();expect(pendingLayout.inside).toBe(true)
+  await page.screenshot({path:new URL('task-pending-'+width+'.png',out).pathname.replace(/^\/([A-Z]:)/,'$1')})
   if(!before)await row.locator('[data-reward-action='+opposite+']').evaluate(b=>b.click()) // rapid reverse while ACK is delayed
+  if(!before)await expect(row.locator('[data-reward-action='+first+']')).toBeEnabled()
+  const undoLayout=await modalLayout();expect(undoLayout).toEqual(pendingLayout)
   if(!before)await expect.poll(()=>page.evaluate(()=>performance.getEntriesByName('fk:task_final_sync').length),{timeout:10000}).toBe(2)
   await page.waitForLoadState('networkidle')
+  expect(await modalLayout()).toEqual(pendingLayout)
+  await page.screenshot({path:new URL('task-after-ack-'+width+'.png',out).pathname.replace(/^\/([A-Z]:)/,'$1')})
   const action={ready:actionReady,settled:await metrics(),additionalImages:images-n,requests:acks-ackBefore,retainedTaskNodes,visualMs:await page.evaluate(()=>window.taskVisualMs)}
   await page.keyboard.press('Escape');await routeTo(page,'today')
   // A warm production shell includes its installed static cache. Clearing Cache
@@ -85,6 +97,6 @@ try{
  }
  expect(errors).toEqual([]);expect(unknown).toEqual([])
 }catch(error){console.log(JSON.stringify({signs,images,errors,unknown,metrics:await metrics(),photos:await page.locator("#person-chipbar img").evaluateAll(imgs=>imgs.map(i=>({blob:i.src.startsWith("blob:"),complete:i.complete,width:i.naturalWidth})))}));await page.screenshot({path:new URL(phase+'-failure.png',out).pathname.replace(/^\/([A-Z]:)/,'$1')});throw error}finally{
- writeFileSync(new URL(phase+'.json',out),JSON.stringify({phase,imageBytes:image.length,delays:{people:800,sign:600,image:1200,rewards:2800,subscription:900,taskAck:1800},results,errors,unknown},null,2))
+ writeFileSync(new URL(phase+'.json',out),JSON.stringify({phase,imageBytes:image.length,delays:{people:800,sign:600,image:1200,rewards:2800,subscription:900,taskAck:2000},results,errors,unknown},null,2))
  await browser.close();await server.close();await db.close()
 }

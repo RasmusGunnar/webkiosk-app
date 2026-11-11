@@ -1,6 +1,8 @@
 import {AvatarImageCache} from './lib/avatar-cache.js'
 import {timing,measure,ready,painted} from './lib/performance.js'
 import {renderDashboardShell,updateSharedElement,updateContent} from './lib/stable-shell.js'
+import {fitCalendarWeek} from './lib/calendar-capacity.js'
+import './calendar-capacity.css'
 import {ownStarPerson} from './lib/stars-model.js'
 import {personAvatar,personPicker,personStack,installAvatarFallback} from './lib/person-avatars.js'
 import {typeLabel,personRoleLabel} from './i18n/domain-labels.js'
@@ -36,7 +38,7 @@ import {eventInterval,eventOverlapsDate,eventDisplayRange,eventDayLabel,eventDay
 import {RecipeService,imageBlob} from './lib/recipe-service.js'
 import {RecipeUI} from './lib/recipe-ui.js'
 import {recipeId,fromPreview} from './lib/recipe-model.js'
-import {compactDay,compactTask,compactMeals,filterRoutes} from './lib/calendar-layout.js'
+import {compactTask,compactMeals,filterRoutes} from './lib/calendar-layout.js'
 import {ImportedEditor,visibleImports,canEditImported} from './lib/imported-editor.js'
 import { supabase, configurationError, cacheNamespace, clearLocalAuth } from './lib/supabase'
 import { findPerson, selectPeople, itemPeople, itemPersonIds, itemMatchesPerson, feedPerson } from './lib/people.js'
@@ -610,6 +612,7 @@ ${renderProductHeader()}
       ${renderSettingsModal()}
     </main>
   `, sessionEpoch+':'+householdId+':'+mode()+':'+locale())
+  fitCalendarWeek(app)
 
   document.querySelector('#logout-button')?.addEventListener('click', handleLogout)
   if (savedCalendarModal) document.querySelector('#calendar-modal')?.replaceWith(savedCalendarModal)
@@ -733,6 +736,7 @@ function updateCalendarSurface() {
   const inlineFocus=captureInlineFocus()
   for(const feed of calendarFeeds){const status=document.querySelector('[data-feed-status="'+feed.id+'"]');if(status)status.textContent=feedSyncStatus(feed)}
   const surfaceReplaced=updateContent(document.querySelector('#calendar-view'),renderCalendarView())
+  fitCalendarWeek(app)
   const chips = document.querySelector('#person-chipbar')
   if (chips) {
     const scrollLeft=chips.scrollLeft,focused=chips.contains(document.activeElement)?document.activeElement.dataset.personFilter:null
@@ -845,10 +849,7 @@ function renderDayCard(date,full=false) {
   const dateIso = toDateIso(date)
   const dayItems = getRenderableCalendarItems().filter(item=>eventOverlapsDate(item,dateIso)&&doesItemMatchPersonFilter(item)).sort((a,b)=>Number(eventInterval(b).multiDay)-Number(eventInterval(a).multiDay))
   const compact=!full&&productRoute==='calendar'&&calendarViewMode==='week'
-  const budget=mode()==='kiosk'?(innerHeight<700?2:4):6
-  const visible=compact?compactDay(dayItems,budget):{items:dayItems,hidden:0}
-  const meals=productRoute==='today'?[]:mealsOn(calendarItems,dateIso),shownMeals=compact?meals.slice(0,1):meals
-  const hidden=visible.hidden+meals.length-shownMeals.length
+  const meals=productRoute==='today'?[]:mealsOn(calendarItems,dateIso)
   const sections = [
     { key: 'Aktivitet', label: (t("app.activities")) },
     { key: 'Fritidsinteresse', label: mode()==='kiosk'?(t("app.leisure")):(t("app.hobbies")) },
@@ -857,7 +858,7 @@ function renderDayCard(date,full=false) {
   if (calendarViewMode === 'day' && mode() === 'mobile') sections.sort((a,b) => Number(b.key==='Opgave')-Number(a.key==='Opgave'))
 
   return `
-    <article class="day-card ${[0,6].includes(date.getDay())?'is-weekend':''} ${dateIso === toDateIso(new Date()) ? 'is-today' : ''}" data-day="${dateIso}">
+    <article class="day-card ${[0,6].includes(date.getDay())?'is-weekend':''} ${dateIso === toDateIso(new Date()) ? 'is-today' : ''}" data-day="${dateIso}" ${compact?'data-adaptive-day':''}>
       <header class="day-card-header">
         <strong>${escapeHtml(formatWeekday(date))}</strong>
         <span>${escapeHtml(formatShortDate(date))}${dateIso === toDateIso(new Date()) ? (" "+t("app.today")) : ''}</span>
@@ -866,7 +867,7 @@ function renderDayCard(date,full=false) {
 
       <div class="day-sections">
         ${sections.map((section) => {
-          const items = visible.items.filter((item) => getCalendarSection(getCalendarValue(item, 'type')) === section.key)
+          const items = dayItems.filter((item) => getCalendarSection(getCalendarValue(item, 'type')) === section.key)
           if (!items.length) return ''
 
           return `
@@ -878,8 +879,8 @@ function renderDayCard(date,full=false) {
             </section>
           `
         }).join('') || (meals.length?'':'<p class="empty-section empty-day">'+(t("app.no_plans"))+'</p>')}
-        ${hidden?'<button class="day-overflow" data-day-detail="'+dateIso+'">+ '+hidden+(" "+t("app.more")+"</button>"):''}
-        ${compactMeals(shownMeals)}
+        ${compact?'<button hidden class="day-overflow" data-day-detail="'+dateIso+'" data-more-label="'+escapeHtml(t("app.more"))+'"></button>':''}
+        ${compactMeals(meals)}
       </div>
     </article>
   `

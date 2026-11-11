@@ -12,7 +12,7 @@ export function personAvatar(person,{status,className=''}={}){
  const label=name+(status?' – '+personStatusLabel(status):'')
  const groupClass=all?'is-group':''
  const badge={completed:'✓',approved:'✓',pending:'◷',excused:'–'}[status]
- return `<span class="person-bubble ${groupClass} ${e(className)}" ${status?`data-person-status="${e(status)}"`:''} style="--person-color:${color}" role="img" aria-label="${e(label)}" title="${e(label)}"><span class="person-bubble-face" aria-hidden="true"><span>${all?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="9" cy="8" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3M16 5a3 3 0 0 1 0 6m1 3a5 5 0 0 1 4 5v2"/></svg>':e(initials(name))}</span>${photo?`<img src="${e(photo)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:''}</span>${badge?`<span class="person-status-badge" aria-hidden="true">${badge}</span>`:''}</span>`
+ return `<span class="person-bubble ${groupClass} ${e(className)}" ${status?`data-person-status="${e(status)}"`:''} style="--person-color:${color}" role="img" aria-label="${e(label)}" title="${e(label)}"><span class="person-bubble-face" aria-hidden="true"><span>${all?'<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="9" cy="8" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3M16 5a3 3 0 0 1 0 6m1 3a5 5 0 0 1 4 5v2"/></svg>':e(initials(name))}</span>${photo?`<img src="${e(photo)}" alt="" width="64" height="64" loading="lazy" decoding="async" referrerpolicy="no-referrer">`:''}</span>${badge?`<span class="person-status-badge" aria-hidden="true">${badge}</span>`:''}</span>`
 }
 export function personPicker(options,selected){
  return options.map(p=>`<label class="calendar-person-pill person-choice ${selected.includes(p.id)?'selected':''}"><input type="checkbox" name="people" value="${e(p.id)}" data-calendar-person-choice aria-label="${e(p.id==='Alle'?t('common.all'):p.name)}" ${selected.includes(p.id)?'checked':''}>${personAvatar(p)}<span class="person-choice-name">${e(p.id==='Alle'?t('common.all'):p.name)}</span><span class="person-choice-check" aria-hidden="true">✓</span></label>`).join('')
@@ -25,5 +25,6 @@ export function personStack(item,people,state,{limit=3}={}){
 }
 // Failed/expired pictures reveal the initials already underneath, without inline scripts.
 export function installAvatarFallback(root){
+ root.addEventListener('load',event=>{if(event.target.matches?.('.person-bubble-face img'))event.target.dataset.avatarLoaded='true'},true)
  root.addEventListener('error',event=>{if(event.target.matches?.('.person-bubble-face img'))event.target.remove()},true)
 }

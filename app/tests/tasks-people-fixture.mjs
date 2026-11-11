@@ -65,4 +65,7 @@ export {db,query,actor,today,ids,out,root,api,hid,rasmus,carl,personIds,ordinary
 export async function switchUser(uid){
  const access_token=Buffer.from(JSON.stringify({alg:'HS256',typ:'JWT'})).toString('base64url')+'.'+Buffer.from(JSON.stringify({sub:uid,role:'authenticated',exp:Math.floor(Date.now()/1000)+3600})).toString('base64url')+'.fixture';
  await page.evaluate(session=>localStorage.setItem('sb-127-auth-token',JSON.stringify(session)),{...session,access_token,user:{...user,id:uid}});await page.reload();await expect(page.locator('.product-nav')).toBeVisible();
+ // The shell may use cached data immediately. Scenarios start after the new
+ // identity's initial refresh, rather than racing that legitimate data update.
+ await page.waitForLoadState('networkidle');
 }

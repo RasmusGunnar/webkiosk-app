@@ -1,3 +1,4 @@
+import {renderDashboardShell,updateSharedElement,updateContent} from './lib/stable-shell.js'
 import {ownStarPerson} from './lib/stars-model.js'
 import {personAvatar,personPicker,personStack,installAvatarFallback} from './lib/person-avatars.js'
 import {typeLabel,personRoleLabel} from './i18n/domain-labels.js'
@@ -26,6 +27,7 @@ import {WallDeviceService,pairingValue} from './lib/wall-device.js'
 import './dialogs.css'
 import './person-avatars.css'
 import './stars.css'
+import './layout-stability.css'
 import {isAnnualType,birthdayPerson,annualEventValues} from './lib/annual-events.js'
 import {hiddenImportLabel} from './lib/imported-scopes.js'
 import {eventInterval,eventOverlapsDate,eventDisplayRange,eventDayLabel,eventDayState,eventDateRange,validateEventInterval,supportsInterval,daysBetween} from './lib/calendar-interval.js'
@@ -105,6 +107,7 @@ let activePersonFilter = 'Alle'
 let initialAuthError=parseAppLink(location.href,{base:publicUrl,localOrigin:location.origin})?.kind==='auth-error'?(t("app.this_link_has_expired_or_is_invalid_request_a_new_link")):''
 let message=initialAuthError
 let isCreatingHousehold = false
+let initialHouseholdLoad = false
 let isLoadingCalendar = false
 let isLoadingPeople = false
 let isLoadingCalendarFeeds = false
@@ -146,6 +149,7 @@ const isWall=()=>session?.user?.is_anonymous===true
 const wallService=new WallDeviceService({client:supabase,onSnapshot:snapshot=>{
  const first=activeHousehold?.id!==snapshot.household.id
  languagePrefs.wall(snapshot.device,snapshot.household);
+ initialHouseholdLoad=false
  activeHousehold=snapshot.household;householdRole='device';households=[activeHousehold]
  householdPeople=(snapshot.people||[]).map(p=>({...p,role:mapPersonRoleToUi(p.role)}));calendarItems=snapshot.items||[];calendarFeeds=[];libraryRecipes=[];liveFeedMetadata=[]
  rewardState={...emptyRewards(),...snapshot.rewards};calendarItemsHouseholdId=householdPeopleHouseholdId=calendarFeedsHouseholdId=activeHousehold.id
@@ -318,6 +322,7 @@ async function applySession(nextSession) {
   } catch (error) { message = userError(error); render() }
 }
 async function activateHousehold(household) {
+  initialHouseholdLoad=true
   rewardsUI.close(true);rewardState=emptyRewards();
   realtime.stop(); syncEngine?.stop(); rewardMotion.reset()
   syncPanelOpen = false; syncPanelRoot.innerHTML = ''
@@ -349,6 +354,7 @@ async function activateHousehold(household) {
     },
   })
   await syncEngine.init()
+  initialHouseholdLoad=!syncEngine.state.cached_at
   if(!navigator.onLine)rewardMotion.hydrate(syncEngine.state.snapshot.rewards)
   await rememberHouseholds()
   if(!session.offlineOnly)void devices?.attach(session.user.id,household.id)
@@ -363,7 +369,8 @@ async function refreshHousehold() {
   if(isWall()){await wallService.refresh();return}
   if (!session || !activeHousehold || !navigator.onLine) return
   const engine = syncEngine
-  await Promise.all([loadCalendarItems(), loadHouseholdPeople(), loadCalendarFeeds(), loadRewardsV2(), loadRecipes()])
+  try {await Promise.all([loadCalendarItems(), loadHouseholdPeople(), loadCalendarFeeds(), loadRewardsV2(), loadRecipes()])}
+  finally {if(engine===syncEngine){initialHouseholdLoad=false;scheduleCalendarSurface()}}
   if (engine !== syncEngine) return
   await engine?.replay()
   if (engine === syncEngine) {updateCalendarSurface();applyCalendarLink()}
@@ -396,6 +403,7 @@ function clearSessionState() {
   householdPeople = []; householdPeopleHouseholdId = null
   calendarFeeds = []; calendarFeedsHouseholdId = null
   activePersonFilter = 'Alle'
+  initialHouseholdLoad=false
   isLoadingCalendar = false; isLoadingPeople = false; isLoadingCalendarFeeds = false
   isCalendarModalOpen = false; editingCalendarItemId = null; isSettingsModalOpen = false
   isCreatingPerson = false; isCreatingCalendarItem = false; isCreatingHousehold = false
@@ -555,7 +563,7 @@ function renderDashboard(preserveDialogs = false) {
     loadCalendarFeeds({ renderAfter: true })
   }
 
-  app.innerHTML = `
+  renderDashboardShell(app, `
     <main class="app-shell">
       <header class="dashboard-header">
 ${renderProductHeader()}
@@ -565,7 +573,7 @@ ${renderProductHeader()}
       ${(mode()!=='kiosk'&&productRoute==='family') && households.length > 1 ? ("<label class=\"household-switch\">"+t("nav.family")+" <select id=\"household-switch\">") + households.map(h => '<option value="' + h.id + '" ' + (h.id === activeHousehold.id ? 'selected' : '') + '>' + escapeHtml(h.name) + '</option>').join('') + '</select></label>' : ''}
       ${renderProductNav()}
       ${renderInvitation()}
-      ${filterRoutes.includes(productRoute)?renderPersonChips():''}
+      ${renderPersonChips()}
 
       <section class="calendar-section">
         <div class="section-heading calendar-heading">
@@ -592,7 +600,7 @@ ${renderProductHeader()}
       ${renderCalendarModal()}
       ${renderSettingsModal()}
     </main>
-  `
+  `, sessionEpoch+':'+householdId+':'+mode()+':'+locale())
 
   document.querySelector('#logout-button')?.addEventListener('click', handleLogout)
   if (savedCalendarModal) document.querySelector('#calendar-modal')?.replaceWith(savedCalendarModal)
@@ -714,15 +722,15 @@ function updateCalendarSurface() {
   if (!session || !activeHousehold || !document.querySelector('#calendar-view')) return
   const inlineFocus=captureInlineFocus()
   for(const feed of calendarFeeds){const status=document.querySelector('[data-feed-status="'+feed.id+'"]');if(status)status.textContent=feedSyncStatus(feed)}
-  document.querySelector('#calendar-view').innerHTML = renderCalendarView()
+  updateContent(document.querySelector('#calendar-view'),renderCalendarView())
   const chips = document.querySelector('#person-chipbar')
   if (chips) {
     const scrollLeft=chips.scrollLeft,focused=chips.contains(document.activeElement)?document.activeElement.dataset.personFilter:null
-    chips.outerHTML=renderPersonChips()
+    updateSharedElement(chips,renderPersonChips())
     const next=document.querySelector('#person-chipbar');next.scrollLeft=scrollLeft
     if(focused)[...next.children].find(button=>button.dataset.personFilter===focused)?.focus({preventScroll:true})
   }
-  document.querySelector('#sync-status').innerHTML = renderSyncStatus()
+  updateContent(document.querySelector('#sync-status'),renderSyncStatus())
   document.querySelector('#message').textContent = message
   const notice=document.querySelector('.ux-notice');if(notice)notice.hidden=!message
   bindCalendarSurface();bindProductSurface();restoreInlineFocus(inlineFocus);rewardsUI.refresh();rewardMotion.present()
@@ -742,7 +750,7 @@ function bindCalendarSurface() {
   document.querySelectorAll('[data-completed-date]').forEach(details => details.ontoggle = () => {
     if(details.open)expandedTaskDays.add(details.dataset.completedDate);else expandedTaskDays.delete(details.dataset.completedDate)
   })
-  document.querySelector('#sync-details-button')?.addEventListener('click', () => {syncPanelOpen=true;renderSyncPanel()})
+  const syncButton=document.querySelector('#sync-details-button');if(syncButton)syncButton.onclick=()=>{syncPanelOpen=true;renderSyncPanel()}
 }
 function renderSyncStatus() {
   const queue=syncEngine?.state.queue||[], problems=queue.filter(row=>['conflict','error'].includes(row.status)).length
@@ -778,6 +786,7 @@ function renderDayItems(section,items,date) {
 }
 
 function renderCalendarView() {
+  if(initialHouseholdLoad)return '<div class="surface-loading" role="status" aria-busy="true"><span class="sr-only">'+t('app.loading_calendar')+'</span><div class="loading-heading" aria-hidden="true"></div>'+Array.from({length:3},()=>'<div class="loading-card" aria-hidden="true"><span class="loading-avatar"></span><span class="loading-lines"></span></div>').join('')+'</div>'
   if(productRoute==='today')return renderHome()
   if(productRoute==='tasks')return renderTaskView()
   if(productRoute==='recipes')return renderFoodTabs()+recipeUI.renderLibrary()
@@ -807,8 +816,10 @@ function renderCalendarView() {
 }
 
 function renderPersonChips() {
+  const hidden=filterRoutes.includes(productRoute)?'':' hidden=""'
+  if(initialHouseholdLoad&&!householdPeople.length)return '<div id="person-chipbar" class="person-chipbar"'+hidden+' aria-label="'+t('app.person_filter')+'" aria-busy="true">'+Array.from({length:5},()=>'<span class="person-chip person-chip-skeleton" aria-hidden="true"><span class="person-bubble"><span class="person-bubble-face"></span></span><span class="loading-name"></span></span>').join('')+'</div>'
   const people = [{id:'Alle',name:t('common.all'),color:'#0f172a'},...householdPeople.filter(isActiveHouseholdPerson)]
-  return ("<div id=\"person-chipbar\" class=\"person-chipbar\" aria-label=\""+t("app.person_filter")+"\">") + people.map(person => {
+  return ("<div id=\"person-chipbar\" class=\"person-chipbar\""+hidden+" aria-label=\""+t("app.person_filter")+"\">") + people.map(person => {
     return '<button class="person-chip '+(activePersonFilter===person.id?'active':'')+'" type="button" data-person-filter="'+escapeHtml(person.id)+'" style="border-color:'+escapeHtml(person.color||'#64748b')+'">'+
       renderPersonAvatar(person,'person-chip-avatar')+'<span>'+escapeHtml(person.name)+'</span>'+
       ''+'</button>'
@@ -2788,7 +2799,7 @@ function setProductRoute(route) {
 function renderProductNav() { return renderNavigation(productRoute,mode()==='kiosk',mode()==='mobile') }
 function renderProductHeader() {
  if(mode()==='mobile')return '<div class="mobile-brand"><span class="mobile-brand-icon" aria-label="Familiekalender">'+icon('calendar')+'</span><h1>'+escapeHtml(['meals','shopping','recipes'].includes(productRoute)?(t("nav.meals")):routeLabels[productRoute])+'</h1></div>'
- if(mode()==='kiosk')return '<div class="kiosk-heading"><div><p class="eyebrow">'+escapeHtml(getHouseholdName(activeHousehold))+("</p><time id=\"device-clock\"></time><p id=\"device-date\"></p></div><div class=\"kiosk-label\"><span class=\"ux-live-dot\"></span> "+t("app.one_home_all_our_plans")+"</div></div>")
+ if(mode()==='kiosk'){const now=new Date();return `<div class="kiosk-heading"><div><p class="eyebrow">${escapeHtml(getHouseholdName(activeHousehold))}</p><time id="device-clock">${escapeHtml(dateFormatter({hour:'2-digit',minute:'2-digit'}).format(now))}</time><p id="device-date">${escapeHtml(dateFormatter({weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(now))}</p></div><div class="kiosk-label"><span class="ux-live-dot"></span> ${t('app.one_home_all_our_plans')}</div></div>`}
  return '<div class="ux-brand"><span class="ux-brand-icon">'+icon('calendar')+'</span><div><p class="eyebrow">Familiekalender</p><h1>'+escapeHtml(getHouseholdName(activeHousehold))+'</h1></div></div>'
 }
 function renderHome() {

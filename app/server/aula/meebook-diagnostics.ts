@@ -14,6 +14,18 @@ export function inspectMeeBook(rows:RecordData[],week:string){
    for(const field of fields)if(task[field]!==undefined&&task[field]!==null)inc('type_'+type+'_field_'+field);
    if(typeof task.content==='string'&&task.content.trim())inc('type_'+type+'_has_content');
    if(day.date!=null){inc('type_'+type+'_has_day_date');
+    // Do not log the value: distinguish yearless display labels from real
+    // timestamps. JS Date.parse silently assigns year 2001 to many short labels.
+    if(typeof day.date==='string'){
+     const value=day.date.trim();
+     if(/^\d{1,2}\/\d{1,2}\/?$/.test(value))inc('date_shape_day_month_slash');
+     else if(/^\d{1,2}\.\d{1,2}\.?$/.test(value))inc('date_shape_day_month_dot');
+     else if(/^\d{1,2}-\d{1,2}$/.test(value))inc('date_shape_day_month_dash');
+     else if(/^\d{1,2}$/.test(value))inc('date_shape_single_number');
+     else if(/^\d{4}-\d{2}-\d{2}(?:[ T].*)?$/.test(value))inc('date_shape_iso');
+     else inc('date_shape_other');
+     if(Number.isFinite(Date.parse(value))&&new Date(value).getUTCFullYear()===2001)inc('date_parse_default_year');
+    }
     if(typeof day.date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(day.date)&&Number.isFinite(Date.parse(day.date))){inc('day_date_iso');if(isoWeek(new Date(day.date+'T12:00:00Z'))===week)inc('day_date_in_requested_week');}
     else if(typeof day.date==='string'&&Number.isFinite(Date.parse(day.date))){inc('day_date_timestamp');if(isoWeek(new Date(day.date))===week)inc('day_date_in_requested_week');if(/(Z|[+-]\d{2}:?\d{2})$/i.test(day.date))inc('day_date_has_zone');else inc('day_date_floating');if(/T00:00:00/.test(day.date))inc('day_date_midnight');}else inc('day_date_other');
    }

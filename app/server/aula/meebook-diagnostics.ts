@@ -1,0 +1,34 @@
+import {type ReadProvider,type RecordData,type Child,textOnly} from './provider.ts';
+import {isoWeek} from './collection.ts';
+
+// Fixed structural counters only. Never return source bodies, IDs, URLs or names.
+const fields=['type','pill','title','content','date','id','editUrl','deadline','dueDate','due_date','category','planning','status'];
+const enumType=(value:unknown)=>typeof value==='string'&&/^[a-z_]{1,24}$/.test(value)?value:typeof value==='number'&&Number.isInteger(value)&&value>=0&&value<100?'number_'+value:value==null?'missing':'other';
+export function inspectMeeBook(rows:RecordData[],week:string){
+ const counts:Record<string,number>={plans:rows.length,items:0,reference_matches:0};
+ const inc=(key:string)=>{counts[key]=(counts[key]??0)+1;};
+ for(const person of rows){
+  if(person.exceptionMessage)inc('plan_exceptions');
+  for(const day of person.weekPlan??[])for(const task of day.tasks??[]){
+   counts.items++;const type=enumType(task.type);inc('type_'+type);
+   for(const field of fields)if(task[field]!==undefined&&task[field]!==null)inc('type_'+type+'_field_'+field);
+   if(typeof task.content==='string'&&task.content.trim())inc('type_'+type+'_has_content');
+   if(day.date!=null){inc('type_'+type+'_has_day_date');
+    if(typeof day.date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(day.date)&&Number.isFinite(Date.parse(day.date))){inc('day_date_iso');if(isoWeek(new Date(day.date+'T12:00:00Z'))===week)inc('day_date_in_requested_week');}
+    else if(typeof day.date==='string'&&Number.isFinite(Date.parse(day.date)))inc('day_date_timestamp');else inc('day_date_other');
+   }
+   // Only test the example explicitly supplied by the user; never output its contents.
+   const title=textOnly(task.title).replace(/\u00ad/g,'').toLocaleLowerCase('da');
+   if(title.includes('aflevering af ugetræningsside')){inc('reference_matches');inc('reference_type_'+type);if(task.deadline||task.dueDate||task.due_date)inc('reference_has_deadline');if(day.date)inc('reference_has_day_date');}
+  }
+ }
+ return counts;
+}
+export async function diagnoseMeeBook(provider:ReadProvider,report:(stage:string,counts:Record<string,number>)=>void,now=new Date()){
+ const profiles=await provider.read('profiles.getProfilesByLogin'),ctx=await provider.read('profiles.getProfileContext',{portalrole:'guardian'});
+ const raw=[...(profiles?.profiles??[]).filter((p:RecordData)=>!p.portalRole||p.portalRole==='guardian').flatMap((p:RecordData)=>p.children??[]),...(ctx.institutions??[]).flatMap((i:RecordData)=>i.children??[]),...(ctx.institutionProfile?.relations??[]).flatMap((r:RecordData)=>r.children??[]),...(ctx.institutionProfiles??[]).flatMap((p:RecordData)=>(p.relations??[]).flatMap((r:RecordData)=>r.children??[]))];
+ const children=[...new Map<string,RecordData>(raw.map((c:RecordData)=>[String(c.id),c])).values()].map(c=>({id:String(c.id),userId:String(c.userId??''),institutionCode:String(c.institutionCode??'')})) as Child[];
+ report('diagnostic.profiles.ok',{children:children.length});
+ for(const [name,offset]of [['previous',-7],['current',0],['next',7]] as const){const week=isoWeek(new Date(now.getTime()+offset*864e5));const rows=await provider.meebook(ctx,children,week);report('diagnostic.meebook.'+name,inspectMeeBook(rows,week));}
+ return {children:children.length};
+}

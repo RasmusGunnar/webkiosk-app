@@ -10,12 +10,13 @@ import {AulaError,equalSecret,key,safeError,seal,sourceKey,unseal,uuid,type Enve
 import {validateAnalysis,type AnalysisSource,type AnalysisFinding,findExisting,normalizedTitle,samePlanningEvent} from './analysis.ts';
 import {hostedSseProbe,openEventStream} from './hosted-probe.ts';
 import {analyzeBatches} from './scan-analysis.ts';
+import {diagnoseMeeBook} from './meebook-diagnostics.ts';
 export type Request=IncomingMessage & {body?:unknown};
 type RPC=(action:string,hid:string,uid:string|null,payload?:RecordData)=>Promise<any>;
 type Dependencies={log?:(event:RecordData)=>void;rpc?:RPC;authorize?:(req:Request,hid:string)=>Promise<string>;login?:(opts:AulaLoginOptions)=>Promise<AulaTokens>;refresh?:typeof refreshSession;collect?:typeof collect;analyze?:(sources:AnalysisSource[],signal:AbortSignal)=>Promise<AnalysisFinding[]>;items?:(hid:string)=>Promise<RecordData[]>;timeoutMs?:number};
 export function adminClient(){const url=process.env.SUPABASE_URL,k=process.env.SUPABASE_SERVICE_ROLE_KEY;if(!url||!k)throw new AulaError('AULA_NOT_CONFIGURED',503);return createClient(url,k,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});}
 export const rpc:RPC=async(action,hid,uid,payload={})=>{
- const {data,error}=await adminClient().rpc('aula_server',{p_action:action,p_household_id:hid,p_user_id:uid,p_payload:payload});
+ const {data,error}=action==='diagnostic_release'?await adminClient().rpc('aula_diagnostic_release',{p_household_id:hid,p_lease:payload.lease}):await adminClient().rpc('aula_server',{p_action:action,p_household_id:hid,p_user_id:uid,p_payload:payload});
  if(error){const code=error.message.match(/\bAULA_(FORBIDDEN|BUSY|RATE_LIMIT|FLOW_EXPIRED|INVALID_IDENTITY|REAUTH_REQUIRED|LEASE_EXPIRED|UNMAPPED_PERSON)\b/)?.[0]??'AULA_STORAGE_ERROR';throw new AulaError(code,code==='AULA_FORBIDDEN'?403:code==='AULA_RATE_LIMIT'?429:409);}return data;
 };
 export async function authorize(req:Request,hid:string):Promise<string>{
@@ -93,6 +94,10 @@ export function makeHandlers(deps:Dependencies={}){
    // Persist rotation BEFORE any subsequent reads or AI call can fail.
    await call('scan_save_session',hid,uid,{lease,encrypted_session:seal(hid,{refresh_token:tokens.refresh_token})});
    log('refresh.ok');stage='collect';
+   if(p.diagnostic==='meebook-structure'){
+    stage='diagnostic';await diagnoseMeeBook(new ReadProvider(tokens.access_token,http,log),log);
+    await call('diagnostic_release',hid,uid,{lease});lease='';log('diagnostic.finish.ok');json(res,200,{diagnostic:'complete'});return;
+   }
    const data=await(deps.collect??collect)(new ReadProvider(tokens.access_token,http,log),hid,claim.mappings,claim.last_success_at,p.full===true,new Date(),log);
    stage='analysis';
    const existing=await(deps.items??items)(hid);const findings:RecordData[]=[];const seen=new Set<string>(),events:AnalysisFinding[]=[];

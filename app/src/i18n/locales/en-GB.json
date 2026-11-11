@@ -1404,5 +1404,7 @@
   "aula.change": "Change",
   "aula.field_title": "Title",
   "aula.field_date": "Date",
-  "aula.field_time": "Time (optional)"
+  "aula.field_time": "Time (optional)",
+  "aula.diagnose": "Inspect week plan",
+  "aula.diagnostic_done": "Structural check complete. No findings or activities have changed."
 }

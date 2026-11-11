@@ -74,6 +74,12 @@ await upload([{...finding,source_key:'f'.repeat(64),title:'Ignorer dette'}]);con
 await actor(ids.child);assert.ok((await query('select * from public.aula_findings')).rows.length);await actor(ids.outsider);assert.equal((await query('select * from public.aula_findings')).rows.length,0);pass('Findings follow household read access');
 const failed=await server('scan_claim');await server('scan_fail',{lease:failed.lease,error:'AULA_TEMPORARY_ERROR'});assert.equal((await server('status')).connection.status,'connected');pass('Transient failure preserves connection');
 const expired=await server('scan_claim');await server('scan_fail',{lease:expired.lease,error:'AULA_REAUTH_REQUIRED'});assert.equal((await server('status')).connection.status,'reauth_required');pass('Permanent expiry requests reauth');
+const diagnostic=await server('scan_claim');
+const beforeRelease=await server('status');
+for(const role of ['anon','authenticated']){await actor(ids.adult,role);await denied(role+' cannot release diagnostic leases',()=>query('select public.aula_diagnostic_release($1,$2)',[ids.hid,diagnostic.lease]));}
+await actor(null,'service_role');await denied('Diagnostic lease cannot cross households',()=>query('select public.aula_diagnostic_release($1,$2)',[ids.other,diagnostic.lease]));
+await query('select public.aula_diagnostic_release($1,$2)',[ids.hid,diagnostic.lease]);
+const afterRelease=await server('status');assert.deepEqual(afterRelease.connection,beforeRelease.connection);assert.deepEqual(afterRelease.findings,beforeRelease.findings);assert.equal(afterRelease.scanning,false);pass('Diagnostic release preserves connection and findings');
 const late=await server('scan_claim');await server('disconnect');await denied('Late scan cannot resurrect disconnected credentials',()=>server('scan_save_session',{lease:late.lease,encrypted_session:envelope}));
 assert.equal((await server('status')).connection.status,'disconnected');await actor(ids.adult);assert.equal((await query("select * from public.calendar_items where data->>'aulaAssisted'='true'")).rows.length,2);pass('Disconnect retains accepted items');
 assert.deepEqual((await query('select to_jsonb(f) value from public.calendar_feeds f where id=$1',[legacy])).rows[0].value,legacyBefore);pass('Legacy ICS byte-for-byte unchanged');

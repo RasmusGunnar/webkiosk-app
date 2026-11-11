@@ -1,5 +1,6 @@
 import {type ReadProvider,type RecordData,type Child,textOnly,localDateTime} from './provider.ts';
 import {isoWeek} from './collection.ts';
+import {resolvePlanDate} from './meebook-date.ts';
 
 // Fixed structural counters only. Never return source bodies, IDs, URLs or names.
 const fields=['type','pill','title','content','date','id','editUrl','deadline','dueDate','due_date','category','planning','status'];
@@ -14,6 +15,7 @@ export function inspectMeeBook(rows:RecordData[],week:string){
    for(const field of fields)if(task[field]!==undefined&&task[field]!==null)inc('type_'+type+'_field_'+field);
    if(typeof task.content==='string'&&task.content.trim())inc('type_'+type+'_has_content');
    if(day.date!=null){inc('type_'+type+'_has_day_date');
+    const resolved=resolvePlanDate(day.date,week);if(resolved.date){inc('date_resolved_in_requested_week');inc('date_order_'+resolved.order);}else inc('date_unresolved');
     // Do not log the value: distinguish yearless display labels from real
     // timestamps. JS Date.parse silently assigns year 2001 to many short labels.
     if(typeof day.date==='string'){

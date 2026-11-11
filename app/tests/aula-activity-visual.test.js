@@ -42,6 +42,6 @@ test('Today is a compact inbox only while new findings need review',()=>{
  inbox.state.findings=['accepted','ignored','stale'].map(status=>finding({status}))
  assert.equal(inbox.todayCard(),'')
  inbox.state.findings=Array.from({length:6},(_,i)=>finding({id:'finding-'+i,status:'new'}))
- const html=inbox.todayCard();assert.match(html,/Nyt fra Aula/);assert.match(html,/Gennemgå/);assert.equal((html.match(/<li>/g)||[]).length,3)
+ const html=inbox.todayCard();assert.match(html,/6 ting at gennemgå/);assert.match(html,/Gennemgå 6/);assert.equal((html.match(/<li>/g)||[]).length,2)
  assert.doesNotMatch(html,/CREATE_ACTIVITY|\bHIGH\b|\bMEDIUM\b/)
 })

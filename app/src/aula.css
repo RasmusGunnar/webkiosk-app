@@ -10,5 +10,20 @@
 .aula-dialog .aula-primary:disabled{opacity:1;background:#e8eee9;color:#617469;border-color:#cbd7cd;cursor:not-allowed}
 
 /* Reuse the calendar person picker; Aula has no person/activity colour. */
+/* Today attention follows the family day, with only two compact previews. */
+.aula-today{margin:0;padding:18px 20px;border:1px solid #dce3d7;border-radius:18px;background:#fffefb;color:#304738;min-width:0}
+.aula-attention-heading h3{font-size:11px;line-height:16px;letter-spacing:.1em;text-transform:uppercase;font-weight:600;color:#6e7c67;margin:0}
+.aula-attention-heading p{font-size:18px;line-height:24px;font-weight:600;margin:5px 0 0}
+.aula-today .aula-preview{margin:12px 0 0;gap:8px}
+.aula-today .aula-preview li{min-height:48px;gap:10px;align-items:center}
+.aula-today .aula-preview .person-stack{flex:0 0 auto;align-self:center}
+.aula-today .aula-preview .person-bubble{--avatar-size:30px;flex-shrink:0}
+.aula-today .aula-preview li>.aula-preview-copy{flex:1;min-width:0;color:inherit;font-size:14px}
+.aula-preview-copy strong{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;font-weight:500;line-height:18px}
+.aula-preview-copy time{display:block;color:#6e7c67;font-size:12px;line-height:17px;margin-top:2px}
+.aula-today>[data-aula=review]{display:block;width:100%;text-align:left;min-height:44px;margin-top:10px;padding:10px 0 0;border-top:1px solid #e7eae1;border-radius:0;font-size:14px;line-height:20px}
+.mobile-today>.aula-today{margin-bottom:16px}
+/* At the existing single-column breakpoint, the same card precedes the day. */
+@media(min-width:700px) and (max-width:1100px){body[data-mode=desktop] .home-aside{display:contents}body[data-mode=desktop] .home-aside>.aula-today{order:-1}}
 .aula-person-selection{border:0;padding:0;margin:16px 0;min-width:0}.aula-person-selection legend{font-size:13px;margin-bottom:8px}.aula-person-selection .calendar-person-pills{display:flex;flex-wrap:wrap;gap:8px}.aula-person-selection .person-choice input{min-height:0;width:100%;padding:0}
 .aula-finding-title{display:flex;align-items:center;gap:8px}.aula-finding-title h3{flex:1;min-width:0}.aula-inline-edit{font-size:13px;min-width:44px;min-height:44px;padding:8px;color:#245b48;text-decoration:underline;text-underline-offset:3px}.aula-date{flex-wrap:wrap}.aula-review-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:12px}.aula-review-field{display:grid;gap:6px;margin:8px 0 14px;min-width:0;font-size:14px}.aula-review-field input{min-width:0;max-width:100%;width:100%;min-height:48px}.aula-review-field[hidden],.aula-finding [hidden]{display:none!important}

@@ -29,6 +29,7 @@
     "test:aula": "node --test tests/aula*.test.js",
     "test:aula:db": "node tests/aula-db.mjs",
     "test:aula:browser": "node tests/aula-browser.mjs",
+    "test:aula:today": "node tests/aula-today-browser.mjs",
     "dev:aula": "node scripts/dev-aula-local.mjs",
     "test:aula:api": "node tests/aula-api.mjs",
     "aula:acceptance": "node scripts/aula-real-acceptance.mjs",

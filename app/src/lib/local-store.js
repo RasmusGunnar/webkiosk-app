@@ -28,6 +28,12 @@ export class LocalStore {
     })
   }
   put(key,value){return this.update(key,()=>value)}
+  async removeWhere(matches) {
+    const db=await this.db()
+    return new Promise((resolve,reject)=>{const tx=db.transaction('records','readwrite'),request=tx.objectStore('records').openCursor()
+      request.onsuccess=()=>{const cursor=request.result;if(!cursor)return;if(matches(cursor.value))cursor.delete();cursor.continue()}
+      tx.oncomplete=resolve;tx.onabort=()=>reject(tx.error)})
+  }
   async clearUser(userId) {
     const db=await this.db()
     return new Promise((resolve,reject)=>{const tx=db.transaction('records','readwrite'),request=tx.objectStore('records').openCursor()

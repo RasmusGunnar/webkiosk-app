@@ -1,3 +1,4 @@
+import {timing,measure} from './performance.js'
 import {t} from '../i18n/index.js'
 import {emptyRewards, optimisticReward} from './rewards-model.js'
 import { scopeKey, safeFeedMetadata, safePeopleCache } from './local-store.js'
@@ -35,9 +36,9 @@ export function overlaySnapshot(state) {
 }
 const isNetworkError=error=>!error?.code&&/fetch|network|offline|abort|timeout|load failed/i.test(error?.message||'')
 export class OfflineSync {
-  constructor({store,client,userId,householdId,onChange=()=>{},online=()=>navigator.onLine,lock}) {
-    Object.assign(this,{store,client,userId,householdId,onChange,online})
-    this.writeGeneration=0
+  constructor({store,client,userId,householdId,onChange=()=>{},online=()=>navigator.onLine,lock,send,readSnapshot}) {
+    Object.assign(this,{store,client,userId,householdId,onChange,online,send,readSnapshot})
+    this.writeGeneration=0;this.timings=new Map()
     this.key=scopeKey(userId,householdId);this.alive=true;this.state=this.empty();this.running=null;this.networkFailed=false
     this.lock=lock||((callback)=>globalThis.navigator?.locks?navigator.locks.request('sync:'+this.key,callback):callback())
     if(typeof BroadcastChannel!=='undefined'){
@@ -50,7 +51,7 @@ export class OfflineSync {
   async reload(){this.state=await this.store.get(this.key)||this.empty()}
   get view(){return overlaySnapshot(this.state)}
   emit(broadcast=true){if(!this.alive)return;this.onChange(this.view,this.state.queue,{syncing:Boolean(this.running),offline:!this.online()||this.networkFailed});if(broadcast)this.channel?.postMessage({key:this.key})}
-  stop(){this.alive=false;this.channel?.close()}
+  stop(){this.alive=false;this.timings.clear();this.channel?.close()}
   async change(transform) {
     if(!this.alive)return
     this.state=await this.store.update(this.key,current=>{if(!this.alive)return current;return transform(current||this.empty())})
@@ -62,7 +63,7 @@ export class OfflineSync {
     if(clean.people)clean.people=safePeopleCache(clean.people)
     await this.change(state=>({...state,snapshot:{...state.snapshot,...clean},cached_at:new Date().toISOString()}))
   }
-  async enqueue(payload,{action='edit',entityId=payload.p_upserts[0]?.id||payload.p_delete_ids[0]}={}) {
+  async enqueue(payload,{action='edit',entityId=payload.p_upserts[0]?.id||payload.p_delete_ids[0],background=false,started=timing()}={}) {
     if(!this.alive)return {error:new Error((t("offline_sync.the_session_has_ended")))}
     const entry={id:crypto.randomUUID(),user_id:this.userId,household_id:this.householdId,action,table:'calendar_items',
       entity_id:entityId,row_id:payload.p_upserts[0]?.id||payload.p_delete_ids[0],payload,queued_at:new Date().toISOString(),status:'pending',optimistic:true}
@@ -72,11 +73,20 @@ export class OfflineSync {
       if(merged){queue[queue.length-1]=merged;entry.id=merged.id}else queue.push(entry)
       return {...state,queue}
     })
+    this.timings.set(entry.id,started)
+    if(background){this.kick();return {error:null,queued:true}}
     if(this.online())await this.replay()
     // An enqueue may have joined a worker just as its empty-queue read completed.
     if(this.online()&&!this.networkFailed&&this.state.queue[0]?.status==='pending')await this.replay()
     const queued=this.state.queue.find(row=>row.id===entry.id)
     return queued?.status==='conflict'||queued?.status==='error'?{error:new Error(queued.error),queued:true}:{error:null,queued:Boolean(queued)}
+  }
+  kick(){
+    if(!this.alive||!this.online())return
+    void this.replay().catch(()=>{this.networkFailed=true;this.emit()}).finally(()=>{
+      // An enqueue may arrive as a worker finishes reading an empty queue.
+      if(this.alive&&this.online()&&!this.networkFailed&&!this.running&&this.state.queue[0]?.status==='pending')this.kick()
+    })
   }
   async replay() {
     if(!this.alive||!this.online())return
@@ -91,24 +101,30 @@ export class OfflineSync {
         let result
         try {
           const reward=entry.payload.reward_action
-          const request=reward?this.client.rpc('reward_action',{p_request_id:entry.id,p_household_id:this.householdId,p_action:reward.action,p_payload:reward.payload}):this.client.rpc('sync_calendar_mutation',{p_mutation_id:entry.id,p_household_id:this.householdId,...entry.payload})
+          const request=this.send?this.send(entry):reward?this.client.rpc('reward_action',{p_request_id:entry.id,p_household_id:this.householdId,p_action:reward.action,p_payload:reward.payload}):this.client.rpc('sync_calendar_mutation',{p_mutation_id:entry.id,p_household_id:this.householdId,...entry.payload})
           result=await (typeof request.abortSignal==='function'?request.abortSignal(AbortSignal.timeout(12000)):request)
         }
         catch(error){result={error}}
         if(!this.alive)return
+        if(this.timings.has(entry.id))measure('task_network_ack',this.timings.get(entry.id))
         if(result.error) {
           const network=isNetworkError(result.error)||!this.online(), conflict=result.error.message?.includes((t("offline_sync.changed_on_another_device")))
           this.networkFailed=network
           if (!network) {
+           if(this.readSnapshot){try{const fresh=await this.readSnapshot();if(fresh&&this.alive)await this.snapshot(fresh)}catch{}}
+           else {
             const fresh = await readAllRows(() => this.client.from('calendar_items').select('*').eq('household_id', this.householdId).order('id'))
             if (!fresh.error && this.alive) await this.snapshot({items:fresh.data})
+            if(entry.payload.reward_action){try{const r=await this.client.rpc('get_reward_state',{p_household_id:this.householdId}).abortSignal(AbortSignal.timeout(12000));if(!r.error&&this.alive)await this.snapshot({rewards:r.data})}catch{}}
+           }
           }
           await this.change(state=>({...state,queue:state.queue.map(row=>row.id!==entry.id?row:{...row,status:network?'pending':conflict?'conflict':'error',
             optimistic:network,error:network?(t("offline_sync.the_connection_was_interrupted_your_change_is_saved_locally")):result.error.message})}))
           break
         }
         let currentServer = null
-        if (result.data.already_applied || entry.payload.p_upserts.some(r=>r.data?.rewardMode)) {
+        if(this.readSnapshot&&result.data.already_applied){try{const fresh=await this.readSnapshot();if(fresh){currentServer=fresh.items;result.data.rewards=fresh.rewards}}catch{}}
+        if (!this.send&&(result.data.already_applied || entry.payload.p_upserts.some(r=>r.data?.rewardMode))) {
           const fresh = await readAllRows(() => this.client.from('calendar_items').select('*').eq('household_id',this.householdId).order('id'))
           if (!fresh.error) currentServer = fresh.data
         }
@@ -119,6 +135,7 @@ export class OfflineSync {
           queue:state.queue.filter(row=>row.id!==entry.id).map(row=>({...row,payload:{...row.payload,p_expected:row.payload.p_expected.map(expected=>
             expected.updated_at===token(entry.id)?{...expected,updated_at:versions[expected.id]||expected.updated_at}:expected)}})),
         }))
+        if(this.timings.has(entry.id)){measure('task_final_sync',this.timings.get(entry.id));this.timings.delete(entry.id)}
         await this.reload()
       }
     })
@@ -135,10 +152,11 @@ export class OfflineSync {
         return {...state,queue:state.queue.filter(row=>!discarded.has(row.id))}
       })
     } else {
-      const {data,error}=await readAllRows(()=>this.client.from('calendar_items').select('*').eq('household_id',this.householdId).order('id'))
+      const fresh=this.readSnapshot?await this.readSnapshot():null
+      const {data,error}=this.readSnapshot?{data:fresh?.items,error:!fresh?new Error(t('app.try_again')):null}:await readAllRows(()=>this.client.from('calendar_items').select('*').eq('household_id',this.householdId).order('id'))
       if(error)throw error
       const current=new Map(data.map(row=>[row.id,row])),newId=crypto.randomUUID()
-      await this.change(state=>({...state,snapshot:{...state.snapshot,items:data},queue:state.queue.map(row=>{
+      await this.change(state=>({...state,snapshot:{...state.snapshot,...fresh,items:data},queue:state.queue.map(row=>{
         if(row.id!==id)return {...row,payload:{...row.payload,p_expected:row.payload.p_expected.map(e=>e.updated_at===token(id)?{...e,updated_at:token(newId)}:e)}}
         return {...row,id:newId,status:'pending',optimistic:true,error:null,payload:{...row.payload,
           p_expected:[...new Set([...row.payload.p_expected.map(e=>e.id),...row.payload.p_upserts.map(e=>e.id)])].filter(id=>current.has(id)).map(id=>({id,updated_at:current.get(id).updated_at})),

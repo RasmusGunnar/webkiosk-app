@@ -2,7 +2,8 @@
 // Auth/session + HTTP routing are test doubles; hosted Supabase and websocket
 // transport are never used. See database-results.json for that coverage boundary.
 import {chromium,expect} from '@playwright/test'
-import {createServer} from 'vite'
+import {createServer,build,preview} from 'vite'
+import {execFileSync} from 'node:child_process'
 import {randomUUID} from 'node:crypto'
 import {mkdirSync,writeFileSync} from 'node:fs'
 import {fileURLToPath} from 'node:url'
@@ -19,7 +20,19 @@ await query("insert into public.household_members(household_id,user_id,role) val
 for(const [i,name]of ['Rasmus','Carl','Ida','Jakob','Sofie'].entries())await query("insert into public.household_people(id,household_id,name,role,color,sort_order) values($1,$2,$3,$4,$5,$6)",[personIds[i],hid,name,i===0?'adult':'child',['#6b8da0','#8e9e65','#b98486','#b69562','#9484ad'][i],i])
 for(const [id,title,type,persons,approvalRequired]of [[ordinary,'Tøm opvaskemaskinen','Opgave',[rasmus,carl],false],[approval,'Gør skoletasken klar','Opgave',[rasmus,carl],true],[activity,'Fodboldtræning','Fritidsinteresse',[carl,rasmus],false],[overflow,'Familiedag i skoven','Aktivitet',personIds,false]])await query("insert into public.calendar_items(id,household_id,created_by,title,type,date,time,person_ids,data) values($1,$2,$3,$4,$5,$6,'16:00',$7,$8::jsonb)",[id,hid,ids.adult,title,type,today,persons,JSON.stringify({rewardMode:'none',requiresApproval:approvalRequired})])
 const env={VITE_SUPABASE_URL:api,VITE_SUPABASE_PUBLISHABLE_KEY:'sb_publishable_local_fixture_only'}
-const server=await createServer({root:fileURLToPath(new URL('../',import.meta.url)),define:Object.fromEntries(Object.entries(env).map(([k,v])=>['import.meta.env.'+k,JSON.stringify(v)])),server:{host:'127.0.0.1',port:5196,strictPort:true}});await server.listen()
+const viteConfig={root:fileURLToPath(new URL('../',import.meta.url)),define:Object.fromEntries(Object.entries(env).map(([k,v])=>['import.meta.env.'+k,JSON.stringify(v)])),server:{host:'127.0.0.1',port:5196,strictPort:true}}
+if(process.env.PERFORMANCE_BASELINE==='1'){
+ const repo=fileURLToPath(new URL('../../',import.meta.url)),sources=new Map(),ref=process.env.PERFORMANCE_BASELINE_REF||'9a72c63667dc1169637311f22e8df069511a0bd7'
+ for(const path of execFileSync('git',['diff','--name-only','--diff-filter=M',ref,'--','app/src'],{cwd:repo,encoding:'utf8'}).trim().split('\n').filter(Boolean))sources.set((repo+path).replaceAll('\\','/'),execFileSync('git',['show',ref+':'+path],{cwd:repo,encoding:'utf8'}))
+ viteConfig.plugins=[{name:'read-only-main-baseline',enforce:'pre',load:id=>sources.get(id.split('?')[0].replaceAll('\\','/'))}]
+}
+let server
+if(process.env.PERFORMANCE_BUILD==='1'){
+ const outDir=fileURLToPath(new URL('../../supabase/.temp/performance-ux/'+(process.env.PERFORMANCE_BASELINE==='1'?'baseline-built-app/':'built-app/'),import.meta.url))
+ await build({...viteConfig,build:{outDir,emptyOutDir:false}})
+ const serving=await preview({...viteConfig,build:{outDir},preview:{host:'127.0.0.1',port:5196,strictPort:true}})
+ server={close:()=>new Promise(resolve=>serving.httpServer.close(resolve))}
+}else{server=await createServer(viteConfig);await server.listen()}
 const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true})
 const context=await browser.newContext({locale:'da-DK',timezoneId:'Europe/Copenhagen',viewport:{width:390,height:844},hasTouch:true})
 const checks=[],shots=[],errors=[],unknown=[],pass=name=>{checks.push(name);console.log('BROWSER PASS '+name)}

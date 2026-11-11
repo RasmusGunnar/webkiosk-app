@@ -1416,5 +1416,7 @@
   "aula.updated_since_review": "Updated since your review – check the change.",
   "aula.automatic_scan": "Automatic scanning",
   "aula.automatic_active": "Active",
-  "aula.automatic_inactive": "Inactive"
+  "aula.automatic_inactive": "Inactive",
+  "sync.could_not_sync": "Could not sync",
+  "device_mode.wake_help": "Keeps the screen on while Familiekalender is open on this device."
 }

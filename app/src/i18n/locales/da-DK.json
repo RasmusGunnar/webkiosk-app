@@ -1416,5 +1416,7 @@
   "aula.updated_since_review": "Opdateret siden sidst – gennemgå ændringen.",
   "aula.automatic_scan": "Automatisk scanning",
   "aula.automatic_active": "Aktiv",
-  "aula.automatic_inactive": "Ikke aktiv"
+  "aula.automatic_inactive": "Ikke aktiv",
+  "sync.could_not_sync": "Kunne ikke synkronisere",
+  "device_mode.wake_help": "Holder skærmen tændt, mens Familiekalender er åben på denne enhed."
 }

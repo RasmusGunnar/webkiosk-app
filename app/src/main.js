@@ -1,3 +1,5 @@
+import {AvatarImageCache} from './lib/avatar-cache.js'
+import {timing,measure,ready,painted} from './lib/performance.js'
 import {renderDashboardShell,updateSharedElement,updateContent} from './lib/stable-shell.js'
 import {ownStarPerson} from './lib/stars-model.js'
 import {personAvatar,personPicker,personStack,installAvatarFallback} from './lib/person-avatars.js'
@@ -38,7 +40,7 @@ import {compactDay,compactTask,compactMeals,filterRoutes} from './lib/calendar-l
 import {ImportedEditor,visibleImports,canEditImported} from './lib/imported-editor.js'
 import { supabase, configurationError, cacheNamespace, clearLocalAuth } from './lib/supabase'
 import { findPerson, selectPeople, itemPeople, itemPersonIds, itemMatchesPerson, feedPerson } from './lib/people.js'
-import { avatarDisplayUrl, validateAvatar, resolveAvatarUrls, savePerson } from './lib/avatars.js'
+import { avatarDisplayUrl, validateAvatar, savePerson } from './lib/avatars.js'
 import { normalizeFeedUrl, redactFeedUrl, feedIdOf, feedSyncStatus } from './lib/feeds.js'
 import { calendarPayload } from './lib/calendar.js'
 import { observeSession } from './lib/auth.js'
@@ -50,7 +52,7 @@ import { LocalStore, DATABASE_NAME } from './lib/local-store.js'
 import { OfflineSync } from './lib/offline-sync.js'
 import { taskEmoji, taskOccurrenceKey, rewardEnabled } from './lib/task-rewards.js'
 import {RewardMotion} from './lib/reward-motion.js'
-import { DEVICE_KEY, readDevice, saveDevice, deviceSettings, resolveMode, densityFor, safeShortcut, makePin, checkPin, WakeScreen, DeviceClock } from './lib/device-mode.js'
+import { DEVICE_KEY, readDevice, saveDevice, deviceSettings, resolveMode, densityFor, safeShortcut, makePin, checkPin, WakeScreen,wakeEnabled, DeviceClock } from './lib/device-mode.js'
 import { upcomingItems, roleLabel, invitationStatus, callbackUrl, consumeInvite } from './lib/product-model.js'
 import { platform, nativeWakeApi } from './lib/platform.js'
 import { publicBase, authCallback, inviteLink, parseAppLink, consumeAuthLink } from './lib/app-links.js'
@@ -77,6 +79,7 @@ if(pendingCalendarLink?.kind!=='calendar')pendingCalendarLink=null
 let nativeActive=true,nativeResumePending=null,reconnectInFlight=null
 
 const localStore = new LocalStore(DATABASE_NAME + ':' + cacheNamespace)
+const avatarCache=new AvatarImageCache({store:localStore,origin:cacheNamespace,changed:()=>{householdPeople=avatarCache.apply(householdPeople);scheduleCalendarSurface()}})
 let syncEngine = null, syncStatus = { offline: !navigator.onLine, syncing: false }
 let liveFeedMetadata = [], surfaceFrame = null, syncPanelOpen = false
 const expandedTaskDays = new Set()
@@ -146,7 +149,7 @@ const nativeReview=localReviewEnabled(import.meta.env,location)
 let wallRevoked=false,wallNaming=false,nativeBootReady=false,reviewModule=null
 const subscriptionAccess=new SubscriptionAccessService({client:supabase,provider:new RevenueCatProvider()})
 const isWall=()=>session?.user?.is_anonymous===true
-const wallService=new WallDeviceService({client:supabase,onSnapshot:snapshot=>{
+const wallService=new WallDeviceService({client:supabase,imageCache:avatarCache,store:localStore,userId:()=>session?.user.id,onQueue:(_queue,status)=>{syncStatus=status},onSnapshot:snapshot=>{
  const first=activeHousehold?.id!==snapshot.household.id
  languagePrefs.wall(snapshot.device,snapshot.household);
  initialHouseholdLoad=false
@@ -156,7 +159,7 @@ const wallService=new WallDeviceService({client:supabase,onSnapshot:snapshot=>{
  subscriptionAccess.context={userId:session?.user.id,householdId:activeHousehold.id,role:'device',wall:true};subscriptionAccess.apply(snapshot.access)
  applyNativeReviewState()
  if(first){productRoute='calendar';calendarViewMode='week';calendarCursorDate=new Date()}
- wallRevoked=false;void wakeScreen.set(true)
+ wallRevoked=false;void wakeScreen.set(wakeEnabled(device,true))
  if(!wallNaming&&!document.querySelector('#wall-name-form'))render({preserveDialogs:true})
 },onRevoked:()=>{wallRevoked=true;activeHousehold=null;households=[];calendarItems=[];householdPeople=[];rewardState=emptyRewards();void wakeScreen.set(false);render()},onStatus:text=>{message=text}})
 const nativeFamily=new NativeFamilyUI({client:supabase,access:subscriptionAccess,wall:wallService,review:nativeReview,
@@ -327,15 +330,16 @@ async function activateHousehold(household) {
   realtime.stop(); syncEngine?.stop(); rewardMotion.reset()
   syncPanelOpen = false; syncPanelRoot.innerHTML = ''
   setHouseholdFormat(household);activeHousehold = household; householdRole = household.memberRole; rewardMotion.reset(household.id)
-  await subscriptionAccess.attach({userId:session.user.id,householdId:household.id,role:householdRole})
-  applyNativeReviewState()
+  avatarCache.use(session.user.id,household.id)
+  const accessEpoch=sessionEpoch
+  void subscriptionAccess.attach({userId:session.user.id,householdId:household.id,role:householdRole}).then(()=>{if(accessEpoch===sessionEpoch&&activeHousehold?.id===household.id){applyNativeReviewState();if(!subscriptionAccess.state.canUsePremium)render({preserveDialogs:true});else scheduleCalendarSurface()}})
   members=[];invitations=[];kioskUnlocked=false;pinRoot.innerHTML=''
   createRoot.innerHTML='';foodRoute='meals';planEditor.close(true);importedEditor.close(true);recipeUI.close(true);libraryRecipes=[];recipeImages.clear();recipeLoadVersion++;recipeLoadError='';detailRoot.innerHTML='';shoppingDraft={title:'',note:''};shoppingOpen=false
   const rememberedRoute=settingsForDevice().lastRoute
   productRoute=mode()!=='kiosk'&&routeLabels[rememberedRoute]?rememberedRoute:'today'
   if(['meals','shopping','recipes'].includes(productRoute))foodRoute=productRoute
   calendarViewMode=productRoute==='today'?'day':getDefaultCalendarViewMode()
-  void wakeScreen.set(mode()==='kiosk'&&settingsForDevice().wake)
+  void wakeScreen.set(settingsForDevice().wake)
   calendarItems = []; householdPeople = []; calendarFeeds = []; liveFeedMetadata = []
   activePersonFilter = 'Alle'; calendarCursorDate = new Date()
   editingCalendarSnapshot = null; isCalendarModalOpen = false; isSettingsModalOpen = false
@@ -343,18 +347,22 @@ async function activateHousehold(household) {
   syncEngine = new OfflineSync({ store: localStore, client: supabase, userId: session.user.id, householdId: id,
     onChange: (view, queue, status) => {
       if (epoch !== sessionEpoch || activeHousehold?.id !== id) return
-      const avatars = new Map(householdPeople.map(person => [person.id, person.avatar_display_url]))
       calendarItems = visibleImports(view.items).map(row=>{const master=(view.recipes||[]).find(r=>r.id===recipeId(row));return row.type===PLAN_TYPES.meal&&master?{...row,title:master.title,data:{...row.data,title:master.title}}:row})
       rewardState = view.rewards||emptyRewards()
       libraryRecipes=(view.recipes||[]).map(r=>({...r,image_display_url:recipeImages.get(r.image_path)||''}))
-      householdPeople = view.people.map(person => ({...person, role:mapPersonRoleToUi(person.role), avatar_display_url: avatars.get(person.id)}))
+      householdPeople = avatarCache.apply(view.people.map(person => ({...person, role:mapPersonRoleToUi(person.role)})))
       calendarFeeds = view.feeds.map(feed => ({...feed, ...(navigator.onLine ? liveFeedMetadata.find(row => row.id === feed.id) : {})}))
       calendarItemsHouseholdId = householdPeopleHouseholdId = calendarFeedsHouseholdId = id
       syncStatus = status; rewardMotion.observe(syncEngine?.state.snapshot.rewards||emptyRewards()); syncActivePersonFilter(); scheduleCalendarSurface()
     },
   })
   await syncEngine.init()
+  if(syncEngine.state.cached_at){ready('cached_household_ready');ready('calendar_ready');ready('rewards_ready');if(syncEngine.view.people.length)ready('people_ready')}
   initialHouseholdLoad=!syncEngine.state.cached_at
+  // Show the durable shell before local image decoding and preference writes.
+  // Decoded images replace their stable initials via the cache's render callback.
+  if(!initialHouseholdLoad)render({preserveDialogs:true})
+  void avatarCache.hydrate(syncEngine.view.people)
   if(!navigator.onLine)rewardMotion.hydrate(syncEngine.state.snapshot.rewards)
   await rememberHouseholds()
   if(!session.offlineOnly)void devices?.attach(session.user.id,household.id)
@@ -369,7 +377,7 @@ async function refreshHousehold() {
   if(isWall()){await wallService.refresh();return}
   if (!session || !activeHousehold || !navigator.onLine) return
   const engine = syncEngine
-  try {await Promise.all([loadCalendarItems(), loadHouseholdPeople(), loadCalendarFeeds(), loadRewardsV2(), loadRecipes()])}
+  try {const core=Promise.all([loadCalendarItems(),loadHouseholdPeople()]).finally(()=>{if(engine===syncEngine){initialHouseholdLoad=false;scheduleCalendarSurface()}});await Promise.all([core,loadCalendarFeeds(),loadRewardsV2(),loadRecipes()])}
   finally {if(engine===syncEngine){initialHouseholdLoad=false;scheduleCalendarSurface()}}
   if (engine !== syncEngine) return
   await engine?.replay()
@@ -390,6 +398,7 @@ async function reconnectCalendar() {
 }
 
 function clearSessionState() {
+  avatarCache.clear()
   wallService.stop();nativeFamily.close();void subscriptionAccess.detach()
   rewardsUI.close(true);rewardState=emptyRewards();rewardLoadVersion++
   void wakeScreen.set(false);pinRoot.innerHTML='';createRoot.innerHTML='';foodRoute='meals';planEditor.close(true);importedEditor.close(true);recipeUI.close(true);libraryRecipes=[];recipeImages.clear();recipeLoadVersion++;recipeLoadError='';detailRoot.innerHTML='';shoppingDraft={title:'',note:''};shoppingOpen=false;kioskUnlocked=false;members=[];invitations=[]
@@ -720,9 +729,10 @@ function scheduleCalendarSurface() {
 function updateCalendarSurface() {
   if(productRoute==='tasks'&&householdRole==='child'&&activePersonFilter==='Alle')activePersonFilter=ownStarPerson(rewardState,session?.user.id)||'Alle'
   if (!session || !activeHousehold || !document.querySelector('#calendar-view')) return
+  const surfaceStarted=timing(),avatarNodes=[...document.querySelectorAll('#calendar-view .person-bubble img')]
   const inlineFocus=captureInlineFocus()
   for(const feed of calendarFeeds){const status=document.querySelector('[data-feed-status="'+feed.id+'"]');if(status)status.textContent=feedSyncStatus(feed)}
-  updateContent(document.querySelector('#calendar-view'),renderCalendarView())
+  const surfaceReplaced=updateContent(document.querySelector('#calendar-view'),renderCalendarView())
   const chips = document.querySelector('#person-chipbar')
   if (chips) {
     const scrollLeft=chips.scrollLeft,focused=chips.contains(document.activeElement)?document.activeElement.dataset.personFilter:null
@@ -735,6 +745,7 @@ function updateCalendarSurface() {
   const notice=document.querySelector('.ux-notice');if(notice)notice.hidden=!message
   bindCalendarSurface();bindProductSurface();restoreInlineFocus(inlineFocus);rewardsUI.refresh();rewardMotion.present()
   if (syncPanelOpen) renderSyncPanel()
+  measure('surface_render',surfaceStarted,{replaced:Number(surfaceReplaced),avatar_replaced:avatarNodes.filter(n=>!n.isConnected).length})
 }
 function bindCalendarSurface() {
   document.querySelectorAll('[data-task-detail]').forEach(b=>b.onclick=()=>{const item=findRenderableCalendarItem(b.dataset.taskDetail);if(item){detailRoot.innerHTML='';rewardsUI.taskDetail(item,activePersonFilter)}})
@@ -753,18 +764,18 @@ function bindCalendarSurface() {
   const syncButton=document.querySelector('#sync-details-button');if(syncButton)syncButton.onclick=()=>{syncPanelOpen=true;renderSyncPanel()}
 }
 function renderSyncStatus() {
-  const queue=syncEngine?.state.queue||[], problems=queue.filter(row=>['conflict','error'].includes(row.status)).length
+  const queue=(isWall()?wallService.engine:syncEngine)?.state.queue||[], problems=queue.filter(row=>['conflict','error'].includes(row.status)).length
   const offline=!navigator.onLine||syncStatus.offline
-  const label=problems?problems+(" "+t("app.changes_need_your_choice")):offline?(t("app.offline_changes_saved_locally")):syncStatus.syncing?(t("app.syncing")):queue.length?queue.length+(" "+t("app.changes_waiting_to_sync")):''
+  const label=problems?t('sync.could_not_sync'):offline?(t("app.offline_changes_saved_locally")):syncStatus.syncing?(t("app.syncing")):queue.length?queue.length+(" "+t("app.changes_waiting_to_sync")):''
   return '<span role="status">'+escapeHtml(label)+'</span>'+(queue.length?("<button id=\"sync-details-button\" class=\"sync-details-button\">"+t("app.view_changes")+"</button>"):'')
 }
 function renderSyncPanel() {
   if(!syncPanelOpen){syncPanelRoot.innerHTML='';return}
-  const rows=syncEngine?.state.queue||[]
+  const rows=(isWall()?wallService.engine:syncEngine)?.state.queue||[]
   syncPanelRoot.innerHTML=("<div class=\"modal-backdrop\" id=\"sync-panel-backdrop\" role=\"dialog\" aria-modal=\"true\" aria-label=\""+t("app.sync")+"\"><div class=\"calendar-modal\"><header class=\"modal-header\"><h2>"+t("app.sync")+"</h2><button id=\"sync-panel-close\" class=\"icon-button\" aria-label=\""+t("common.close")+"\">×</button></header>")+
     (rows.length?rows.map(row=>{
       const title=row.payload.reward_action?.optimistic?.title||row.payload.p_upserts.at(-1)?.title||(t("app.event_deletion"))
-      const current=syncEngine.state.snapshot.items.find(item=>item.id===row.payload.p_upserts.at(-1)?.id)
+      const current=(isWall()?wallService.engine:syncEngine).state.snapshot.items.find(item=>item.id===row.payload.p_upserts.at(-1)?.id)
       return '<article class="sync-problem"><strong>'+escapeHtml(title)+'</strong><p>'+escapeHtml(row.error||(t("app.waiting_to_sync")))+'</p>'+
         (row.status==='conflict'?("<p>"+t("app.server")+" ")+escapeHtml(current?.title||(t("app.the_event_has_been_deleted_or_changed")))+("</p><p>"+t("app.keep_my_version_saves_your_fields_over_the_current_server_version_use_server_version_also_discards_later_local_changes_that_depend_on_this_one")+"</p><button data-sync-choice=\"local\" data-sync-id=\"")+row.id+("\">"+t("app.keep_my_version")+"</button><button data-sync-choice=\"server\" data-sync-id=\"")+row.id+("\">"+t("app.use_server_version")+"</button>"):
           row.status==='error'?("<button data-sync-retry>"+t("app.try_again")+"</button><button data-sync-choice=\"server\" data-sync-id=\"")+row.id+("\">"+t("app.use_server_version")+"</button>"):'')+'</article>'
@@ -773,10 +784,10 @@ function renderSyncPanel() {
   syncPanelRoot.querySelector('#sync-panel-backdrop').onclick=event=>{if(event.target===event.currentTarget){syncPanelOpen=false;renderSyncPanel()}}
   syncPanelRoot.querySelectorAll('[data-sync-choice]').forEach(button=>button.onclick=async()=>{
     button.disabled=true
-    try{await syncEngine.resolve(button.dataset.syncId,button.dataset.syncChoice);await loadCalendarItems()}catch(error){message=userError(error)}
+    try{await (isWall()?wallService.engine:syncEngine).resolve(button.dataset.syncId,button.dataset.syncChoice);await loadCalendarItems()}catch(error){message=userError(error)}
     updateCalendarSurface()
   })
-  syncPanelRoot.querySelector('[data-sync-retry]')?.addEventListener('click',()=>syncEngine.retry())
+  syncPanelRoot.querySelector('[data-sync-retry]')?.addEventListener('click',()=>(isWall()?wallService.engine:syncEngine).retry())
 }
 function renderDayItems(section,items,date) {
   if(section!=='Opgave'||!(mode()==='kiosk'||mode()==='mobile'))return items.length?items.map(renderCalendarItemCard).join(''):("<p class=\"empty-section\">"+t("app.none")+"</p>")
@@ -1791,7 +1802,7 @@ async function loadCalendarItems() {
   if (engine !== syncEngine || version !== calendarLoadVersion) return
   // A request started before our write/ACK cannot replace the newer local baseline.
   if (writeGeneration !== engine.writeGeneration) { if (!engine.running) return loadCalendarItems(); return }
-  if (!error && data) { engine.networkFailed = false; await engine.snapshot({items:data}) }
+  if (!error && data) { engine.networkFailed = false; await engine.snapshot({items:data});ready('calendar_ready') }
   else if (error) { syncStatus.offline = true; updateCalendarSurface() }
 }
 
@@ -1801,10 +1812,10 @@ async function loadHouseholdPeople() {
   const engine = syncEngine, version = ++peopleLoadVersion
   const { data, error } = await supabase.from('household_people').select('*').eq('household_id',activeHousehold.id).order('sort_order').order('name').order('id').abortSignal(AbortSignal.timeout(6000))
   if (error || engine !== syncEngine || version !== peopleLoadVersion) return
-  const people = await resolveAvatarUrls(supabase, data || [])
+  ready('people_ready')
+  await engine.snapshot({people:data||[]})
   if (engine !== syncEngine || version !== peopleLoadVersion) return
-  householdPeople = people
-  await engine.snapshot({people})
+  void avatarCache.refresh(supabase,data||[])
 }
 
 async function loadCalendarFeeds() {
@@ -1888,7 +1899,7 @@ async function toggleCalendarItemDone(itemId, done) {
   if(isWall()){try{await wallService.complete({itemId:item.baseId||item.id,dueDate:item.date,done})}catch(e){message=e.message}updateCalendarSurface();return}
   rewardMotion.taskCheck(item.id,done?'completed':'open')
   const { error } = await runCalendarMutation(() => planEdit(calendarItems,item,{...itemValues(item),done},'one'),
-    {action:'toggle_done',entityId:taskOccurrenceKey(item)})
+    {action:'toggle_done',entityId:taskOccurrenceKey(item),background:true})
   if (error) message = (t("app.could_not_save_completion")+" ") + userError(error)
   updateCalendarSurface()
 }
@@ -2098,7 +2109,11 @@ function closeCalendarModal() {
 }
 
 function openSettingsModal(tab='people') {
-  if(isWall()){nativeFamily.shell((t("app.this_wall_display")),("<p>"+t("app.this_display_shows_the_family_overview_manage_settings_on_an_adult_s_phone")+"</p><p>"+t("app.the_screen_stays_awake_while_the_family_overview_is_open")+"</p>"));return}
+  if(isWall()){
+    nativeFamily.shell(t('app.this_wall_display'),'<p>'+t('app.this_display_shows_the_family_overview_manage_settings_on_an_adult_s_phone')+'</p>'+wakeSetting(wakeEnabled(device,true)))
+    document.querySelector('#device-wake').onchange=event=>{device.wake=event.target.checked;persistDevice();void wakeScreen.set(device.wake)}
+    return
+  }
   tab=typeof tab==='string'?tab:'people'
   if(mode()==='kiosk'&&!kioskUnlocked){requestKioskAccess(tab);return}
   settingsTab=tab
@@ -2778,6 +2793,7 @@ function escapeHtml(value) {
 
 
 function mode() { return isWall()&&activeHousehold?'kiosk':resolveMode(window.innerWidth,device,session?.user.id,activeHousehold?.id) }
+function wakeSetting(enabled){return '<label class="checkbox-label"><input id="device-wake" name="wake" type="checkbox" '+(enabled?'checked':'')+'>'+t('app.keep_screen_awake')+'</label><p class="hint">'+t('device_mode.wake_help')+'</p><p id="wake-status" class="hint">'+escapeHtml(wakeScreen.status)+'</p>'}
 function settingsForDevice() { return deviceSettings(device,session?.user.id,activeHousehold?.id) }
 function applyDeviceAppearance() {
   const config=settingsForDevice(), current=mode()
@@ -2788,6 +2804,7 @@ function applyDeviceAppearance() {
   document.documentElement.style.setProperty('--bg',({cloud:'#f6f7f3',warm:'#faf7f2',cool:'#f0f7f8'})[config.tone]||'#f6f7fb')
 }
 function setProductRoute(route) {
+  const routeStarted=timing()
   if(route==='food')route=foodRoute
   if(['meals','shopping','recipes'].includes(route))foodRoute=route
   if(!routeLabels[route]||mode()==='kiosk'&&!['today','calendar','meals','shopping','tasks'].includes(route))return
@@ -2798,6 +2815,7 @@ function setProductRoute(route) {
   if(route==='tasks'){calendarViewMode='day';if(householdRole==='child')activePersonFilter=ownStarPerson(rewardState,session?.user.id)||'Alle'}
   hasUserSelectedCalendarView=true
   render()
+  painted('route_content_ready',routeStarted)
 }
 function renderProductNav() { return renderNavigation(productRoute,mode()==='kiosk',mode()==='mobile') }
 function renderProductHeader() {
@@ -2865,7 +2883,9 @@ function bindProductControls(freshSettings=true) {
     try{await navigator.clipboard.writeText(calendarFeeds.find(f=>f.id===button.dataset.copyCalendarFeed)?.feed_url||'');button.textContent=(t("app.copied"))}catch{calendarImportMessage=(t("app.could_not_copy_choose_edit_to_see_the_link"));render({preserveDialogs:true})}
   })
   document.querySelector('#device-settings-form')?.addEventListener('submit',saveDeviceSettings)
-  document.querySelector('#exit-kiosk')?.addEventListener('click',()=>{delete device.kiosk;persistDevice();void wakeScreen.set(false);kioskUnlocked=false;closeSettingsModal();setProductRoute('calendar')})
+  document.querySelector('#device-wake')?.addEventListener('change',event=>{event.target.dataset.explicit='true'})
+  document.querySelector('#device-kiosk')?.addEventListener('change',event=>{const wake=document.querySelector('#device-wake');if(wake&&!wake.dataset.explicit&&typeof device.wake!=='boolean')wake.checked=event.target.checked})
+  document.querySelector('#exit-kiosk')?.addEventListener('click',()=>{delete device.kiosk;persistDevice();void wakeScreen.set(wakeEnabled(device));kioskUnlocked=false;closeSettingsModal();setProductRoute('calendar')})
   document.querySelector('#appearance-form')?.addEventListener('submit',event=>{
     event.preventDefault();const data=new FormData(event.target)
     updateDeviceProfile({accent:data.get('accent'),tone:data.get('tone'),density:data.get('density')});applyDeviceAppearance()
@@ -2910,7 +2930,7 @@ function renderOtherSettings() {
  (canManageFeeds()?("<form id=\"invite-form\" class=\"stack-form\"><h4>"+t("app.invite_by_email")+"</h4><label for=\"invite-email\">"+t("app.email")+"</label><input id=\"invite-email\" name=\"email\" type=\"email\" required autocomplete=\"email\"><label for=\"invite-role\">"+t("app.role")+"</label><select id=\"invite-role\" name=\"role\"><option value=\"adult\">"+t("app.adult")+"</option>")+("<option value=\"child\">"+t("roles.child")+"</option>")+(householdRole==='owner'?("<option value=\"admin\">"+t("app.administrator")+"</option>"):'')+("</select><p class=\"hint\">"+t("app.create_a_personal_link_and_share_it_by_email_the_recipient_must_sign_in_with_this_email")+"</p><button type=\"submit\">"+t("app.create_invitation")+"</button><p id=\"invite-message\" class=\"message\" role=\"status\"></p><div id=\"invite-result\"></div></form>"):("<p>"+t("app.only_owners_and_administrators_can_invite")+"</p>")))+
  panel('device',("<h3>"+t("app.this_device")+"</h3><p>"+t("app.these_settings_apply_only_here_and_to")+" ")+escapeHtml(getHouseholdName(activeHousehold))+'.</p><form id="device-settings-form" class="stack-form"><label class="checkbox-label"><input id="device-kiosk" name="kiosk" type="checkbox" '+(kiosk?'checked':'')+(">"+t("app.use_as_wall_display")+"</label>")+
  (!kiosk?("<label for=\"device-pin\">"+t("app.choose_a_device_pin_4_8_digits")+"</label><input id=\"device-pin\" name=\"pin\" type=\"password\" inputmode=\"numeric\" pattern=\"[0-9]{4,8}\" autocomplete=\"new-password\"><p class=\"hint\">"+t("app.the_pin_prevents_accidental_administration_on_the_display")+"</p>"):("<p>"+t("app.settings_are_protected_by_the_device_pin")+"</p>"))+
- '<label class="checkbox-label"><input id="device-wake" name="wake" type="checkbox" '+(config.wake?'checked':'')+(">"+t("app.keep_screen_awake")+"</label><p id=\"wake-status\" class=\"hint\">")+escapeHtml(wakeScreen.status)+("</p><label for=\"device-idle\">"+t("app.return_to_today_after_inactivity")+"</label><select id=\"device-idle\" name=\"inactivity\">")+[10,15,20,30].map(n=>'<option value="'+n+'" '+(n===config.inactivity?'selected':'')+'>'+n+(" "+t("app.minutes")+"</option>")).join('')+("</select><h4>"+t("app.wall_display_shortcuts")+"</h4>")+
+ wakeSetting(config.wake)+("<label for=\"device-idle\">"+t("app.return_to_today_after_inactivity")+"</label><select id=\"device-idle\" name=\"inactivity\">")+[10,15,20,30].map(n=>'<option value="'+n+'" '+(n===config.inactivity?'selected':'')+'>'+n+(" "+t("app.minutes")+"</option>")).join('')+("</select><h4>"+t("app.wall_display_shortcuts")+"</h4>")+
  [['homey',(t("app.homey_url"))],['sonos',(t("app.sonos_url_app_link"))],['custom',(t("app.other_link"))],['label',(t("app.name_for_other_link"))]].map(([key,label])=>'<label for="shortcut-'+key+'">'+label+'</label><input id="shortcut-'+key+'" name="'+key+'" value="'+escapeHtml(config.shortcuts[key])+'" '+(key==='label'?'maxlength="40"':'type="text" placeholder="https://"')+'>').join('')+
  ("<button type=\"submit\">"+t("app.save_device")+"</button><p id=\"device-message\" class=\"message\" role=\"status\"></p></form>")+(kiosk?("<button id=\"exit-kiosk\" class=\"danger-button\">"+t("app.exit_wall_display_mode")+"</button>"):''))+
  panel('appearance',("<h3>"+t("app.appearance_on_this_device")+"</h3><form id=\"appearance-form\" class=\"stack-form\"><label for=\"appearance-accent\">"+t("app.accent_colour")+"</label><select id=\"appearance-accent\" name=\"accent\">")+[['#0f172a',(t("app.midnight"))],['#2563eb',(t("app.blue"))],['#7c3aed',(t("app.purple"))],['#047857',(t("app.green"))],['#be123c',(t("app.berry"))]].map(([value,label])=>'<option value="'+value+'" '+(config.accent===value?'selected':'')+'>'+label+'</option>').join('')+("</select><label for=\"appearance-tone\">"+t("app.background")+"</label><select id=\"appearance-tone\" name=\"tone\">")+[['cloud',(t("app.light"))],['warm',(t("app.warm"))],['cool',(t("app.cool"))]].map(([value,label])=>'<option value="'+value+'" '+(config.tone===value?'selected':'')+'>'+label+'</option>').join('')+("</select><label for=\"appearance-density\">"+t("app.density")+"</label><select id=\"appearance-density\" name=\"density\">")+[['auto',(t("app.automatic"))],['compact',(t("app.compact"))],['comfortable',(t("app.comfortable"))]].map(([value,label])=>'<option value="'+value+'" '+(config.density===value?'selected':'')+'>'+label+'</option>').join('')+("</select><button type=\"submit\">"+t("app.save_appearance")+"</button><p id=\"appearance-message\" role=\"status\"></p></form>"))+
@@ -2967,7 +2987,8 @@ async function archivePerson(id) {
 function persistDevice() {saveDevice(localStorage,device,deviceKey)}
 function updateDeviceProfile(values) {
  const key=session.user.id+':'+activeHousehold.id
- device={...device,profiles:{...device.profiles,[key]:{...settingsForDevice(),...values}}};persistDevice()
+ const {wake,...profile}=settingsForDevice()
+ device={...device,profiles:{...device.profiles,[key]:{...profile,...values}}};persistDevice()
 }
 async function saveDeviceSettings(event) {
  event.preventDefault();const before=structuredClone(device),form=event.target,data=new FormData(form),button=form.querySelector('button[type=submit]');button.disabled=true
@@ -2975,8 +2996,9 @@ async function saveDeviceSettings(event) {
    const shortcuts=Object.fromEntries(['homey','sonos','custom'].map(key=>[key,safeShortcut(data.get(key),{sonos:key==='sonos'})]));shortcuts.label=String(data.get('label')||'').slice(0,40)
    if(data.has('kiosk')&&mode()!=='kiosk')device.kiosk={userId:session.user.id,householdId:activeHousehold.id,pin:await makePin(String(data.get('pin')||''))}
    else if(!data.has('kiosk'))delete device.kiosk
-   updateDeviceProfile({shortcuts,wake:data.has('wake'),inactivity:[10,15,20,30].includes(Number(data.get('inactivity')))?Number(data.get('inactivity')):15})
-   await wakeScreen.set(data.has('wake')&&mode()==='kiosk')
+   if(form.querySelector('#device-wake').dataset.explicit||typeof device.wake==='boolean')device.wake=data.has('wake')
+   updateDeviceProfile({shortcuts,inactivity:[10,15,20,30].includes(Number(data.get('inactivity')))?Number(data.get('inactivity')):15})
+   await wakeScreen.set(wakeEnabled(device,mode()==='kiosk'))
    isSettingsModalOpen=false;kioskUnlocked=false;setProductRoute(mode()==='kiosk'?'today':'calendar')
  }catch(error){device=before;form.querySelector('#device-message').textContent=userError(error);button.disabled=false}
 }
@@ -3006,8 +3028,8 @@ function installProductRuntime() {
    else if(id==='sync-panel-backdrop'){syncPanelOpen=false;renderSyncPanel()}
    else if(id==='pin-modal')pinRoot.innerHTML=''
  })
- const interact=()=>{clock.touch();if(mode()==='kiosk')void wakeScreen.request()}
- document.addEventListener('pointerdown',interact,{passive:true});document.addEventListener('keydown',interact)
+ const interact=()=>{clock.touch();void wakeScreen.interaction()}
+ document.addEventListener('pointerdown',interact,{passive:true});document.addEventListener('touchstart',interact,{passive:true});document.addEventListener('keydown',interact)
  document.addEventListener('visibilitychange',()=>{void wakeScreen.visibility();if(!document.hidden)clock.tick()})
  let resizeTimer
  window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{applyDeviceAppearance();if(session&&!isCalendarModalOpen&&!isSettingsModalOpen)render({preserveDialogs:true})},100)})
@@ -3202,17 +3224,17 @@ async function loadRewardsV2(){
  if(!navigator.onLine||!syncEngine)return
  const engine=syncEngine,generation=engine.writeGeneration,version=++rewardLoadVersion,id=activeHousehold.id
  const {data,error}=await supabase.rpc('get_reward_state',{p_household_id:id}).abortSignal(AbortSignal.timeout(12000))
- if(!error&&engine===syncEngine&&generation===engine.writeGeneration&&version===rewardLoadVersion){rewardMotion.hydrate(data);await engine.snapshot({rewards:data})}
+ if(!error&&engine===syncEngine&&generation===engine.writeGeneration&&version===rewardLoadVersion){rewardMotion.hydrate(data);await engine.snapshot({rewards:data});ready('rewards_ready')}
 }
-async function performRewardAction(action,payload){
- if(isWall()){try{await wallService.complete({itemId:payload.item_id,dueDate:payload.due_date,personId:payload.person_id,done:action!=='undo',action});return {data:{rewards:rewardState}}}catch(error){return {error}}}
- const engine=syncEngine;if(!engine)return {error:new Error((t("app.the_family_is_not_ready_yet")))}
+async function performRewardAction(action,payload,{started}={}){
+ if(isWall()&&!['complete','undo'].includes(action)){try{await wallService.complete({itemId:payload.item_id,dueDate:payload.due_date,personId:payload.person_id,done:action!=='undo',action});return {data:{rewards:rewardState}}}catch(error){return {error}}}
+ const engine=isWall()?wallService.engine:syncEngine;if(!engine)return {error:new Error((t("app.the_family_is_not_ready_yet")))}
  if(['complete','undo'].includes(action)){
   const item=allowanceTasks(materialize(calendarItems,[payload.due_date],{milestones:false}),rewardState,[payload.due_date]).find(t=>(t.isRepeatOccurrence?t.baseId:t.id)===payload.item_id&&actionPayload(t,payload.person_id).occurrence_date===payload.occurrence_date)
   if(!item)return {error:new Error((t("app.this_task_no_longer_exists")))}
   const rule=rewardRule(item),requiresApproval=completionNeedsApproval(item,householdPeople.find(p=>p.id===payload.person_id),householdRole)
   rewardMotion.taskCheck(payload.item_id,action==='undo'?'open':requiresApproval?'pending':'completed',payload.person_id)
-  return engine.enqueue({p_upserts:[],p_delete_ids:[],p_expected:[],reward_action:{action,payload,optimistic:{origin_id:rewardOrigin(item),task_id:payload.item_id,title:item.title,reward_mode:rule.mode,star_value:rule.stars,requires_approval:requiresApproval}}},{action:'reward_'+action,entityId:rewardOrigin(item)+'|'+payload.occurrence_date+'|'+payload.person_id})
+  return engine.enqueue({p_upserts:[],p_delete_ids:[],p_expected:[],reward_action:{action,payload,optimistic:{origin_id:rewardOrigin(item),task_id:payload.item_id,title:item.title,reward_mode:rule.mode,star_value:rule.stars,requires_approval:requiresApproval}}},{action:'reward_'+action,entityId:rewardOrigin(item)+'|'+payload.occurrence_date+'|'+payload.person_id,background:true,started})
  }
  if(!navigator.onLine||syncStatus.offline)return {error:new Error(action==='redeem'?(t("app.you_need_to_be_online_to_redeem_a_reward")):(t("app.this_action_requires_a_connection")))}
  if(engine.state.queue.length){await engine.replay();if(engine.state.queue.length)return {error:new Error((t("app.sync_pending_tasks_first")))};}

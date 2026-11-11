@@ -1,5 +1,6 @@
 import {t} from '../i18n/index.js'
 import {resolveAvatarUrls} from './avatars.js'
+import {OfflineSync} from './offline-sync.js'
 export function pairingValue(input) {
  const raw=String(input||'').trim()
  if(/^[0-9a-f]{64}$/.test(raw)||/^[0-9a-f]{5}-?[0-9a-f]{5}$/i.test(raw))return raw
@@ -7,7 +8,7 @@ export function pairingValue(input) {
  throw Error((t("wall_device.the_code_could_not_be_read_use_the_qr_code_or_short_code_from_an_adult_s_phone")))
 }
 export class WallDeviceService {
- constructor({client,onSnapshot=()=>{},onRevoked=()=>{},onStatus=()=>{}}){Object.assign(this,{client,onSnapshot,onRevoked,onStatus});this.device=null;this.channel=null;this.timer=null;this.pending=null;this.generation=0}
+ constructor({client,imageCache,store,userId=()=>null,onQueue=()=>{},onSnapshot=()=>{},onRevoked=()=>{},onStatus=()=>{}}){Object.assign(this,{client,imageCache,store,userId,onQueue,onSnapshot,onRevoked,onStatus});this.device=null;this.channel=null;this.timer=null;this.pending=null;this.generation=0}
  async session(){
   const {data}=await this.client.auth.getSession()
   if(data.session&&!data.session.user.is_anonymous)throw Error((t("wall_device.sign_out_on_this_device_before_pairing_it_as_a_wall_display")))
@@ -37,17 +38,36 @@ export class WallDeviceService {
   if(this.pending)return this.pending
   const version=this.generation
   this.pending=(async()=>{
+   const writeGeneration=this.engine?.writeGeneration
    const r=await this.client.rpc('wall_snapshot').abortSignal(AbortSignal.timeout(8000))
    if(version!==this.generation)return
    if(r.error){if(r.error.code==='42501')this.revoke();else this.onStatus((t("wall_device.reconnecting_to_the_family")));return}
    const snapshot=r.data,people=snapshot.people||[],key=JSON.stringify([snapshot.household.id,people.map(p=>[p.id,p.avatar_path])])
+   if(this.imageCache){
+    this.imageCache.use(this.userId(),snapshot.household.id);await this.imageCache.hydrate(people)
+    if(version!==this.generation)return
+    snapshot.people=this.imageCache.apply(people);void this.imageCache.refresh(this.client,people)
+   }else{
    if(this.avatarCache?.key!==key||this.avatarCache.until<Date.now()){
     const resolved=await resolveAvatarUrls(this.client,people,300)
     if(version!==this.generation)return
     this.avatarCache={key,until:Date.now()+240000,urls:new Map(resolved.map(p=>[p.id,p.avatar_display_url]))}
    }
    snapshot.people=people.map(p=>({...p,avatar_display_url:this.avatarCache.urls.get(p.id)||''}))
-   this.device=snapshot.device;this.onStatus('');this.onSnapshot(snapshot)
+   }
+   this.device=snapshot.device;this.base=snapshot;this.onStatus('')
+   if(this.store&&this.userId()){
+    if(!this.engine){
+     this.engine=new OfflineSync({store:this.store,client:this.client,userId:this.userId(),householdId:snapshot.household.id,
+      send:entry=>{const a=entry.payload.reward_action,p=a?.payload;if(!a||!['complete','undo','claim'].includes(a.action))return Promise.resolve({error:{code:'42501',message:t('wall_device.the_task_could_not_be_updated')}});return this.client.rpc('complete_task_as_device',{p_request_id:entry.id,p_item_id:p.item_id,p_due_date:p.due_date,p_person_id:p.person_id,p_done:a.action!=='undo',p_action:a.action})},
+      readSnapshot:async()=>{const r=await this.client.rpc('wall_snapshot').abortSignal(AbortSignal.timeout(8000));if(r.error){if(r.error.code==='42501')this.revoke();return null}return {items:r.data.items,rewards:r.data.rewards,people:r.data.people}},
+      onChange:(view,queue,status)=>{if(version!==this.generation)return;this.activeActions=queue.length;this.onQueue(queue,status);this.onSnapshot({...this.base,items:view.items,rewards:view.rewards,people:this.imageCache?.apply(view.people)||view.people})}
+     });await this.engine.init()
+    }
+    if(version!==this.generation)return
+    if(writeGeneration===undefined||writeGeneration===this.engine.writeGeneration)await this.engine.snapshot({items:snapshot.items,rewards:snapshot.rewards,people:snapshot.people})
+    this.engine.kick()
+   }else this.onSnapshot(snapshot)
   })().finally(()=>{this.pending=null})
   return this.pending
  }
@@ -60,6 +80,6 @@ export class WallDeviceService {
   await this.refresh();return r.data
   }finally{this.activeActions--}
  }
- revoke(){this.stop();this.device=null;this.onRevoked()}
- stop(){this.generation++;this.avatarCache=null;clearInterval(this.timer);this.timer=null;if(this.channel)void this.client.removeChannel(this.channel);this.channel=null}
+ revoke(){this.stop();this.imageCache?.clear();if(this.store&&this.userId())void this.store.clearUser(this.userId());this.device=null;this.onRevoked()}
+ stop(){this.generation++;this.engine?.stop();this.engine=null;this.avatarCache=null;clearInterval(this.timer);this.timer=null;if(this.channel)void this.client.removeChannel(this.channel);this.channel=null}
 }

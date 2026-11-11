@@ -12,6 +12,7 @@
     "test:tasks-people:browser": "node tests/tasks-people-browser.mjs",
     "test:stars:db": "node tests/stars-db.mjs",
     "test:stars:browser": "node tests/stars-browser.mjs",
+    "test:stars:goals": "node tests/star-goals-browser.mjs",
     "dev:local": "node scripts/dev-local.mjs",
     "dev:native-review": "node scripts/dev-native-review.mjs",
     "cap:sync": "npm run build && cap sync",

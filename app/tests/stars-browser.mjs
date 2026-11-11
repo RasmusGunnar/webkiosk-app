@@ -1,9 +1,9 @@
 import {expect} from '@playwright/test'
 import {randomUUID} from 'node:crypto'
-import {readFileSync,writeFileSync} from 'node:fs'
+import {existsSync,readFileSync,writeFileSync} from 'node:fs'
 import {routeTo,openCreate} from './browser-actions.mjs'
 import {db,query,actor,today,ids,out,root,hid,rasmus,carl,personIds,ordinary,activity,server,browser,context,page,checks,shots,errors,unknown,pass,shot,fits,switchUser} from './tasks-people-fixture.mjs'
-const ida=personIds[2],previousReview=readFileSync(new URL('review.html',out),'utf8').split('<!-- STARS_REVIEW -->')[0].replace(/<\/main><\/html>\s*$/,'')
+const ida=personIds[2],reviewFile=new URL('review.html',out),previousReview=existsSync(reviewFile)?readFileSync(reviewFile,'utf8').split('<!-- STARS_REVIEW -->')[0].replace(/<\/main><\/html>\s*$/,''):'<!doctype html><html lang="da"><meta charset="utf-8"><title>Stjerner · browserreview</title><style>.grid{display:flex;flex-wrap:wrap;gap:20px}figure{width:350px}img{width:100%}</style><main>'
 const action=async(name,payload,uid=ids.adult)=>{await actor(uid);return (await query('select public.reward_action($1,$2,$3,$4::jsonb) result',[randomUUID(),hid,name,JSON.stringify(payload)])).rows[0].result}
 const state=async()=>{await actor(ids.adult);return (await query('select public.get_reward_state($1) result',[hid])).rows[0].result}
 const balance=async pid=>Number((await state()).balances.find(b=>b.person_id===pid)?.balance||0)
@@ -25,7 +25,7 @@ try{
  cafe=(await action('catalog',{title:'Cafétur',star_cost:20,emoji:'☕',active:true})).id
  await earn(carl,17);await earn(ida,20);await action('goal',{person_id:ida,reward_id:cafe});await page.reload();await admin()
  await page.locator('[data-reward-catalog="'+cinema+'"]').click();await shot('stars-15-edit','Rediger belønning');await page.locator('[name=description]').fill('Vi vælger filmen sammen.');await page.locator('#reward-catalog-form button[type=submit]').click();await expect(page.locator('#reward-catalog-form')).toHaveCount(0)
- await switchUser(ids.child);await routeTo(page,'tasks');await expect(panel()).toContainText('17');await expect(panel()).toContainText('Vælg noget at spare op til');await goalShot('stars-07-no-goal','17 stjerner · intet aktivt mål')
+ await switchUser(ids.child);await routeTo(page,'tasks');await expect(panel()).toContainText('17');await expect(panel()).toContainText('Hvad vil du spare op til?');await goalShot('stars-07-no-goal','17 stjerner · intet aktivt mål')
  await panel().locator('[data-star-choose]').click();await shot('stars-08-selector','Barn · vælg belønning');const goalButton=page.locator('[data-star-reward="'+cinema+'"] [data-reward-action=goal]');await goalButton.focus();await page.keyboard.press('Enter');await expect(page.locator('.reward-modal')).toHaveCount(0)
  await expect(panel().locator('progress')).toHaveAttribute('value','17');await expect(panel().locator('progress')).toHaveAttribute('max','25');expect(await balance(carl)).toBe(17);await goalShot('stars-05-child-goal','Carl · 17 / 25 stjerner · 68 %');pass('STAR_GOAL: visible 17/25, accessible 68%, keyboard goal choice')
  await page.setViewportSize({width:375,height:844});await goalShot('stars-06-child-375','375 px · stjerner og mål');await expect(panel().locator('[data-reward-redeem]')).toHaveCount(0)

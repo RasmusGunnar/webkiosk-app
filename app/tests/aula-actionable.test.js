@@ -68,6 +68,12 @@ test('One failing MeeBook week preserves the valid week, scoped child and struct
  const data=await collect(api,ids.household,[{provider_child_key:sourceKey(ids.household,'child','101'),person_id:ids.ida}],null,true,now);
  assert.equal(data.counts.source_meebook_status,2);assert.equal(data.sources[0].structured_type,'task');assert.equal(data.sources[0].subject,'Matematik');assert.equal(data.sources[0].date_context,'week_plan_day');assert.equal(data.sources[0].date,'2026-11-12');assert.equal(data.sources[0].time,null);assert.deepEqual(data.sources[0].person_ids,[ids.ida]);assert.equal(data.counts.meebook_plans,1);
 });
+test('Yearless weekplan labels receive the requested week year in both date and AI source timestamp',async()=>{
+ const {api}=fixture();api.meebook=async(_ctx,_children,week)=>[{unilogin:'opaque',weekPlan:[{date:week==='2026-W46'?'Torsdag d. 12. november':'Mandag d. 16. november',tasks:[{type:'task',pill:'Matematik',content:'Aflever opgaven',id:'synthetic'}]}]}];
+ const data=await collect(api,ids.household,[{provider_child_key:sourceKey(ids.household,'child','101'),person_id:ids.ida}],null,false,now);
+ const plans=data.sources.filter(s=>s.source_kind==='meebook');assert.deepEqual(plans.map(s=>s.date),['2026-11-12','2026-11-16']);assert.ok(plans.every(s=>s.updated_at.startsWith('2026-')&&s.source_timestamp_known&&s.time===null));
+ assert.equal(data.counts.meebook_date_resolved_in_requested_week,2);
+});
 test('Shared source keeps only the class in the actual evidence sentence; all-year notices include the child',()=>{
  const s={...source,title:'Årgang',text:'3.A skal huske maling. 3.B skal medbringe pap. 3.C skal have tuscher med.',person_scopes:[{person_id:ids.ida,class_name:'3.C'}]};
  const rows=validateAnalysis({findings:[{...analyzed,evidence:'3.A skal huske maling.',title:'Maling'},{...analyzed,evidence:'3.C skal have tuscher med.',title:'Tuscher'}]},[s]);assert.equal(rows.length,1);assert.equal(rows[0].title,'Tuscher');

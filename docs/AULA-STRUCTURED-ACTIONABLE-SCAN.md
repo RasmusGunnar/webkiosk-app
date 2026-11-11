@@ -33,7 +33,19 @@ The MIT reference is `Casperjuel/aula-mcp`, pinned in `aula-third-party.md`,
 `packages/aula-client/src/integrations/meebook.ts`. Its mention of assignment
 does not establish that this account supplies such a type.
 
+The first verification scan exposed a second concrete defect: all 17 persisted
+MeeBook findings had source year 2001 and no finding date. The legacy use of
+JavaScript Date.parse had accepted non-ISO provider display labels and supplied
+its default year. The original diagnostic's "timestamp" counter only meant
+Date.parse accepted the string; it did not establish an ISO timestamp.
+
 `weekPlan[].date` is the container's plan day, not a dedicated due-date field.
+Yearless labels now resolve against the seven actual days of the requested ISO
+week. Only recognized numeric/month/weekday syntax with exactly one matching
+day is accepted. Explicit contradictory weekdays and unknown formats stay null.
+This handles ISO week-year rollover without inserting today's year or allowing
+Date.parse to invent 2001. Both source date and relative-date anchor use the
+resolved day. A worksheet name such as UGE 45 is not an explicit action date.
 Pass it as `date_context=week_plan_day`. Explicit dates in content can refine it;
 uncertain dates remain null and can be corrected in review. Do not manufacture
 a midnight appointment from a day timestamp. Structured person ownership uses
@@ -85,8 +97,9 @@ not silently claimed as read.
 - Headless Chrome: partial notice and existing inline review at 375, 390, 430 and
   1280 pixels. Synthetic screenshots remain in ignored supabase/.temp.
 - i18n parity, TypeScript, production build and diff checks.
-- Production verification uses one final user-triggered full scan with the
-  existing session. No automatic acceptance or new MitID login.
+- The first production verification succeeded in 55 seconds but exposed the
+  yearless-date defect above. A further user-triggered verification is required
+  for that correction. No automatic acceptance or new MitID login.
 
 The diagnostic lease release migration exposes only a SECURITY INVOKER wrapper
 to service_role. Both anon and authenticated EXECUTE remain revoked. It releases

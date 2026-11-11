@@ -5,6 +5,7 @@ import {resolvePlanDate} from './meebook-date.ts';
 // Fixed structural counters only. Never return source bodies, IDs, URLs or names.
 const fields=['type','pill','title','content','date','id','editUrl','deadline','dueDate','due_date','category','planning','status'];
 const enumType=(value:unknown)=>typeof value==='string'&&/^[a-z_]{1,24}$/.test(value)?value:typeof value==='number'&&Number.isInteger(value)&&value>=0&&value<100?'number_'+value:value==null?'missing':'other';
+export const referenceExample=(text:string)=>text.replace(/\u00ad/g,'').replace(/\s+/g,' ').toLocaleLowerCase('da').includes('aflevering af ugetræningsside');
 export function inspectMeeBook(rows:RecordData[],week:string){
  const counts:Record<string,number>={plans:rows.length,items:0,reference_matches:0};
  const inc=(key:string)=>{counts[key]=(counts[key]??0)+1;};
@@ -20,6 +21,8 @@ export function inspectMeeBook(rows:RecordData[],week:string){
     // timestamps. JS Date.parse silently assigns year 2001 to many short labels.
     if(typeof day.date==='string'){
      const value=day.date.trim();
+     if(/\d{4}/.test(value))inc('date_has_four_digit_year');else inc('date_without_four_digit_year');
+     if(/[a-zæøå]/iu.test(value))inc('date_has_calendar_words');
      if(/^\d{1,2}\/\d{1,2}\/?$/.test(value))inc('date_shape_day_month_slash');
      else if(/^\d{1,2}\.\d{1,2}\.?$/.test(value))inc('date_shape_day_month_dot');
      else if(/^\d{1,2}-\d{1,2}$/.test(value))inc('date_shape_day_month_dash');
@@ -33,7 +36,7 @@ export function inspectMeeBook(rows:RecordData[],week:string){
    }
    // Only test the example explicitly supplied by the user; never output its contents.
    const title=textOnly((task.title??'')+' '+(task.content??'')).replace(/\u00ad/g,'').replace(/\s+/g,' ').toLocaleLowerCase('da');
-   if(title.includes('aflevering af ugetræningsside')){inc('reference_matches');inc('reference_type_'+type);if(task.deadline||task.dueDate||task.due_date)inc('reference_has_deadline');if(day.date){inc('reference_has_day_date');const date=localDateTime(day.date).date,today=localDateTime(new Date().toISOString()).date;if(date&&today)inc(date<today?'reference_day_past':'reference_day_current_or_future');}}
+   if(referenceExample(title)){inc('reference_matches');inc('reference_type_'+type);if(task.deadline||task.dueDate||task.due_date)inc('reference_has_deadline');if(day.date){inc('reference_has_day_date');const date=resolvePlanDate(day.date,week).date,today=localDateTime(new Date().toISOString()).date;if(date&&today)inc(date<today?'reference_day_past':'reference_day_current_or_future');}}
   }
  }
  return counts;

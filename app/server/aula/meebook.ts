@@ -2,12 +2,14 @@ import {localDateTime,textOnly,type RecordData} from './provider.ts';
 import type {AnalysisSource,AnalysisFinding} from './analysis.ts';
 import {evidenceOptions,validateAnalysis} from './analysis.ts';
 import {schoolClasses} from './school-scope.ts';
+import {resolvePlanDate} from './meebook-date.ts';
 
 // Confirmed against production on 2026-11-11: task and comment, content/pill/id,
 // day.date timestamps. No assignment type or dedicated deadline field observed.
-export function meebookMetadata(task:RecordData,day:RecordData){
+export function meebookMetadata(task:RecordData,day:RecordData,week?:string){
  const structured_type:AnalysisSource['structured_type']=task.type==='task'?'task':task.type==='comment'?'comment':'unknown';
- const raw=localDateTime(day.date).date,date=raw&&Number.isFinite(Date.parse(raw))&&new Date(raw).toISOString().slice(0,10)===raw?raw:null;
+ const raw=typeof day.date==='string'&&/^\d{4}-\d{2}-\d{2}/.test(day.date)?localDateTime(day.date).date:null;
+ const date=week?resolvePlanDate(day.date,week).date:raw&&Number.isFinite(Date.parse(raw))&&new Date(raw).toISOString().slice(0,10)===raw?raw:null;
  return {structured_type,subject:textOnly(task.pill,80),date_context:date?'week_plan_day' as const:'unknown' as const,date};
 }
 export function retainStructuredTasks(sources:AnalysisSource[],rows:AnalysisFinding[]){

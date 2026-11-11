@@ -9,6 +9,14 @@ test('Confirmed production task/comment types retain content semantics without a
  assert.equal(meebookMetadata({type:'task',pill:'Matematik'},{date:'2026-11-12T00:00:00+01:00'}).date,'2026-11-12');
  assert.equal(meebookMetadata({type:'comment'},{}).structured_type,'comment');assert.equal(meebookMetadata({type:'assignment'},{}).structured_type,'unknown');
  assert.equal(meebookMetadata({},{}).date_context,'unknown');
+ assert.equal(meebookMetadata({type:'task'},{date:'11/12'},'2026-W46').date,'2026-11-12');
+ assert.equal(meebookMetadata({type:'task'},{date:'11/12'}).date,null);
+});
+test('A worksheet week label does not replace the actual planned day; explicit action dates remain editable',()=>{
+ const s={...task,text:'Aflevering af ugetræningsside - UGE 45'};
+ const [f]=validateAnalysis({findings:[{...analyzed,date:'2001-11-12',evidence:s.text}]},[s]);assert.equal(f.date,s.date);
+ const explicit={...s,text:'Læs side 30 til torsdag'};
+ assert.equal(validateAnalysis({findings:[{...analyzed,date:'2026-11-19',evidence:explicit.text}]},[explicit])[0].date,'2026-11-19');
 });
 test('A provider-marked task survives AI omission as a medium-confidence Activity suggestion for its mapped child',()=>{
  const {results,retained}=retainStructuredTasks([task],[]);assert.equal(retained,1);assert.equal(results[0].actionability,'DEADLINE');assert.equal(results[0].proposed_action,'CREATE_ACTIVITY');assert.equal(results[0].confidence,'MEDIUM');assert.deepEqual(results[0].person_ids,[ids.ida]);assert.equal(results[0].time,null);assert.equal(results[0].date,task.date);

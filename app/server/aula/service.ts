@@ -10,7 +10,7 @@ import {AulaError,equalSecret,key,safeError,seal,sourceKey,unseal,uuid,type Enve
 import {validateAnalysis,ANALYSIS_ERRORS,type AnalysisSource,type AnalysisFinding,findExisting,normalizedTitle,samePlanningEvent} from './analysis.ts';
 import {hostedSseProbe,openEventStream} from './hosted-probe.ts';
 import {analyzeBatches} from './scan-analysis.ts';
-import {diagnoseMeeBook} from './meebook-diagnostics.ts';
+import {diagnoseMeeBook,referenceExample} from './meebook-diagnostics.ts';
 import {retainStructuredTasks} from './meebook.ts';
 import {scanSources} from './scan-status.ts';
 export type Request=IncomingMessage & {body?:unknown};
@@ -102,7 +102,7 @@ export function makeHandlers(deps:Dependencies={}){
    }
    const data=await(deps.collect??collect)(new ReadProvider(tokens.access_token,http,log),hid,claim.mappings,claim.last_success_at,p.full===true,new Date(),log,signal);
    stage='analysis';
-   const existing=await(deps.items??items)(hid);const findings:RecordData[]=[];const seen=new Set<string>(),events:AnalysisFinding[]=[];
+   const existing=await(deps.items??items)(hid);const findings:RecordData[]=[],referenceRows:{source_key:string;person_ids:string[];date:string|null}[]=[];const seen=new Set<string>(),events:AnalysisFinding[]=[];
    const analysisStart=Date.now(),analyzed=await analyzeBatches(data.sources,deps.analyze??analyze,signal,log,Math.max(1,215_000-(Date.now()-started)));
    data.counts.ai_batches=analyzed.length;data.counts.ai_failed_batches=analyzed.filter(r=>r.error).length;data.counts.analysis_duration_ms=Date.now()-analysisStart;
    data.counts.ai_failed_sources=analyzed.filter(r=>r.error).reduce((n,r)=>n+r.batch.length,0);
@@ -123,12 +123,21 @@ export function makeHandlers(deps:Dependencies={}){
      if(seen.has(identity))continue;seen.add(identity);
      const {evidence:_discardedEvidence,...safeFinding}=f;
      findings.push({...safeFinding,person_ids:people,person_id:people.length===1?people[0]:null,source_kind:s.source_kind,source_key:sourceKey(hid,'finding',`${s.source_key}:${people.join(',')}:${f.type}:${normalizedTitle(f.title)}`),source_updated_at:s.updated_at,proposed_action:match?'MATCH_EXISTING':f.proposed_action});
+     if(s.source_kind==='meebook'&&referenceExample(s.text))referenceRows.push({source_key:findings.at(-1)!.source_key,person_ids:people,date:s.date});
      if(s.source_kind==='meebook'&&s.structured_type==='task')data.counts.structured_task_findings=(data.counts.structured_task_findings??0)+1;
      if(f.type==='HOMEWORK'||f.type==='DEADLINE')data.counts.homework_findings=(data.counts.homework_findings??0)+1;
      const category='action_'+f.actionability;data.counts[category]=(data.counts[category]??0)+1;
     }
    }
-   stage='finish';const finishStart=Date.now();data.counts.scan_duration_ms=Date.now()-started;await call('scan_finish',hid,uid,{lease,children:data.children,findings,counts:data.counts,api_version:data.api_version});lease='';log('finish.ok',{...data.counts,children:data.children.length,findings:findings.length,stage_ms:Date.now()-finishStart});json(res,200,{status:data.counts.partial?'PARTIAL_SUCCESS':'SUCCESS',sources:scanSources(data.counts),counts:data.counts,findings:findings.length});
+   stage='finish';const finishStart=Date.now();data.counts.scan_duration_ms=Date.now()-started;await call('scan_finish',hid,uid,{lease,children:data.children,findings,counts:data.counts,api_version:data.api_version});lease='';
+   // Read-only verification of the user-supplied acceptance example. Only safe
+   // counts reach logs. A diagnostic read can never turn a saved scan into failure.
+   if(referenceRows.length&&!deps.rpc)try{
+    const {data:stored,error}=await adminClient().from('aula_findings').select('source_key,status,date,person_ids').eq('household_id',hid).in('source_key',referenceRows.slice(0,8).map(r=>r.source_key)).abortSignal(AbortSignal.timeout(5000));
+    if(error)throw new AulaError('AULA_STORAGE_ERROR');
+    log('reference.review',{emitted:referenceRows.length,stored:stored?.length??0,new:stored?.filter(r=>r.status==='new').length??0,reviewed:stored?.filter(r=>['accepted','ignored'].includes(r.status)).length??0,date_matches:stored?.filter(r=>r.date&&referenceRows.some(e=>e.source_key===r.source_key&&e.date===r.date)).length??0,people_match:stored?.filter(r=>referenceRows.some(e=>e.source_key===r.source_key&&[...e.person_ids].sort().join()===Object.values(r.person_ids??[]).sort().join())).length??0});
+   }catch{log('reference.verify.failed',{},'AULA_STORAGE_ERROR');}
+   log('finish.ok',{...data.counts,children:data.children.length,findings:findings.length,stage_ms:Date.now()-finishStart});json(res,200,{status:data.counts.partial?'PARTIAL_SUCCESS':'SUCCESS',sources:scanSources(data.counts),counts:data.counts,findings:findings.length});
   }catch(e){const error=safeError(e);log(stage+'.failed',{},error.code);if(lease)await call('scan_fail',hid,uid,{lease,error:error.code}).catch(()=>{});json(res,error.status,{code:error.code});}
   finally{res.off('close',cancel);abort.abort();}
  };

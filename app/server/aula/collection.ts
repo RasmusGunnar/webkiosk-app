@@ -25,7 +25,7 @@ export async function collect(provider:ReadProvider,hid:string,mappings:RecordDa
   const key=sourceKey(hid,'child',String(c.id)),map=mappings.find(m=>m.provider_child_key===key),inst=institutions.find((i:RecordData)=>(i.children??[]).some((x:RecordData)=>x.id===c.id));
   return {id:String(c.id),profileId:String(c.profileId??c.id),userId:String(c.userId??''),institutionCode:String(c.institutionCode??inst?.institutionCode??''),name:textOnly(c.name,120),school:textOnly(c.institutionProfile?.institutionName??inst?.name??map?.school,200),className:textOnly(c.mainGroup?.name??c.institutionProfile?.mainGroup?.name??c.className??map?.class_name,80),groups:[],groupIds:[],key,personId:map?.person_id??null};
  });
- const counts:Record<string,number>={calendar:0,messages:0,meebook:0,posts:0,notifications:0,notification_sources:0,overview:0,sensitive_skipped:0,unavailable:0,truncated:0,lookback_days:45,actionable_version:3,threads_read:0,messages_read:0,posts_read:0,meebook_plans:0};
+ const counts:Record<string,number>={calendar:0,messages:0,meebook:0,posts:0,notifications:0,notification_sources:0,overview:0,sensitive_skipped:0,unavailable:0,truncated:0,lookback_days:45,actionable_version:4,threads_read:0,messages_read:0,posts_read:0,meebook_plans:0};
  report('profiles.ok',{children:children.length});
  const baseProvider=provider,collectionSignal=AbortSignal.any([signal,AbortSignal.timeout(100_000)]);
  const optional=async(name:string,budget:number,read:()=>Promise<void>)=>{
@@ -79,8 +79,10 @@ export async function collect(provider:ReadProvider,hid:string,mappings:RecordDa
     if(person.exceptionMessage){counts.meebook_unavailable_plans=(counts.meebook_unavailable_plans??0)+1;continue;}
     const child=children.find(c=>c.userId===String(person.unilogin??'')||c.id===String(person.id??''));if(!child)continue;counts.meebook_plans++;
     for(const day of person.weekPlan??[])for(const [index,task]of (day.tasks??[]).entries()){
-     const meta=meebookMetadata(task,day);
-     add('meebook',{belongsToProfiles:[child.id],timestamp:day.date,allDay:true},`${child.id}:${day.date}:${task.id??index}`,task.title??task.pill,task.content,day.date,undefined,{...meta,time:null,end_time:null});
+     const meta=meebookMetadata(task,day,week);
+     // The requested ISO week supplies the missing year. Never feed a yearless
+     // label into Date.parse or use its default year as the AI's source anchor.
+     add('meebook',{belongsToProfiles:[child.id],timestamp:meta.date?meta.date+'T12:00:00Z':undefined,allDay:true},`${child.id}:${day.date}:${task.id??index}`,task.title??task.pill,task.content,meta.date,undefined,{...meta,time:null,end_time:null});
     }
    }
    if(rows.some(person=>person.exceptionMessage))throw new AulaError('AULA_MEEBOOK_PLAN_UNAVAILABLE',502);

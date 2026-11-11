@@ -25,7 +25,7 @@ export async function collect(provider:ReadProvider,hid:string,mappings:RecordDa
   const key=sourceKey(hid,'child',String(c.id)),map=mappings.find(m=>m.provider_child_key===key),inst=institutions.find((i:RecordData)=>(i.children??[]).some((x:RecordData)=>x.id===c.id));
   return {id:String(c.id),profileId:String(c.profileId??c.id),userId:String(c.userId??''),institutionCode:String(c.institutionCode??inst?.institutionCode??''),name:textOnly(c.name,120),school:textOnly(c.institutionProfile?.institutionName??inst?.name??map?.school,200),className:textOnly(c.mainGroup?.name??c.institutionProfile?.mainGroup?.name??c.className??map?.class_name,80),groups:[],groupIds:[],key,personId:map?.person_id??null};
  });
- const counts:Record<string,number>={calendar:0,messages:0,meebook:0,posts:0,notifications:0,notification_sources:0,overview:0,sensitive_skipped:0,unavailable:0,truncated:0,lookback_days:45,actionable_version:4,threads_read:0,messages_read:0,posts_read:0,meebook_plans:0};
+ const counts:Record<string,number>={calendar:0,messages:0,meebook:0,posts:0,notifications:0,notification_sources:0,overview:0,sensitive_skipped:0,unavailable:0,truncated:0,lookback_days:45,actionable_version:5,threads_read:0,messages_read:0,posts_read:0,meebook_plans:0};
  report('profiles.ok',{children:children.length});
  const baseProvider=provider,collectionSignal=AbortSignal.any([signal,AbortSignal.timeout(100_000)]);
  const optional=async(name:string,budget:number,read:()=>Promise<void>)=>{
@@ -61,9 +61,10 @@ export async function collect(provider:ReadProvider,hid:string,mappings:RecordDa
   if(!text&&!heading)continue;
   const scope=relevantChildren(row,children,heading+'\n'+text),people=scope.children.map(c=>c.personId).filter((id):id is string=>Boolean(id));if(!people.length)continue;
   const key=sourceKey(hid,kind,part?`${id}:part:${part}`:String(id));if(seen.has(key))continue;seen.add(key);
+  const origin=sourceKey(hid,'origin-'+kind,String(id));
   const s=localDateTime(start),e=localDateTime(end),ts=stamp(row),validStamp=Number.isFinite(Date.parse(ts));
   // An absent source timestamp is not replaced by today's date for relative interpretation.
-  sources.push({source_key:key,source_kind:kind,title:heading,text,updated_at:validStamp?new Date(ts).toISOString():now.toISOString(),source_timestamp_known:validStamp||kind==='calendar',person_ids:people,person_scopes:scope.children.filter(c=>c.personId).map(c=>({person_id:c.personId!,class_name:c.className})),date:s.date,time:row.allDay?null:s.time,end_date:e.date,end_time:row.allDay?null:e.time,location:textOnly(row.location?.name??row.location??row.primaryResource?.name,200),explicit_scope:scope.explicit,...(kind==='calendar'?{calendar_exception:true}:{}),...hints});
+  sources.push({source_key:key,origin_source_key:origin,source_kind:kind,title:heading,text,updated_at:validStamp?new Date(ts).toISOString():now.toISOString(),source_timestamp_known:validStamp||kind==='calendar',person_ids:people,person_scopes:scope.children.filter(c=>c.personId).map(c=>({person_id:c.personId!,class_name:c.className})),date:s.date,time:row.allDay?null:s.time,end_date:e.date,end_time:row.allDay?null:e.time,location:textOnly(row.location?.name??row.location??row.primaryResource?.name,200),explicit_scope:scope.explicit,...(kind==='calendar'?{calendar_exception:true}:{}),...hints});
   counts[kind==='message'?'messages':kind==='post'?'posts':kind==='notification'?'notification_sources':kind]++;
   }
  };
@@ -82,7 +83,8 @@ export async function collect(provider:ReadProvider,hid:string,mappings:RecordDa
      const meta=meebookMetadata(task,day,week);
      // The requested ISO week supplies the missing year. Never feed a yearless
      // label into Date.parse or use its default year as the AI's source anchor.
-     add('meebook',{belongsToProfiles:[child.id],timestamp:meta.date?meta.date+'T12:00:00Z':undefined,allDay:true},`${child.id}:${day.date}:${task.id??index}`,task.title??task.pill,task.content,meta.date,undefined,{...meta,time:null,end_time:null});
+     const origin=sourceKey(hid,'origin-meebook',task.id!=null?`${child.id}:${task.id}`:`${child.id}:${week}:${day.date}:${index}`);
+     add('meebook',{belongsToProfiles:[child.id],timestamp:meta.date?meta.date+'T12:00:00Z':undefined,allDay:true},`${child.id}:${day.date}:${task.id??index}`,task.title??task.pill,task.content,meta.date,undefined,{...meta,origin_source_key:origin,time:null,end_time:null});
     }
    }
    if(rows.some(person=>person.exceptionMessage))throw new AulaError('AULA_MEEBOOK_PLAN_UNAVAILABLE',502);

@@ -1407,5 +1407,6 @@
   "aula.field_time": "Tidspunkt (valgfrit)",
   "aula.diagnose": "Undersøg ugeplan",
   "aula.diagnostic_done": "Den strukturelle kontrol er afsluttet. Ingen fund eller aktiviteter er ændret.",
-  "aula.partial_scan": "Hentningen er delvist gennemført. De viste fund er gemt, men nogle kilder eller analyser kunne ikke gennemføres. Du kan gennemgå fundene nu og hente igen senere."
+  "aula.partial_scan": "Hentningen er delvist gennemført. De viste fund er gemt, men nogle kilder eller analyser kunne ikke gennemføres. Du kan gennemgå fundene nu og hente igen senere.",
+  "aula.updated_since_review": "Opdateret siden sidst – gennemgå ændringen."
 }

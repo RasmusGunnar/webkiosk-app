@@ -13,6 +13,7 @@ import {analyzeBatches} from './scan-analysis.ts';
 import {diagnoseMeeBook,referenceExample} from './meebook-diagnostics.ts';
 import {retainStructuredTasks} from './meebook.ts';
 import {scanSources} from './scan-status.ts';
+import {atomicFindings,bindLegacy,bindLegacyCandidate,reviewIdentity,type HistoryRow} from './review-memory.ts';
 export type Request=IncomingMessage & {body?:unknown};
 type RPC=(action:string,hid:string,uid:string|null,payload?:RecordData)=>Promise<any>;
 type Dependencies={log?:(event:RecordData)=>void;rpc?:RPC;authorize?:(req:Request,hid:string)=>Promise<string>;login?:(opts:AulaLoginOptions)=>Promise<AulaTokens>;refresh?:typeof refreshSession;collect?:typeof collect;analyze?:(sources:AnalysisSource[],signal:AbortSignal)=>Promise<AnalysisFinding[]>;items?:(hid:string)=>Promise<RecordData[]>;timeoutMs?:number};
@@ -102,7 +103,10 @@ export function makeHandlers(deps:Dependencies={}){
    }
    const data=await(deps.collect??collect)(new ReadProvider(tokens.access_token,http,log),hid,claim.mappings,claim.last_success_at,p.full===true,new Date(),log,signal);
    stage='analysis';
-   const existing=await(deps.items??items)(hid);const findings:RecordData[]=[],referenceRows:{source_key:string;person_ids:string[];date:string|null}[]=[];const seen=new Set<string>(),events:AnalysisFinding[]=[];
+   const existing=await(deps.items??items)(hid);const findings:RecordData[]=[];const seen=new Set<string>(),actionSeen=new Set<string>(),events:AnalysisFinding[]=[];
+   stage='memory';const history:HistoryRow[]=(await call('scan_memory',hid,uid,{lease})).findings??[];
+   const bindings=bindLegacy(hid,data.sources,history);
+   log('memory.loaded',{history:history.length,bound:bindings.length});stage='analysis';
    const analysisStart=Date.now(),analyzed=await analyzeBatches(data.sources,deps.analyze??analyze,signal,log,Math.max(1,215_000-(Date.now()-started)));
    data.counts.ai_batches=analyzed.length;data.counts.ai_failed_batches=analyzed.filter(r=>r.error).length;data.counts.analysis_duration_ms=Date.now()-analysisStart;
    data.counts.ai_failed_sources=analyzed.filter(r=>r.error).reduce((n,r)=>n+r.batch.length,0);
@@ -111,7 +115,7 @@ export function makeHandlers(deps:Dependencies={}){
    for(const {batch,results,error} of analyzed){signal.throwIfAborted();
     const retained=retainStructuredTasks(batch,results);data.counts.structured_tasks_retained=(data.counts.structured_tasks_retained??0)+retained.retained;
     data.counts.general_meebook_filtered=(data.counts.general_meebook_filtered??0)+(error?0:batch.filter(s=>s.source_kind==='meebook'&&s.structured_type==='comment'&&!retained.results.some(f=>f.source_key===s.source_key&&f.actionability!=='GENERAL_INFO'&&f.proposed_action!=='NO_ACTION'&&f.confidence!=='LOW')).length);
-    for(const f of retained.results){
+    for(const f of retained.results.flatMap(f=>atomicFindings(batch.find(s=>s.source_key===f.source_key)!,f))){
      if(f.proposed_action==='NO_ACTION'||f.actionability==='GENERAL_INFO'||f.confidence==='LOW')continue;
      // Old messages remain inputs for future plans, not for recreating expired reminders.
      const today=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Copenhagen'}).format(new Date());
@@ -119,25 +123,21 @@ export function makeHandlers(deps:Dependencies={}){
      if(events.some(e=>samePlanningEvent(e,f)))continue;
      if(f.actionability==='ATTEND')events.push(f);
      const s=batch.find(s=>s.source_key===f.source_key)!;const people=[...f.person_ids].sort();const match=findExisting(f,people,existing);
-     const identity=`${people.join(',')}:${['CALENDAR_EVENT','TRIP'].includes(f.type)?'event':f.type}:${f.date}:${f.time}:${normalizedTitle(f.title)}`;
-     if(seen.has(identity))continue;seen.add(identity);
-     const {evidence:_discardedEvidence,...safeFinding}=f;
-     findings.push({...safeFinding,person_ids:people,person_id:people.length===1?people[0]:null,source_kind:s.source_kind,source_key:sourceKey(hid,'finding',`${s.source_key}:${people.join(',')}:${f.type}:${normalizedTitle(f.title)}`),source_updated_at:s.updated_at,proposed_action:match?'MATCH_EXISTING':f.proposed_action});
-     if(s.source_kind==='meebook'&&referenceExample(s.text))referenceRows.push({source_key:findings.at(-1)!.source_key,person_ids:people,date:s.date});
+     const displayIdentity=`${people.join(',')}:${['CALENDAR_EVENT','TRIP'].includes(f.type)?'event':f.type}:${f.date}:${f.time}:${normalizedTitle(f.title)}`;
+     if(seen.has(displayIdentity))continue;seen.add(displayIdentity);
+     bindings.push(...bindLegacyCandidate(hid,s,f,history));
+     const identity=reviewIdentity(hid,s,f),{evidence:_discardedEvidence,...safeFinding}=f;
+     if(actionSeen.has(identity.action_key))continue;actionSeen.add(identity.action_key);
+     findings.push({...safeFinding,identity,reference:s.source_kind==='meebook'&&referenceExample(s.text),reference_date:s.date,person_ids:people,person_id:people.length===1?people[0]:null,source_kind:s.source_kind,source_key:sourceKey(hid,'finding-v2',`${identity.action_key}:${identity.material_revision}`),source_updated_at:s.updated_at,proposed_action:match?'MATCH_EXISTING':f.proposed_action});
      if(s.source_kind==='meebook'&&s.structured_type==='task')data.counts.structured_task_findings=(data.counts.structured_task_findings??0)+1;
      if(f.type==='HOMEWORK'||f.type==='DEADLINE')data.counts.homework_findings=(data.counts.homework_findings??0)+1;
      const category='action_'+f.actionability;data.counts[category]=(data.counts[category]??0)+1;
     }
    }
-   stage='finish';const finishStart=Date.now();data.counts.scan_duration_ms=Date.now()-started;await call('scan_finish',hid,uid,{lease,children:data.children,findings,counts:data.counts,api_version:data.api_version});lease='';
-   // Read-only verification of the user-supplied acceptance example. Only safe
-   // counts reach logs. A diagnostic read can never turn a saved scan into failure.
-   if(referenceRows.length&&!deps.rpc)try{
-    const {data:stored,error}=await adminClient().from('aula_findings').select('source_key,status,date,person_ids').eq('household_id',hid).in('source_key',referenceRows.slice(0,8).map(r=>r.source_key)).abortSignal(AbortSignal.timeout(5000));
-    if(error)throw new AulaError('AULA_STORAGE_ERROR');
-    log('reference.review',{emitted:referenceRows.length,stored:stored?.length??0,new:stored?.filter(r=>r.status==='new').length??0,reviewed:stored?.filter(r=>['accepted','ignored'].includes(r.status)).length??0,date_matches:stored?.filter(r=>r.date&&referenceRows.some(e=>e.source_key===r.source_key&&e.date===r.date)).length??0,people_match:stored?.filter(r=>referenceRows.some(e=>e.source_key===r.source_key&&[...e.person_ids].sort().join()===Object.values(r.person_ids??[]).sort().join())).length??0});
-   }catch{log('reference.verify.failed',{},'AULA_STORAGE_ERROR');}
-   log('finish.ok',{...data.counts,children:data.children.length,findings:findings.length,stage_ms:Date.now()-finishStart});json(res,200,{status:data.counts.partial?'PARTIAL_SUCCESS':'SUCCESS',sources:scanSources(data.counts),counts:data.counts,findings:findings.length});
+   stage='finish';const finishStart=Date.now();data.counts.scan_duration_ms=Date.now()-started;const finished=await call('scan_finish',hid,uid,{lease,children:data.children,findings,bindings,counts:data.counts,api_version:data.api_version});lease='';
+   Object.assign(data.counts,finished?.memory_counts??{});log('memory.ok',finished?.memory_counts??{});
+   // Reference-example storage counts are verified inside the same transaction.
+   log('finish.ok',{...data.counts,children:data.children.length,generated_findings:findings.length,findings:data.counts.findings_stored??findings.length,stage_ms:Date.now()-finishStart});json(res,200,{status:data.counts.partial?'PARTIAL_SUCCESS':'SUCCESS',sources:scanSources(data.counts),counts:data.counts,findings:data.counts.findings_stored??findings.length});
   }catch(e){const error=safeError(e);log(stage+'.failed',{},error.code);if(lease)await call('scan_fail',hid,uid,{lease,error:error.code}).catch(()=>{});json(res,error.status,{code:error.code});}
   finally{res.off('close',cancel);abort.abort();}
  };

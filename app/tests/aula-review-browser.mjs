@@ -18,11 +18,11 @@ try{
    const {AulaUI}=await import('/src/lib/aula-ui.js'),{finding,ida,carl}=await import('/tests/aula-activity.fixtures.js')
    window.calls=[];window.people=[{id:ida,name:'Ida',color:'#b98486'},{id:carl,name:'Carl',color:'#8e9e65'}]
    const ui=window.ui=new AulaUI({client:{rpc:async(name,p)=>{window.calls.push({name,p});await new Promise(r=>setTimeout(r,40));const f=ui.state.findings.find(f=>f.id===p.p_finding_id);Object.assign(f,{status:'accepted',title:p.p_title,date:p.p_date,time:p.p_time,person_ids:p.p_person_ids});return {error:null}}},getContext:()=>({householdId:'synthetic',role:'owner',people:window.people}),onRender:()=>{}})
-   ui.state.connection={status:'connected',scan_counts:{partial:1}};ui.context='synthetic';ui.loaded=true;ui.refresh=async()=>{};ui.state.findings=[finding({id:'unknown',date:null,confidence:'MEDIUM'}),finding({id:'known',title:'Original title',time:'14:00'})];ui.review()
+   ui.state.connection={status:'connected',scan_counts:{partial:1}};ui.context='synthetic';ui.loaded=true;ui.refresh=async()=>{};ui.state.findings=[finding({id:'unknown',date:null,confidence:'MEDIUM',review_state:'UPDATED'}),finding({id:'known',title:'Original title',time:'14:00'})];ui.review()
   })
   await expect(page.locator('.aula-error')).toContainText('delvist gennemført');
   const unknown=page.locator('[data-aula-finding="unknown"]'),known=page.locator('[data-aula-finding="known"]')
-  await expect(unknown.locator('[data-aula="accept"]')).toBeDisabled();await expect(unknown.locator('[data-aula-edit="date"]')).toBeVisible()
+  await expect(unknown.locator('[role="status"]')).toContainText('Opdateret siden sidst');await expect(unknown.locator('[data-aula="accept"]')).toBeDisabled();await expect(unknown.locator('[data-aula-edit="date"]')).toBeVisible()
   await unknown.scrollIntoViewIfNeeded();await page.screenshot({path:out+'/missing-'+width+'.png'});shots.push('missing-'+width)
   await unknown.locator('[data-aula-edit="date"]').fill('2026-11-12')
   await expect(unknown.locator('[data-aula="accept"]')).toBeEnabled();await expect(unknown.locator('[data-aula-date-label]')).not.toHaveText('Dato skal afklares');await expect(unknown.locator('[data-aula-date-hint]')).toBeHidden()

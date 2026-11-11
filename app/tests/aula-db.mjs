@@ -1,6 +1,7 @@
 // Real PostgreSQL/WASM for SQL state, permissions and migration tests when Docker
 // is unavailable. Supabase Auth/Storage infrastructure is represented by schemas;
 // this does NOT test GoTrue, PostgREST, websocket delivery or hosted services.
+import {memoryChecks} from './aula-review-memory-db.cases.mjs'
 import {PGlite} from '@electric-sql/pglite'
 import {readFileSync,readdirSync,mkdirSync,writeFileSync} from 'node:fs'
 import assert from 'node:assert/strict'
@@ -80,8 +81,9 @@ for(const role of ['anon','authenticated']){await actor(ids.adult,role);await de
 await actor(null,'service_role');await denied('Diagnostic lease cannot cross households',()=>query('select public.aula_diagnostic_release($1,$2)',[ids.other,diagnostic.lease]));
 await query('select public.aula_diagnostic_release($1,$2)',[ids.hid,diagnostic.lease]);
 const afterRelease=await server('status');assert.deepEqual(afterRelease.connection,beforeRelease.connection);assert.deepEqual(afterRelease.findings,beforeRelease.findings);assert.equal(afterRelease.scanning,false);pass('Diagnostic release preserves connection and findings');
+await memoryChecks({query,ids,server,review,actor,pass,denied,today});
 const late=await server('scan_claim');await server('disconnect');await denied('Late scan cannot resurrect disconnected credentials',()=>server('scan_save_session',{lease:late.lease,encrypted_session:envelope}));
-assert.equal((await server('status')).connection.status,'disconnected');await actor(ids.adult);assert.equal((await query("select * from public.calendar_items where data->>'aulaAssisted'='true'")).rows.length,2);pass('Disconnect retains accepted items');
+assert.equal((await server('status')).connection.status,'disconnected');await actor(ids.adult);assert.equal((await query("select * from public.calendar_items where data->>'aulaAssisted'='true'")).rows.length,3);pass('Disconnect retains accepted items');
 assert.deepEqual((await query('select to_jsonb(f) value from public.calendar_feeds f where id=$1',[legacy])).rows[0].value,legacyBefore);pass('Legacy ICS byte-for-byte unchanged');
 for(let i=0;i<3;i++){const f=await server('begin');await server('cancel',{flow_id:f.flow_id})}await denied('Login rate limit enforced',()=>server('begin'));
 const output=new URL('../../supabase/.temp/aula-integration-10/',import.meta.url);mkdirSync(output,{recursive:true});writeFileSync(new URL('database-results.json',output),JSON.stringify({engine:'PGlite PostgreSQL',checks,limitations:['Supabase Auth/PostgREST/realtime infrastructure tested separately']},null,2));

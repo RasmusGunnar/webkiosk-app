@@ -7,7 +7,7 @@ import {AulaError,safeError} from './security.ts';
 import {schoolClasses} from './school-scope.ts';
 export type RecordData=Record<string,any>; // Untrusted provider boundary; normalize before storage/AI.
 export type Child={profileId?:string;institutionCode?:string;groupIds?:string[];id:string;userId:string;name:string;school:string;className:string;groups:string[];key:string;personId:string|null};
-export type Source={source_key:string;source_kind:'calendar'|'message'|'meebook'|'post'|'notification';title:string;text:string;updated_at:string;person_ids:string[];date:string|null;time:string|null;end_date:string|null;end_time:string|null;location:string;explicit_scope:boolean;source_timestamp_known?:boolean;person_scopes?:{person_id:string;class_name:string}[];calendar_exception?:boolean;structured_type?:'task'|'comment'|'unknown';subject?:string;date_context?:'week_plan_day'|'deadline'|'unknown'};
+export type Source={source_key:string;origin_source_key?:string;source_kind:'calendar'|'message'|'meebook'|'post'|'notification';title:string;text:string;updated_at:string;person_ids:string[];date:string|null;time:string|null;end_date:string|null;end_time:string|null;location:string;explicit_scope:boolean;source_timestamp_known?:boolean;person_scopes?:{person_id:string;class_name:string}[];calendar_exception?:boolean;structured_type?:'task'|'comment'|'unknown';subject?:string;date_context?:'week_plan_day'|'deadline'|'unknown'};
 const READS=new Map([
  ['profiles.getProfilesByLogin','GET'],['profiles.getProfileContext','GET'],['groups.getGroupsByContext','GET'],
  ['calendar.getEventsByProfileIdsAndResourceIds','POST'],['messaging.getThreads','GET'],['messaging.getMessagesForThread','GET'],

@@ -18,8 +18,9 @@ their original rows, but a differently worded duplicate could become a new row.
 - Action identity binds origin, exact people and an existing source action
   span/object. Generic instruction synonyms, AI classification, summary and
   confidence are not identity. AI titles only select among source-backed spans.
-  Concrete lists are split before identity so AI grouping does not hide sibling
-  actions such as lunch, bottle and warm clothing.
+  Legacy identity splitting remains for compatibility. The quality pipeline now
+  stores list components internally and combines proven related actions into
+  one review card; see [Aula inbox quality](AULA-INBOX-QUALITY.md).
 - Separate HMACs represent source revision and material source context. Model
   date/wording changes alone cannot create a material update. A changed source
   date or instruction can create an `UPDATED` review card. Compare with the

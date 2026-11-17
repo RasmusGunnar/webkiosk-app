@@ -6,7 +6,7 @@ import {makeHandlers} from '../server/aula/service.ts';
 import {seal,AulaError} from '../server/aula/security.ts';
 import {source,analyzed,ids} from './fixtures/aula.js';
 process.env.AULA_HMAC_KEY=randomBytes(32).toString('base64');process.env.AULA_SESSION_ENCRYPTION_KEY=randomBytes(32).toString('base64');
-test('A partial scan persists validated findings and rotation, reports partial, and never auto-accepts',async()=>{
+test('A partial scan persists validated findings and rotation, reports partial, and never auto-accepts',async context=>{context.mock.timers.enable({apis:['Date'],now:new Date('2026-11-09T12:00Z')});
  const sources=Array.from({length:13},(_,i)=>({...source,source_key:i.toString(16).padStart(64,'0')})),calls=[],logs=[];
  const h=makeHandlers({log:e=>logs.push(e),authorize:async()=>ids.adult,rpc:async(a,_hid,_uid,p)=>{calls.push({a,p});return a==='scan_claim'?{lease:ids.flow,encrypted_session:seal(ids.household,{refresh_token:'synthetic'}),mappings:[]}:{}},refresh:async()=>({access_token:'synthetic',refresh_token:'rotated'}),collect:async()=>({sources,children:[],counts:{source_meebook_status:3,source_messages_status:1,partial:1},api_version:25}),items:async()=>[],analyze:async batch=>{if(batch.length===12)throw new AulaError('AULA_ANALYSIS_INVALID_TIME',422);return [{...analyzed,source_key:batch[0].source_key,date:'2099-01-01'}]}});
  const req=Object.assign(new EventEmitter(),{method:'POST',headers:{},body:{household_id:ids.household}});let response;

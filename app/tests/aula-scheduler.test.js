@@ -32,7 +32,7 @@ test('Scheduled and manual scans share rotation, collection, memory and finish; 
   assert.ok(!JSON.stringify(logs).includes(source.text));assert.ok(!calls.some(c=>c.a==='accept'));
  }
 });
-test('Changed source goes through existing analysis and decision-memory identity, with checkpoint only after successful analysis',async()=>{
+test('Changed source goes through existing analysis and decision-memory identity, with checkpoint only after successful analysis',async context=>{context.mock.timers.enable({apis:['Date'],now:new Date('2026-11-09T12:00Z')});
  const calls=[],changed={...source,text:source.text+' Ny information.',updated_at:'2026-11-11T10:00:00Z'};
  const h=makeHandlers({log:()=>{},authorize:async()=>ids.adult,rpc:async(a,_h,_u,p)=>{calls.push({a,p});if(a==='scan_claim')return {lease:ids.flow,encrypted_session:seal(ids.household,{refresh_token:'synthetic'}),mappings:[],last_success_at:'2026-11-10'};if(a==='source_checkpoints')return {sources:[sourceCheckpoint(ids.household,source)]};return {};},refresh:async()=>({access_token:'synthetic',refresh_token:'rotated'}),collect:async()=>({sources:[changed],children:[],counts:{},api_version:25}),items:async()=>[],analyze:async()=>[{...analyzed,date:'2099-01-01'}]});
  assert.equal((await invoke(h.scan,{household_id:ids.household})).status,200);

@@ -23,7 +23,7 @@ try{
  check(await fixture.client.rpc('aula_set_child_mappings',{p_household_id:hid,p_mappings:[{provider_child_key:childKey,person_id:person}]}));
  assert.equal((await scan(true)).status,200);let rows=(await rpc('status')).findings.filter(f=>!firstIds.has(f.id));assert.equal(rows.length,1);
  check(await fixture.client.rpc('aula_review',{p_household_id:hid,p_finding_id:rows[0].id,p_action:'ignore'}));wording='Medbring varmt tøj';
- const repeat=await scan(true);assert.equal(repeat.status,200);assert.equal(repeat.data.counts.previously_ignored,1);assert.equal(repeat.data.counts.legitimate_new,0);
+ const repeat=await scan(true);assert.equal(repeat.status,200);assert.equal(repeat.data.counts.previously_ignored+repeat.data.counts.component_covered_suppressed,1);assert.equal(repeat.data.counts.legitimate_new,0);
  source.text='Husk varmt tøj fredag.';date='2099-11-13';const changed=await scan(true);assert.equal(changed.status,200);assert.equal(changed.data.counts.material_updates,1);
  rows=(await rpc('status')).findings.filter(f=>!firstIds.has(f.id));assert.equal(rows.filter(f=>f.status==='new').length,1);assert.equal(rows.find(f=>f.status==='new').review_state,'UPDATED');
  assert.ok(!JSON.stringify(logs).includes(source.text));assert.ok(!JSON.stringify(logs).includes(fixture.session.access_token));assert.ok(!JSON.stringify(logs).includes(hid));

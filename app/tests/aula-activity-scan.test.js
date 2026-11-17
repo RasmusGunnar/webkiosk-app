@@ -17,8 +17,9 @@ test('Scanner preserves one multi-person activity and matches only exact activit
    const req=Object.assign(new EventEmitter(),{method:'POST',headers:{},body:{household_id:hid}})
    let response;const res=Object.assign(new EventEmitter(),{setHeader(){},end(body){response=JSON.parse(body)}})
    await handlers.scan(req,res)
-   assert.equal(res.statusCode,200);assert.equal(response.findings,1)
+   assert.equal(res.statusCode,200);assert.equal(response.findings,existingType==='Aktivitet'?0:1)
    const rows=calls.find(c=>c.action==='scan_finish').p.findings
+   if(existingType==='Aktivitet'){assert.equal(rows.length,0);assert.equal(response.counts.already_covered_suppressed,1);continue}
    assert.deepEqual(rows[0].person_ids,[ida,carl].sort());assert.equal(rows[0].person_id,null)
    assert.equal(rows[0].type,'HOMEWORK');assert.equal(rows[0].proposed_action,existingType==='Aktivitet'?'MATCH_EXISTING':'CREATE_ACTIVITY')
   }

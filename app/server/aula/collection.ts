@@ -64,7 +64,7 @@ export async function collect(provider:ReadProvider,hid:string,mappings:RecordDa
   const origin=sourceKey(hid,'origin-'+kind,String(id));
   const s=localDateTime(start),e=localDateTime(end),ts=stamp(row),validStamp=Number.isFinite(Date.parse(ts));
   // An absent source timestamp is not replaced by today's date for relative interpretation.
-  sources.push({source_key:key,origin_source_key:origin,source_kind:kind,title:heading,text,updated_at:validStamp?new Date(ts).toISOString():now.toISOString(),source_timestamp_known:validStamp||kind==='calendar',person_ids:people,person_scopes:scope.children.filter(c=>c.personId).map(c=>({person_id:c.personId!,class_name:c.className})),date:s.date,time:row.allDay?null:s.time,end_date:e.date,end_time:row.allDay?null:e.time,location:textOnly(row.location?.name??row.location??row.primaryResource?.name,200),explicit_scope:scope.explicit,...(kind==='calendar'?{calendar_exception:true}:{}),...hints});
+  sources.push({source_key:key,origin_source_key:origin,source_kind:kind,title:heading,text,updated_at:validStamp?new Date(ts).toISOString():now.toISOString(),source_timestamp_known:validStamp||kind==='calendar',person_ids:people,person_scopes:scope.children.filter(c=>c.personId).map(c=>({person_id:c.personId!,class_name:c.className,name:c.name})),date:s.date,time:row.allDay?null:s.time,end_date:e.date,end_time:row.allDay?null:e.time,location:textOnly(row.location?.name??row.location??row.primaryResource?.name,200),explicit_scope:scope.explicit,...(kind==='calendar'?{calendar_exception:true}:{}),...hints});
   counts[kind==='message'?'messages':kind==='post'?'posts':kind==='notification'?'notification_sources':kind]++;
   }
  };
@@ -84,7 +84,7 @@ export async function collect(provider:ReadProvider,hid:string,mappings:RecordDa
      // The requested ISO week supplies the missing year. Never feed a yearless
      // label into Date.parse or use its default year as the AI's source anchor.
      const origin=sourceKey(hid,'origin-meebook',task.id!=null?`${child.id}:${task.id}`:`${child.id}:${week}:${day.date}:${index}`);
-     add('meebook',{belongsToProfiles:[child.id],timestamp:meta.date?meta.date+'T12:00:00Z':undefined,allDay:true},`${child.id}:${day.date}:${task.id??index}`,task.title??task.pill,task.content,meta.date,undefined,{...meta,origin_source_key:origin,time:null,end_time:null});
+     add('meebook',{belongsToProfiles:[child.id],timestamp:meta.date?meta.date+'T12:00:00Z':undefined,allDay:true},`${child.id}:${day.date}:${task.id??index}`,task.title??task.pill,task.content,meta.date,undefined,{...meta,origin_source_key:origin,source_timestamp_known:false,time:null,end_time:null});
     }
    }
    if(rows.some(person=>person.exceptionMessage))throw new AulaError('AULA_MEEBOOK_PLAN_UNAVAILABLE',502);
@@ -113,7 +113,7 @@ export async function collect(provider:ReadProvider,hid:string,mappings:RecordDa
     const data=await provider.read('messaging.getMessagesForThread',{threadId:String(thread.id),page:String(p)});if(p===0)counts.threads_read++;
     const messages=data?.messages??[];let pageOld=messages.length>0;
     for(const m of messages){if(m.sendDateTime&&Number.isFinite(Date.parse(m.sendDateTime))&&new Date(m.sendDateTime).toISOString()<cutoff)continue;pageOld=false;counts.messages_read++;
-     add('message',{...thread,...data,...m},m.id??`${thread.id}:${m.sendDateTime}`,m.subject??data.subject??thread.subject,m.text?.plain??m.text?.html??m.text);
+     add('message',{...thread,...data,...m},m.id??`${thread.id}:${m.sendDateTime}`,m.subject??data.subject??thread.subject,m.text?.plain??m.text?.html??m.text,undefined,undefined,{context_key:sourceKey(hid,'message-thread',String(thread.id))});
     }
     if(!data?.moreMessagesExist||pageOld)break;if(p===11)counts.truncated++;
    }}catch(e){if(e instanceof AulaError&&e.code==='AULA_SENSITIVE_SKIPPED')counts.sensitive_skipped++;else throw e;}
@@ -137,7 +137,7 @@ export async function collect(provider:ReadProvider,hid:string,mappings:RecordDa
  await optional('notifications',10_000,async()=>{
  const ns=await provider.read('notifications.getNotificationsForActiveProfile',{'activeChildrenIds[]':children.map(c=>c.id)});const notices=Array.isArray(ns)?ns:ns?.notifications??[];counts.notifications=notices.length;
  // Notifications are pointers, not message bodies. Feed/thread reads above resolve their content.
- for(const n of notices){if(n.noteToGuardians&&(!n.responseDeadline||n.responseDeadline>=now.toISOString()))add('notification',{...n,belongsToProfiles:n.relatedChildInstitutionProfileId?[n.relatedChildInstitutionProfileId]:[]},n.notificationId,n.vacationRequestName,n.noteToGuardians,n.responseDeadline??n.startDate,n.endDate);}
+ for(const n of notices){if(n.noteToGuardians&&(!n.responseDeadline||n.responseDeadline>=now.toISOString()))add('notification',{...n,belongsToProfiles:n.relatedChildInstitutionProfileId?[n.relatedChildInstitutionProfileId]:[]},n.notificationId,n.vacationRequestName,n.noteToGuardians,n.responseDeadline??n.startDate,n.endDate,{deadline:localDateTime(n.responseDeadline).date});}
  report('notifications.ok',{read:counts.notifications,sources:counts.notification_sources,post_references:notices.filter((n:RecordData)=>n.postId).length});
  });
  await optional('calendar',20_000,async()=>{

@@ -1,4 +1,4 @@
-/* Product UX 2.2: compact controller layout; desktop and kiosk keep their own scale. */
+/* Shared small-screen presentation, independent of device capabilities. */
 body[data-mode=mobile] .app-shell{padding:env(safe-area-inset-top) 16px calc(164px + env(safe-area-inset-bottom));max-width:100%;width:100%}
 body[data-mode=mobile] .dashboard-header{height:60px;min-height:60px;gap:12px;padding:0;margin:0 0 10px;border:0;align-items:center}
 .mobile-brand{display:flex;align-items:center;gap:10px;min-width:0}.mobile-brand-icon{display:grid;place-items:center;width:28px;height:32px;border-radius:9px;background:var(--ux-green);color:#fff;flex:none}.mobile-brand-icon svg{width:18px;height:18px}.mobile-brand h1{font-size:19px;letter-spacing:-.035em;line-height:1.2;margin:0;overflow-wrap:anywhere}

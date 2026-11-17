@@ -18,7 +18,7 @@ export async function openCreate(page,kind='Aktivitet',{compact=false}={}){
  if(!compact)await expandTaskAdvanced(page)
 }
 export async function openSettings(page,tab='people'){
- if(await settledMode(page)!=='kiosk'){await routeTo(page,'family');await page.locator('[data-open-settings='+tab+']').first().click()}
+ if((await settledMode(page))!=='kiosk'&&(await page.locator('body').getAttribute('data-device'))!=='wall'){await routeTo(page,'family');await page.locator('[data-open-settings='+tab+']').first().click()}
  else {await page.locator('#settings-button').click();await page.locator('[data-settings-tab='+tab+']').click()}
  await expect(page.locator('[data-settings-panel='+tab+']')).toBeVisible()
 }

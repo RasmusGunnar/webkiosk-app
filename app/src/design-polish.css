@@ -118,44 +118,4 @@ body[data-mode=mobile] .star-panel-compact .star-person strong{font-size:16px}
 body[data-mode=mobile] :is(.modal-actions,.recipe-form-actions,.star-actions,.recipe-actions,.aula-actions) button{min-height:44px}
 body[data-mode=desktop] .home-layout{grid-template-columns:minmax(0,1.7fr) minmax(320px,1fr);gap:var(--space-lg)}
 /* The wall spends its height on the day. Motivation is a small secondary strip. */
-body[data-mode=kiosk] .kiosk-heading>div:first-child{display:grid;grid-template-columns:auto 1fr;column-gap:24px;align-items:end}
-body[data-mode=kiosk] .kiosk-heading .eyebrow{grid-column:1/-1;margin:0 0 4px;font-size:11px}
-body[data-mode=kiosk] #device-clock{font-size:52px;line-height:1;font-weight:500}
-body[data-mode=kiosk] #device-date{font-size:20px;line-height:1.3;margin:0 0 4px}
-body[data-mode=kiosk] .kiosk-label{font-size:14px;color:var(--text-secondary)}
-body[data-mode=kiosk] .wall-today{height:100%;min-height:0;display:flex;flex-direction:column;gap:16px}
-body[data-mode=kiosk] .wall-today>.home-layout{flex:1;min-height:0;height:auto;align-items:stretch}
-body[data-mode=kiosk] .wall-today .home-aside{overflow:auto;min-height:0;scrollbar-width:thin}
-body[data-mode=kiosk] .wall-today .day-view{min-height:0;overflow:auto;scrollbar-width:thin}
-body[data-mode=kiosk] .wall-today .day-card{min-height:100%;height:auto}
-body[data-mode=kiosk] .today-meal{padding:24px}
-body[data-mode=kiosk] .today-meal>header h2{font-size:16px}
-body[data-mode=kiosk] .today-meal h3{font-size:clamp(26px,2.2vw,38px)}
-body[data-mode=kiosk] .today-meal-row.has-image{grid-template-columns:minmax(120px,34%) minmax(0,1fr)}
-body[data-mode=kiosk] .today-meal-meta,body[data-mode=kiosk] .today-meal-link{font-size:16px}
-body[data-mode=kiosk] .wall-today .compact-task{min-height:60px;padding:10px 2px}
-body[data-mode=kiosk] .wall-today .compact-task strong{font-size:20px;white-space:normal}
-body[data-mode=kiosk] .wall-today .compact-task small{font-size:14px}
-body[data-mode=kiosk] .kiosk-progress{padding:20px;background:var(--surface-subtle);border-radius:var(--radius-md)}
-body[data-mode=kiosk] .reward-people-kiosk{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 16px}
-body[data-mode=kiosk] .reward-person-summary{border:0;border-radius:0;background:transparent;padding:12px 0;box-shadow:none}
-body[data-mode=kiosk] .reward-person-summary strong{font-size:18px}
-body[data-mode=kiosk] .reward-person-summary small{font-size:14px;font-weight:400}
-body[data-mode=kiosk] .star-goals-wall{flex:none;margin:0}
-body[data-mode=kiosk] .star-goals-wall>h3{font-size:13px;color:var(--text-secondary);margin:0 0 6px;font-weight:500}
-body[data-mode=kiosk] .star-goals-grid{grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;align-items:stretch}
-body[data-mode=kiosk] .star-panel-compact{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto auto;gap:5px 10px;padding:12px 16px;border-top-width:2px;min-height:82px}
-body[data-mode=kiosk] .star-panel-compact>header{grid-column:1;grid-row:1;margin:0}
-body[data-mode=kiosk] .star-panel-compact .star-person{gap:8px}
-body[data-mode=kiosk] .star-panel-compact .star-person strong{font-size:17px}
-body[data-mode=kiosk] .star-panel-compact .star-person .person-avatar{width:var(--avatar-sm);height:var(--avatar-sm);flex-basis:var(--avatar-sm)}
-body[data-mode=kiosk] .star-panel-compact .star-balance{grid-row:1;grid-column:2;font-size:18px;align-self:center}
-body[data-mode=kiosk] .star-panel-compact .star-goal-heading{grid-column:1;grid-row:2;margin:0;gap:6px}
-body[data-mode=kiosk] .star-panel-compact .star-symbol{font-size:18px}
-body[data-mode=kiosk] .star-panel-compact .star-goal-heading h4{font-size:16px}
-body[data-mode=kiosk] .star-panel-compact .star-progress{grid-column:2;grid-row:2;width:90px;align-self:center}
-body[data-mode=kiosk] .star-panel-compact :is(.star-progress-label,.star-goal-message,.star-actions){display:none}
-body[data-mode=kiosk] .star-panel-compact .star-no-goal{grid-column:1/-1;grid-row:2}
-body[data-mode=kiosk] .star-panel-compact .star-empty{font-size:15px;color:var(--text-secondary)}
-@media(max-height:700px){body[data-mode=kiosk] #device-clock{font-size:38px}body[data-mode=kiosk] #device-date{font-size:16px}body[data-mode=kiosk] .star-goals-grid{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}body[data-mode=kiosk] .star-panel-compact{padding:8px 12px;min-height:68px}}
-@media(prefers-reduced-motion:reduce){.today-meal *,.star-goals-wall *{animation:none;transition:none}}
+@media(prefers-reduced-motion:reduce){.today-meal *{animation:none;transition:none}}

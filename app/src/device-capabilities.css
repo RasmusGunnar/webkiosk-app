@@ -1,0 +1,11 @@
+/* Platform additions only. Product surfaces use the same responsive styles. */
+.device-clock{display:flex;align-items:center;gap:16px;color:var(--ux-green);font-variant-numeric:tabular-nums}
+.device-clock time{font-size:clamp(24px,2vw,34px);font-weight:600;line-height:1.2;letter-spacing:-.03em}
+.device-clock span{font-size:13px;color:var(--text-secondary);max-width:210px;line-height:1.5}
+.device-shortcuts{display:flex;gap:8px;flex-wrap:wrap}
+.device-shortcuts:empty{display:none}
+.device-shortcuts a{display:inline-flex;align-items:center;min-height:44px;padding:10px 14px;background:var(--ux-sage);border:1px solid var(--ux-line);border-radius:12px;color:var(--ux-green);text-decoration:none;font-size:13px}
+body[data-device=wall] .person-chip,body[data-device=wall] .reward-actions button{min-height:44px}
+@media(max-width:900px){.device-clock{gap:8px}.device-clock span{max-width:130px;font-size:11px}}
+
+@media(max-width:699px){.device-clock{align-items:flex-end;flex-direction:column;gap:0}.device-clock time{font-size:20px}.device-clock span{max-width:150px;font-size:10px;text-align:right}}

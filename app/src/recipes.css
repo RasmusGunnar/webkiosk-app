@@ -74,7 +74,7 @@
 .recipe-picker .recipe-placeholder span{display:none}.recipe-picker>button>span{flex:1}.recipe-picker strong,.recipe-picker small{display:block}.recipe-picker small{margin-top:4px;color:#847761}
 .meal-card .meal-recipe-thumbnail{width:48px;height:42px;object-fit:cover;border-radius:7px;grid-row:1/3}
 .meal-card .meal-recipe-link{background:transparent;color:#6e7351;border:0;font-size:12px;min-height:32px;padding:5px 10px;text-align:left}
-body:not([data-mode=kiosk]) .meal-day .meal-add{min-height:32px;padding:4px 8px;font-size:12px}
+body[data-mode] .meal-day .meal-add{min-height:32px;padding:4px 8px;font-size:12px}
 @media(hover:hover){.library-card:hover{transform:translateY(-2px);box-shadow:0 6px 18px #534d3610}}
 @media(min-width:1600px){.recipe-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(max-width:767px){
@@ -96,16 +96,16 @@ body:not([data-mode=kiosk]) .meal-day .meal-add{min-height:32px;padding:4px 8px;
 @media(prefers-reduced-motion:reduce){.library-card{transition:none}.library-card:hover{transform:none}}
 
 .recipe-avatar{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;overflow:hidden;font-size:13px;font-weight:650}.recipe-avatar img{width:100%;height:100%;object-fit:cover}
-body:not([data-mode=kiosk]) .meal-card>button:first-child{display:grid;grid-template-columns:minmax(0,1fr);gap:2px 9px;min-height:42px;align-content:center}
-body:not([data-mode=kiosk]) .meal-card>button:first-child:has(.meal-recipe-thumbnail){grid-template-columns:48px minmax(0,1fr)}
-body:not([data-mode=kiosk]) .meal-card .meal-recipe-thumbnail{grid-column:1;grid-row:1/3;width:48px;height:48px;align-self:center;border-radius:9px}
-body:not([data-mode=kiosk]) .meal-card .meal-symbol{display:none}
-body:not([data-mode=kiosk]) .meal-card strong{font-size:15px;min-width:0}
-body:not([data-mode=kiosk]) .meal-card>button:first-child:has(.meal-recipe-thumbnail)>:is(strong,small){grid-column:2}
-body:not([data-mode=kiosk]) .meal-card .ingredient-button{margin:5px 0 0;min-height:30px;padding:5px 7px}
-body:not([data-mode=kiosk]) .meal-day-content{padding:10px}
-body:not([data-mode=kiosk]) .meal-day .meal-add{margin-top:6px;min-height:28px}
-body:not([data-mode=kiosk]) .meal-day .meal-empty{margin:4px 0 8px}
+body[data-mode] .meal-card>button:first-child{display:grid;grid-template-columns:minmax(0,1fr);gap:2px 9px;min-height:42px;align-content:center}
+body[data-mode] .meal-card>button:first-child:has(.meal-recipe-thumbnail){grid-template-columns:48px minmax(0,1fr)}
+body[data-mode] .meal-card .meal-recipe-thumbnail{grid-column:1;grid-row:1/3;width:48px;height:48px;align-self:center;border-radius:9px}
+body[data-mode] .meal-card .meal-symbol{display:none}
+body[data-mode] .meal-card strong{font-size:15px;min-width:0}
+body[data-mode] .meal-card>button:first-child:has(.meal-recipe-thumbnail)>:is(strong,small){grid-column:2}
+body[data-mode] .meal-card .ingredient-button{margin:5px 0 0;min-height:30px;padding:5px 7px}
+body[data-mode] .meal-day-content{padding:10px}
+body[data-mode] .meal-day .meal-add{margin-top:6px;min-height:28px}
+body[data-mode] .meal-day .meal-empty{margin:4px 0 8px}
 @media(min-width:1280px){body[data-mode=desktop] .meal-week{grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}body[data-mode=desktop] .meal-day{grid-template-columns:70px minmax(0,1fr)}.recipe-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(max-width:767px){body[data-mode=mobile] .meal-card strong{font-size:15px}body[data-mode=mobile] .meal-day-content{padding:8px 6px 8px 10px}.recipe-modal{min-height:0;height:auto}}
 
@@ -114,3 +114,10 @@ body:not([data-mode=kiosk]) .meal-day .meal-empty{margin:4px 0 8px}
 #recipe-image-preview img{height:210px;object-fit:contain;background:#eceede}
 
 .recipe-ingredients label{font-size:16px;font-weight:400;line-height:1.5}
+
+/* One private thumbnail component, with size supplied by its placement. */
+.recipe-thumbnail{position:relative;overflow:hidden;margin:0;background:var(--ux-sage)}
+.recipe-thumbnail>img{display:block;width:100%;height:100%;object-fit:cover}
+.recipe-thumbnail>img[hidden]{display:none}
+.recipe-thumbnail>svg{position:absolute;inset:0;margin:auto;color:var(--ux-green)}
+.recipe-thumbnail.is-ready>svg{display:none}

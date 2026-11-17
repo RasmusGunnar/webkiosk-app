@@ -59,7 +59,7 @@ try{
  for(const tab of ['people','family','feeds','device','appearance','account']){await openSettings(page,tab);await page.keyboard.press('Escape')}
  pass('Family opens people, members, feeds, device, appearance and account settings')
  const second=(await must(admin.from('households').insert({name:'Sommerhuset',created_by:uid}).select('id').single())).id;households.push(second);await must(admin.from('household_members').insert({household_id:second,user_id:uid,role:'owner'}));await page.reload();await routeTo(page,'family');await expect(page.locator('#household-switch')).toBeVisible();await switchHousehold(page,second,'calendar');await expect(page.locator('.calendar-item')).toHaveCount(0);await switchHousehold(page,hid,'today');pass('Multiple families switch within Family and retain isolated calendar data')
- await openSettings(page,'device');await page.locator('#device-kiosk').check();await page.locator('#device-pin').fill('1948');await page.locator('#device-settings-form button[type=submit]').click();await expect(page.locator('body')).toHaveAttribute('data-mode','kiosk')
+ await openSettings(page,'device');await page.locator('#device-kiosk').check();await page.locator('#device-pin').fill('1948');await page.locator('#device-settings-form button[type=submit]').click();await expect(page.locator('body')).toHaveAttribute('data-device','wall')
  expect(await page.locator('.product-nav button').allTextContents()).toEqual(['I dag','Kalender','Mad & indkøb','Opgaver'])
  for(const [width,height] of [[1024,600],[1024,768],[1280,800],[1920,1080]]){
   await page.setViewportSize({width,height})

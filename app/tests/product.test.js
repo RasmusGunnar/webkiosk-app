@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import {readDevice,saveDevice,resolveMode,deviceSettings,densityFor,makePin,checkPin,WakeScreen,DeviceClock,safeShortcut} from '../src/lib/device-mode.js'
+import {readDevice,saveDevice,resolveMode,presentationMode,deviceSettings,densityFor,makePin,checkPin,WakeScreen,DeviceClock,safeShortcut} from '../src/lib/device-mode.js'
 import {upcomingItems,consumeInvite,callbackUrl,invitationStatus} from '../src/lib/product-model.js'
 const storage=()=>{const rows=new Map();return {getItem:key=>rows.get(key),setItem:(key,value)=>rows.set(key,value),removeItem:key=>rows.delete(key)}}
 test('device persistence is explicit and scoped to authenticated user and household',()=>{
@@ -50,7 +50,7 @@ test('kiosk idle reset respects drafts, recent interaction and mobile mode',()=>
  kiosk=false;time=new Date(+time+16*60000);clock.tick();assert.equal(resets,1)
 })
 test('responsive density and shortcuts enforce supported protocols',()=>{
- assert.equal(densityFor('kiosk',1024,600),'compact');assert.equal(densityFor('kiosk',1920,1080),'comfortable')
+ assert.equal(densityFor('kiosk',1024,600),densityFor('desktop',1024,600));assert.equal(presentationMode(390),'mobile');assert.equal(presentationMode(1920),'desktop');assert.equal(densityFor('kiosk',1920,1080),'comfortable')
  assert.equal(safeShortcut(''),'');assert.equal(safeShortcut('sonos://open',{sonos:true}),'sonos://open')
  for(const url of ['javascript:alert(1)','data:text/html,hi','https://name:pass@example.test'])assert.throws(()=>safeShortcut(url))
 })

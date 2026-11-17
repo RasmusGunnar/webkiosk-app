@@ -84,7 +84,7 @@ try{
  sourceSnapshot={externalKey:imported.external_id,payload:{title:source.title,date:imported.date,time:imported.time,note:source.note,data:{uid:imported.data.uid,recurrenceId:imported.data.recurrenceId,occurrenceDate:imported.data.occurrenceDate,location:source.location,durationMin:imported.duration_min}}}
  pass('Imported row and overrides remain present after full browser reload')
  const mobile=await setup({width:390,height:844}),kiosk=await setup({width:1920,height:1080},true)
- await expect(kiosk.locator('body')).toHaveAttribute('data-mode','kiosk')
+ await expect(kiosk.locator('body')).toHaveAttribute('data-device','wall')
  await applySnapshot({...sourceSnapshot,payload:{...sourceSnapshot.payload,title:'Lokal kildeopdatering',data:{...sourceSnapshot.payload.data,location:'Ny kildeplacering'}}})
  for(const target of [page,mobile,kiosk]){await expect(card(target)).toContainText('Lokal kildeopdatering');await expect(card(target)).toHaveCount(1)}
  expect((await current()).location).toBe('Mød ved indgangen · lokal kontrol');pass('Source update reaches desktop/mobile/kiosk through real Realtime without echo duplicates; overridden fields stay local')

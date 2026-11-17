@@ -15,7 +15,7 @@ const progress=(person,g)=>`<div class="star-progress-label"><span>${text('stars
 export function starGoals(ui){
  const c=ui.c,people=c.people.filter(p=>p.is_active!==false&&['child','barn'].includes(p.role)&&enabled(p)&&rewardConfig(c.state,p.id).star_rewards_enabled)
  if(!people.length)return ''
- return `<section class="star-goals ${c.mode==='kiosk'?'star-goals-wall':''}" aria-label="${text('stars.goals')}"><h3>${text('stars.goals')}</h3><div class="star-goals-grid">${people.map(p=>starDashboard(ui,p.id,{compact:true})).join('')}</div></section>`
+ return `<section class="star-goals" aria-label="${text('stars.goals')}"><h3>${text('stars.goals')}</h3><div class="star-goals-grid">${people.map(p=>starDashboard(ui,p.id,{compact:true})).join('')}</div></section>`
 }
 export function starDashboard(ui,pid,{compact=false}={}){
  const c=ui.c,p=c.people.find(p=>p.id===pid);if(!p||p.is_active===false||!enabled(p)||!rewardConfig(c.state,pid).star_rewards_enabled)return ''

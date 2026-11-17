@@ -25,7 +25,7 @@ try{
  await settings();await page.locator('#device-wake').uncheck();await page.locator('#device-settings-form button[type=submit]').click();await expect.poll(()=>page.evaluate(()=>wakeProbe.releases)).toBe(3)
  await page.reload();await page.waitForLoadState('networkidle');expect(await page.evaluate(()=>wakeProbe.requests)).toBe(0);pass('OFF releases and persists')
  await page.evaluate(({api,uid,hid})=>{localStorage.setItem('familiekalender.device.v1:'+api,JSON.stringify({kiosk:{userId:uid,householdId:hid}}));localStorage.setItem('wake-test-deny','true')},{api,uid:ids.adult,hid})
- await page.reload();await page.waitForLoadState('networkidle');await expect(page.locator('body')).toHaveAttribute('data-mode','kiosk');expect(await page.evaluate(()=>wakeProbe.requests)).toBe(1)
+ await page.reload();await page.waitForLoadState('networkidle');await expect(page.locator('body')).toHaveAttribute('data-device','wall');expect(await page.evaluate(()=>wakeProbe.requests)).toBe(1)
  await page.waitForTimeout(1100);expect(await page.evaluate(()=>wakeProbe.requests)).toBe(1);pass('Wall default ON; rejected request does not loop')
  await page.evaluate(()=>{wakeProbe.deny=false;document.dispatchEvent(new PointerEvent('pointerdown'))});await expect.poll(()=>page.evaluate(()=>wakeProbe.requests)).toBe(2);pass('User interaction retries denied request')
  await page.evaluate(()=>localStorage.setItem('wake-test-unsupported','true'));await page.reload();await page.waitForLoadState('networkidle');await expect(page.locator('.product-nav')).toBeVisible();expect(await page.evaluate(()=>wakeProbe.requests)).toBe(0);pass('Unsupported browser keeps working')

@@ -5,8 +5,10 @@ export function readDevice(storage,key=DEVICE_KEY){try{return JSON.parse(storage
 export function saveDevice(storage,value,key=DEVICE_KEY){storage.setItem(key,JSON.stringify(value));return value}
 export const wakeEnabled=(device,wall=false)=>typeof device.wake==='boolean'?device.wake:wall
 export function deviceSettings(device,userId,householdId){return {...defaults,...device.profiles?.[userId+':'+householdId],wake:wakeEnabled(device,resolveMode(1024,device,userId,householdId)==='kiosk'),shortcuts:{...defaults.shortcuts,...device.profiles?.[userId+':'+householdId]?.shortcuts}}}
+// Presentation never depends on pairing or authentication.
+export const presentationMode=width=>width<700?'mobile':'desktop'
 export function resolveMode(width,device,userId,householdId){return userId&&householdId&&device.kiosk?.userId===userId&&device.kiosk?.householdId===householdId?'kiosk':width<700?'mobile':'desktop'}
-export function densityFor(mode,width,height,choice='auto'){return choice==='auto'?(mode==='kiosk'&&(width<1300||height<800)?'compact':'comfortable'):choice}
+export function densityFor(mode,width,height,choice='auto'){return choice==='auto'?'comfortable':choice}
 export function safeShortcut(input,{sonos=false}={}){
  const value=String(input||'').trim();if(!value)return ''
  let url;try{url=new URL(value)}catch{throw Error('Skriv et gyldigt link med https://.')}

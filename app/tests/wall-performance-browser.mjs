@@ -1,8 +1,10 @@
 // Real isolated local anonymous Auth, RLS, Storage and restricted wall RPC.
+import {createServer} from 'vite'
 import {chromium,expect} from '@playwright/test'
 import {writeFileSync} from 'node:fs'
 import {wallAvatarFixture,must,fixtureDate} from './fixtures/wall-avatar.js'
 const f=await wallAvatarFixture(),browser=await chromium.launch({channel:'chrome',headless:true}),context=await browser.newContext({viewport:{width:1920,height:1080},locale:'da-DK',timezoneId:'Europe/Copenhagen',serviceWorkers:'block'})
+Object.assign(process.env,f.env);const server=await createServer({configFile:false,envDir:false,server:{host:'127.0.0.1',port:5203,strictPort:true}});await server.listen()
 const page=await context.newPage(),errors=[],checks=[];page.on('pageerror',e=>errors.push(e.message))
 let signs=0,images=0,acks=0,requests=0
 await context.addInitScript(session=>localStorage.setItem('sb-127-auth-token',JSON.stringify(session)),f.wallSession)
@@ -16,7 +18,7 @@ await context.route('**/*',async route=>{
 page.on('response',r=>{if(r.url().includes('/rpc/complete_task_as_device'))acks++})
 try{
  const task=await must(f.client.from('calendar_items').insert({household_id:f.hid,created_by:f.user.id,title:'Synthetic wall duty',type:'Opgave',date:fixtureDate,time:'08:00',person_ids:[f.ida.id,f.carl.id],data:{rewardMode:'none',requiresApproval:false}}).select().single())
- await page.goto('http://127.0.0.1:5198/');await page.waitForLoadState('networkidle');await expect(page.locator('body')).toHaveAttribute('data-mode','kiosk')
+ await page.goto('http://127.0.0.1:5203/');await page.waitForLoadState('networkidle');await expect(page.locator('body')).toHaveAttribute('data-device','wall')
  await page.locator('[data-task-detail="'+task.id+'"]').first().click()
  const row=page.locator('.reward-modal [data-task-person="'+f.ida.id+'"]')
  await row.locator('[data-reward-action=complete]').evaluate(b=>b.click());await expect(row.locator('[data-reward-action=undo]')).toBeEnabled();expect(acks).toBe(0)
@@ -31,4 +33,4 @@ try{
  expect(signs-old.signs).toBe(0);expect(images-old.images).toBe(0);checks.push('Real private wall avatar cache survives warm reload without signing or download')
  expect(errors).toEqual([]);expect(requests).toBe(3)
  writeFileSync(new URL('../../supabase/.temp/performance-ux/wall-performance.json',import.meta.url),JSON.stringify({status:'PASS',checks,requests,errors},null,2));console.log('WALL PERFORMANCE PASS '+checks.length)
-}finally{await context.close();await browser.close();await f.cleanup()}
+}finally{await context.close();await browser.close();await server.close();await f.cleanup()}

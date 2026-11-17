@@ -114,7 +114,7 @@ try{
 
  await switchUser(ids.adult);await page.setViewportSize({width:1920,height:1080})
  await page.evaluate(({uid,hid,api})=>localStorage.setItem('familiekalender.device.v1:'+api,JSON.stringify({kiosk:{userId:uid,householdId:hid}})),{uid:ids.adult,hid,api})
- await page.reload();await expect(page.locator('body')).toHaveAttribute('data-mode','kiosk');await routeTo(page,'today')
+ await page.reload();await expect(page.locator('body')).toHaveAttribute('data-device','wall');await routeTo(page,'today')
  await expect(page.locator('.star-goals-wall [data-star-person]')).toHaveCount(3)
  await expect(page.locator('.star-goals-wall button,.star-goals-wall a,.star-goals-wall input')).toHaveCount(0)
  for(const pid of [ida,carl,jakob])await expect(panel(pid)).toBeInViewport()

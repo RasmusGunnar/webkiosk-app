@@ -1210,35 +1210,6 @@ input,select,textarea { min-width:0; }
 .text-button { border:0;background:none;box-shadow:none;color:var(--accent);margin-top:12px;padding-inline:0; }
 .invitation-banner { margin:16px 0; }
 .invitation-banner button { margin-top:12px; }
-.kiosk-heading { width:100%;display:flex;justify-content:space-between;align-items:end;gap:20px; }
-#device-clock { font-size:clamp(48px,5.5vw,86px);font-weight:750;font-variant-numeric:tabular-nums;letter-spacing:-.04em;line-height:1.1; }
-#device-date { font-size:18px;text-transform:capitalize; }
-.kiosk-label { color:#64748b;font-size:18px; }
-.kiosk-shortcuts { display:flex;gap:8px;flex-wrap:wrap; }
-.kiosk-shortcuts a { padding:14px;background:#fff;border:1px solid var(--border);border-radius:10px;color:var(--accent);text-decoration:none; }
-body[data-mode=kiosk] .app-shell { width:100%;max-width:2200px;padding:24px 28px 100px; }
-body[data-mode=kiosk] .dashboard-header { margin-bottom:12px; }
-body[data-mode=kiosk] .home-layout { grid-template-columns:minmax(0,1fr) minmax(230px,25%); }
-body[data-mode=kiosk] .home-layout .day-sections { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px; }
-body[data-mode=kiosk] .product-nav { position:fixed;bottom:0;left:0;right:0;z-index:20;background:#ffffffed;border-top:1px solid var(--border);padding:12px 160px 12px 28px;margin:0; }
-body[data-mode=kiosk] .product-nav button { min-width:120px; }
-body[data-mode=kiosk] .floating-new-button { bottom:12px;right:76px; }
-body[data-mode=kiosk] .floating-settings-button { bottom:12px;right:20px; }
-body[data-mode=kiosk] .calendar-item { padding:14px;font-size:15px; }
-body[data-mode=kiosk] .calendar-time-badge { font-size:13px; }
-body[data-mode=kiosk] .day-card-header { flex-direction:column;align-items:start;gap:4px;min-height:52px; }
-body[data-mode=kiosk] .week-grid .calendar-item-title-row strong { font-size:14px; }
-body[data-mode=kiosk] .week-grid .day-sections { gap:14px; }
-body[data-mode=kiosk][data-density=compact] .app-shell { padding:16px 16px 88px; }
-body[data-mode=kiosk][data-density=compact] .week-grid { gap:6px; }
-body[data-mode=kiosk][data-density=compact] .week-grid .day-card { padding:8px; }
-body[data-mode=kiosk][data-density=compact] .week-grid .calendar-item { padding:8px 6px; }
-body[data-mode=kiosk][data-density=compact] .week-grid h3 { font-size:11px;overflow-wrap:anywhere; }
-body[data-mode=kiosk][data-density=compact] .week-grid .calendar-item-title-row strong { font-size:12px;line-height:1.4; }
-body[data-mode=kiosk][data-density=compact] .week-grid .calendar-item-icon-column { width:auto; }
-body[data-mode=kiosk][data-density=compact] .week-grid .calendar-item-meta { font-size:11px; }
-body[data-mode=kiosk][data-density=compact] .calendar-heading { margin-bottom:12px; }
-body[data-mode=kiosk][data-density=compact] .quick-create { margin-top:12px; }
 body[data-density=compact] .calendar-item { padding:8px; }
 body[data-mode=desktop] .calendar-item { padding:10px; }
 @media(min-width:700px) and (max-width:1000px) {
@@ -1293,17 +1264,6 @@ body[data-mode=desktop] .calendar-item { padding:10px; }
  .done-toggle { min-height:44px; }
  #pin-form { height:auto;max-height:100%;align-self:center;margin:16px;border-radius:16px; }
 }
-
-body[data-mode=kiosk][data-route=calendar] #device-clock {font-size:36px;}
-body[data-mode=kiosk][data-route=calendar] #device-date {font-size:14px;}
-body[data-mode=kiosk][data-route=calendar] .dashboard-header {padding-bottom:8px;}
-body[data-mode=kiosk] .completed-tasks summary {font-size:12px;}
-
-body[data-mode=kiosk][data-route=calendar] .week-grid {height:calc(100dvh - 320px);min-height:240px;}
-body[data-mode=kiosk][data-route=calendar] .week-grid .day-card {min-height:0;display:flex;flex-direction:column;}
-body[data-mode=kiosk][data-route=calendar] .week-grid .day-card-header {flex-shrink:0;}
-body[data-mode=kiosk][data-route=calendar] .week-grid .day-sections {min-height:0;overflow:auto;scrollbar-width:thin;align-content:start;}
-body[data-mode=kiosk][data-route=calendar] .quick-create {display:none;}
 @media(max-width:699px){body[data-mode=mobile] .app-shell {padding-top:calc(20px + env(safe-area-inset-top));}.modal-header {padding-top:calc(12px + env(safe-area-inset-top));}}
 
 /* Public release pages and account controls */

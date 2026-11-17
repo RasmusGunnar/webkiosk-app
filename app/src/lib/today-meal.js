@@ -1,12 +1,12 @@
 import {t} from '../i18n/index.js'
-import {escape as e,icon} from './product-ui.js'
+import {escape as e,icon,recipeImage} from './product-ui.js'
 import {recipeId} from './recipe-model.js'
 
 // One card family for Today on phones, desktop and the read-only wall.
 export function todayMeal(meals,recipes,{wall=false}={}){
  const rows=meals.map(meal=>{const recipe=recipes.find(r=>r.id===recipeId(meal)),servings=meal.data?.servings||recipe?.servings
   const meta=[meal.time,recipe?.total_minutes?`${recipe.total_minutes} ${t('recipe.min')}`:'',servings?`${servings} ${t('recipe.servings')}`:''].filter(Boolean)
-  return `<article class="today-meal-row ${recipe?.image_path?'has-image':''}">${recipe?.image_path?`<figure class="today-meal-photo">${icon('meals')}<img data-meal-image="${e(recipe.id)}" width="640" height="480" alt="" decoding="async" hidden></figure>`:''}<div class="today-meal-copy"><h3>${e(meal.title||recipe?.title)}</h3>${meta.length?`<p class="today-meal-meta">${meta.map(e).join(' · ')}</p>`:''}${recipe?`<button class="today-meal-link" data-today-recipe="${e(meal.id)}">${e(t('polish.view_recipe'))} <span aria-hidden="true">→</span></button>`:''}</div></article>`
+  return `<article class="today-meal-row ${recipe?.image_path?'has-image':''}">${recipe?.image_path?recipeImage(recipe,'today-meal-photo'):''}<div class="today-meal-copy"><h3>${e(meal.title||recipe?.title)}</h3>${meta.length?`<p class="today-meal-meta">${meta.map(e).join(' · ')}</p>`:''}${recipe?`<button class="today-meal-link" data-today-recipe="${e(meal.id)}">${e(t('polish.view_recipe'))} <span aria-hidden="true">→</span></button>`:''}</div></article>`
  }).join('')
  return `<section class="today-meal ${meals.length?'is-planned':''}" aria-label="${e(t('app.dinner'))}"><header>${icon('meals')}<h2>${e(t('app.dinner'))}</h2></header>${rows||`<p class="today-meal-empty">${e(t('polish.meal_empty'))}</p>`}${!wall?`<button class="today-meal-plan" data-go-route="meals">${e(t(meals.length?'app.view_this_week_s_meal_plan':'app.plan_dinner'))} <span aria-hidden="true">→</span></button>`:''}</section>`
 }

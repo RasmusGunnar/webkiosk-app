@@ -12,7 +12,7 @@ import {RewardsUI} from './lib/rewards-ui.js'
 import {emptyRewards,rewardRule,managedTask,taskComplete,actionPayload,rewardOrigin,rewardConfig,rewardToday,completionNeedsApproval} from './lib/rewards-model.js'
 import './style.css'
 import './product.css'
-import './desktop-kiosk.css'
+import './responsive-desktop.css'
 import './mobile.css'
 import './rewards.css'
 import './polish.css'
@@ -33,7 +33,7 @@ import './person-avatars.css'
 import './stars.css'
 import './layout-stability.css'
 import './design-polish.css'
-import './wall-composition.css'
+import './device-capabilities.css'
 import {todayMeal,MealImages} from './lib/today-meal.js'
 import {isAnnualType,birthdayPerson,annualEventValues} from './lib/annual-events.js'
 import {hiddenImportLabel} from './lib/imported-scopes.js'
@@ -57,7 +57,7 @@ import { LocalStore, DATABASE_NAME } from './lib/local-store.js'
 import { OfflineSync } from './lib/offline-sync.js'
 import { taskEmoji, taskOccurrenceKey, rewardEnabled } from './lib/task-rewards.js'
 import {RewardMotion} from './lib/reward-motion.js'
-import { DEVICE_KEY, readDevice, saveDevice, deviceSettings, resolveMode, densityFor, safeShortcut, makePin, checkPin, WakeScreen,wakeEnabled, DeviceClock } from './lib/device-mode.js'
+import { DEVICE_KEY, readDevice, saveDevice, deviceSettings, resolveMode, presentationMode, densityFor, safeShortcut, makePin, checkPin, WakeScreen,wakeEnabled, DeviceClock } from './lib/device-mode.js'
 import { upcomingItems, roleLabel, invitationStatus, callbackUrl, consumeInvite } from './lib/product-model.js'
 import { platform, nativeWakeApi } from './lib/platform.js'
 import { publicBase, authCallback, inviteLink, parseAppLink, consumeAuthLink } from './lib/app-links.js'
@@ -609,11 +609,11 @@ ${renderProductHeader()}
           </div>
           <div class="calendar-toolbar" ${productRoute!=='calendar'?'hidden':''}>
             <div class="calendar-nav">
-              <button id="calendar-prev-button" type="button" aria-label="${t("app.previous")} ${navUnit}">${mode()==='mobile'?'←':(t("app.previous")+" ")+navUnit}</button>
+              <button id="calendar-prev-button" type="button" aria-label="${t("app.previous")} ${navUnit}">${layoutMode()==='mobile'?'←':(t("app.previous")+" ")+navUnit}</button>
               <button id="calendar-today-button" type="button">${t("nav.today")}</button>
-              <button id="calendar-next-button" type="button" aria-label="${t("app.next")} ${navUnit}">${mode()==='mobile'?'→':(t("app.next")+" ")+navUnit}</button>
+              <button id="calendar-next-button" type="button" aria-label="${t("app.next")} ${navUnit}">${layoutMode()==='mobile'?'→':(t("app.next")+" ")+navUnit}</button>
             </div>
-            ${mode()==='mobile'?("<div class=\"mobile-view-switch\" aria-label=\""+t("app.calendar_view")+"\">")+['day','week'].map(view=>'<button type="button" data-calendar-view="'+view+'" aria-pressed="'+(calendarViewMode===view)+'">'+(view==='day'?(t("app.day")):(t("app.week")))+'</button>').join('')+'</div>':'<button id="calendar-toggle-view-button" type="button">'+toggleViewLabel+'</button>'}
+            ${layoutMode()==='mobile'?("<div class=\"mobile-view-switch\" aria-label=\""+t("app.calendar_view")+"\">")+['day','week'].map(view=>'<button type="button" data-calendar-view="'+view+'" aria-pressed="'+(calendarViewMode===view)+'">'+(view==='day'?(t("app.day")):(t("app.week")))+'</button>').join('')+'</div>':'<button id="calendar-toggle-view-button" type="button">'+toggleViewLabel+'</button>'}
           </div>
         </div>
         <div id="calendar-view">${renderCalendarView()}</div>
@@ -808,7 +808,7 @@ function renderSyncPanel() {
   syncPanelRoot.querySelector('[data-sync-retry]')?.addEventListener('click',()=>(isWall()?wallService.engine:syncEngine).retry())
 }
 function renderDayItems(section,items,date) {
-  if(section!=='Opgave'||!(mode()==='kiosk'||mode()==='mobile'))return items.length?items.map(renderCalendarItemCard).join(''):("<p class=\"empty-section\">"+t("app.none")+"</p>")
+  if(section!=='Opgave'||!(layoutMode()==='mobile'))return items.length?items.map(renderCalendarItemCard).join(''):("<p class=\"empty-section\">"+t("app.none")+"</p>")
   const open=items.filter(item=>!taskComplete(item,householdPeople,rewardState,activePersonFilter)),completed=items.filter(item=>taskComplete(item,householdPeople,rewardState,activePersonFilter))
   return (open.length?open.map(renderCalendarItemCard).join(''):("<p class=\"empty-section\">"+t("app.no_open_tasks")+"</p>"))+
     (completed.length?'<details class="completed-tasks" data-completed-date="'+date+'" '+(expandedTaskDays.has(date)?'open':'')+'><summary>'+completed.length+(" "+t("app.completed_tasks")+"</summary>")+completed.map(renderCalendarItemCard).join('')+'</details>':'')
@@ -823,7 +823,7 @@ function renderCalendarView() {
   if(productRoute==='tasks')return renderTaskView()
   if(productRoute==='recipes')return renderFoodTabs()+recipeUI.renderLibrary()
   if(productRoute==='meals')return renderFoodTabs()+renderMeals(calendarItems,calendarCursorDate,mode()==='kiosk',true,libraryRecipes)+recipeUI.renderLibrary({compact:true})
-  if(productRoute==='shopping')return renderFoodTabs()+renderShopping(calendarItems,shoppingDraft,mode()==='mobile',mode()==='kiosk')
+  if(productRoute==='shopping')return renderFoodTabs()+renderShopping(calendarItems,shoppingDraft,layoutMode()==='mobile',mode()==='kiosk')
   if(productRoute==='family')return renderFamilyHome()
   if (isLoadingCalendar) {
     return ("<p class=\"calendar-status\">"+t("app.loading_calendar")+"</p>")
@@ -859,17 +859,17 @@ function renderPersonChips() {
 }
 
 function renderDayCard(date,full=false) {
-  if(mode()==='mobile'&&!full)return renderMobileDay(date)
+  if(layoutMode()==='mobile'&&!full)return renderMobileDay(date)
   const dateIso = toDateIso(date)
   const dayItems = getRenderableCalendarItems().filter(item=>eventOverlapsDate(item,dateIso)&&doesItemMatchPersonFilter(item)).sort((a,b)=>Number(eventInterval(b).multiDay)-Number(eventInterval(a).multiDay))
   const compact=!full&&productRoute==='calendar'&&calendarViewMode==='week'
   const meals=productRoute==='today'?[]:mealsOn(calendarItems,dateIso)
   const sections = [
     { key: 'Aktivitet', label: (t("app.activities")) },
-    { key: 'Fritidsinteresse', label: mode()==='kiosk'?(t("app.leisure")):(t("app.hobbies")) },
+    { key: 'Fritidsinteresse', label: t("app.hobbies") },
     { key: 'Opgave', label: (t("nav.tasks")) },
   ]
-  if (calendarViewMode === 'day' && mode() === 'mobile') sections.sort((a,b) => Number(b.key==='Opgave')-Number(a.key==='Opgave'))
+  if (calendarViewMode === 'day' && layoutMode() === 'mobile') sections.sort((a,b) => Number(b.key==='Opgave')-Number(a.key==='Opgave'))
 
   return `
     <article class="day-card ${[0,6].includes(date.getDay())?'is-weekend':''} ${dateIso === toDateIso(new Date()) ? 'is-today' : ''}" data-day="${dateIso}" ${compact?'data-adaptive-day':''}>
@@ -911,7 +911,7 @@ function openDayDetail(date){detailRoot.innerHTML='<div class="modal-backdrop" r
 function renderCalendarItemCard(item,day=toDateIso(calendarCursorDate)) {
   if(managedTask(item))return productRoute==='tasks'?rewardsUI.taskCard(item,activePersonFilter):renderCompactTask(item)
   if(eventInterval(item).multiDay)return renderDailyIntervalItem(item,day)
-  if(mode()==='mobile')return renderMobileAgendaItem(item,day)
+  if(layoutMode()==='mobile')return renderMobileAgendaItem(item,day)
   const id = item.id
   const type = getCalendarSection(getCalendarValue(item, 'type'))
   const done = Boolean(getCalendarValue(item, 'done'))
@@ -2655,7 +2655,7 @@ function syncDefaultCalendarViewMode() {
 }
 
 function getCalendarHeaderLabel() {
-  if(mode()==='mobile'){
+  if(layoutMode()==='mobile'){
     if(calendarViewMode==='day')return dateFormatter({weekday:'long',day:'numeric',month:'long'}).format(calendarCursorDate)
     const dates=weekDates(toDateIso(calendarCursorDate)),first=parseDateIso(dates[0]),last=parseDateIso(dates[6]),format=dateFormatter({day:'numeric',month:'short',...(first.getFullYear()!==last.getFullYear()?{year:'numeric'}:{})})
     return (t("app.week")+" ")+isoWeek(dates[0]).week+' · '+format.format(first)+' – '+format.format(last)
@@ -2808,11 +2808,13 @@ function escapeHtml(value) {
 
 
 function mode() { return isWall()&&activeHousehold?'kiosk':resolveMode(window.innerWidth,device,session?.user.id,activeHousehold?.id) }
+function layoutMode() { return presentationMode(window.innerWidth) }
 function wakeSetting(enabled){return '<label class="checkbox-label"><input id="device-wake" name="wake" type="checkbox" '+(enabled?'checked':'')+'>'+t('app.keep_screen_awake')+'</label><p class="hint">'+t('device_mode.wake_help')+'</p><p id="wake-status" class="hint">'+escapeHtml(wakeScreen.status)+'</p>'}
 function settingsForDevice() { return deviceSettings(device,session?.user.id,activeHousehold?.id) }
 function applyDeviceAppearance() {
   const config=settingsForDevice(), current=mode()
-  document.body.dataset.mode=current
+  document.body.dataset.mode=layoutMode()
+  document.body.dataset.device=current==='kiosk'?'wall':'browser'
   document.body.dataset.route=productRoute
   document.body.dataset.density=densityFor(current,innerWidth,innerHeight,config.density)
   document.documentElement.style.setProperty('--accent',['#0f172a','#2563eb','#7c3aed','#047857','#be123c'].includes(config.accent)?config.accent:'#0f172a')
@@ -2832,33 +2834,25 @@ function setProductRoute(route) {
   render()
   painted('route_content_ready',routeStarted)
 }
-function renderProductNav() { return renderNavigation(productRoute,mode()==='kiosk',mode()==='mobile') }
+function renderProductNav() { return renderNavigation(productRoute,mode()==='kiosk',layoutMode()==='mobile') }
 function renderProductHeader() {
- if(mode()==='mobile')return '<div class="mobile-brand"><span class="mobile-brand-icon" aria-label="Familiekalender">'+icon('calendar')+'</span><h1>'+escapeHtml(['meals','shopping','recipes'].includes(productRoute)?(t("nav.meals")):routeLabels[productRoute])+'</h1></div>'
- if(mode()==='kiosk'){const now=new Date();return `<div class="kiosk-heading"><div><p class="eyebrow">${escapeHtml(getHouseholdName(activeHousehold))}</p><time id="device-clock">${escapeHtml(dateFormatter({hour:'2-digit',minute:'2-digit'}).format(now))}</time><p id="device-date">${escapeHtml(dateFormatter({weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(now))}</p></div><div class="kiosk-label"><span class="ux-live-dot"></span> ${t('app.one_home_all_our_plans')}</div></div>`}
- return '<div class="ux-brand"><span class="ux-brand-icon">'+icon('calendar')+'</span><div><p class="eyebrow">Familiekalender</p><h1>'+escapeHtml(getHouseholdName(activeHousehold))+'</h1></div></div>'
+ const now=new Date(),clock=mode()==='kiosk'?'<div class="device-clock"><time id="device-clock">'+escapeHtml(dateFormatter({hour:'2-digit',minute:'2-digit'}).format(now))+'</time><span id="device-date">'+escapeHtml(dateFormatter({weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(now))+'</span></div>':''
+ if(layoutMode()==='mobile')return '<div class="mobile-brand"><span class="mobile-brand-icon" aria-label="Familiekalender">'+icon('calendar')+'</span><h1>'+escapeHtml(['meals','shopping','recipes'].includes(productRoute)?(t("nav.meals")):routeLabels[productRoute])+'</h1></div>'+clock
+ return '<div class="ux-brand"><span class="ux-brand-icon">'+icon('calendar')+'</span><div><p class="eyebrow">Familiekalender</p><h1>'+escapeHtml(getHouseholdName(activeHousehold))+'</h1></div></div>'+clock
 }
 function renderHome() {
- if(mode()==='mobile'){const now=new Date(),greeting=now.getHours()<10?(t("app.good_morning")):now.getHours()<17?(t("app.hello")):(t("app.good_evening"));return '<div class="mobile-today"><header class="mobile-today-heading"><h2>'+escapeHtml(dateFormatter({weekday:'long',day:'numeric',month:'long'}).format(now))+'</h2><p>'+greeting+' · '+escapeHtml(getHouseholdName(activeHousehold))+'</p></header>'+renderMobileDay(now,{heading:false})+aulaUI.todayCard()+'</div>'}
+ if(layoutMode()==='mobile'){const now=new Date(),greeting=now.getHours()<10?(t("app.good_morning")):now.getHours()<17?(t("app.hello")):(t("app.good_evening"));return '<div class="mobile-today"><header class="mobile-today-heading"><h2>'+escapeHtml(dateFormatter({weekday:'long',day:'numeric',month:'long'}).format(now))+'</h2><p>'+greeting+' · '+escapeHtml(getHouseholdName(activeHousehold))+'</p></header>'+renderMobileDay(now,{heading:false})+aulaUI.todayCard()+(mode()==='kiosk'?renderShortcuts()+rewardsUI.goals():'')+'</div>'}
  const now=new Date(),today=toDateIso(now),upcoming=upcomingItems(calendarItems,householdPeople,activePersonFilter)
- const next=upcoming[0],later=upcoming.filter(item=>item.date>today).slice(0,4),kiosk=mode()==='kiosk'
+ const next=upcoming[0],kiosk=mode()==='kiosk'
  const daily=allowanceTasks(materialize(calendarOnly(calendarItems),[today]),rewardState,[today]).filter(doesItemMatchPersonFilter)
  const tasks=daily.filter(item=>item.type==='Opgave'),completed=tasks.filter(item=>taskComplete(item,householdPeople,rewardState,activePersonFilter)).length,meals=mealsOn(calendarItems,today),shopping=shoppingItems(calendarItems).filter(item=>!item.done)
  const eventButton=item=>'<button class="upcoming-event" data-upcoming="'+escapeHtml(item.id)+'" style="border-left-color:'+escapeHtml(getCalendarItemColor(item))+'"><span class="upcoming-date">'+escapeHtml(formatShortDate(parseDateIso(item.date)))+' · '+escapeHtml(item.time||(t("calendar.all_day")))+'</span><strong>'+escapeHtml(getCalendarItemTitle(item))+'</strong><span>'+renderItemAvatars(item)+'</span>'+(sourceLabel(item)?'<span class="calendar-source-badge">'+escapeHtml(sourceLabel(item))+'</span>':'')+'</button>'
  const mealCard=todayMeal(meals,libraryRecipes,{wall:kiosk})
  const greeting=now.getHours()<10?(t("app.good_morning")):now.getHours()<17?(t("app.hello_everyone")):(t("app.good_evening"))
- if(kiosk)return renderWallToday({now,today,tasks,completed,shopping,mealCard,next,later,eventButton})
- return (!kiosk?'<section class="ux-welcome"><div><p class="eyebrow">'+escapeHtml(formatDayHeaderDate(now))+'</p><h3>'+greeting+(" <span>"+t("app.here_is_your_day")+"</span></h3><p>")+ (daily.length?(t("app.there_are")+" ")+daily.filter(item=>item.type!=='Opgave').length+(" "+t("app.events_and")+" ")+(tasks.length-completed)+(" "+t("app.open_tasks_today")):(t("app.a_day_with_room_for_new_plans")))+'</p></div><span class="ux-welcome-sun">'+icon('sun')+'</span></section><div class="ux-day-stats"><button data-go-route="calendar">'+icon('calendar')+'<span><strong>'+daily.filter(item=>item.type!=='Opgave').length+("</strong> "+t("app.events_today")+"</span>")+icon('arrow')+'</button><button data-go-route="tasks">'+icon('tasks')+'<span><strong>'+completed+' / '+tasks.length+("</strong> "+t("app.tasks_completed")+"</span>")+icon('arrow')+'</button><button data-go-route="shopping">'+icon('shopping')+'<span><strong>'+shopping.length+("</strong> "+t("app.items_on_the_list")+"</span>")+icon('arrow')+'</button></div>':'')+
- (!kiosk&&next?'<button class="ux-next-inline" data-upcoming="'+escapeHtml(next.id)+'"><span>'+icon('calendar')+("<small>"+t("app.next_event")+" ")+escapeHtml(next.date===today?(next.time||(t("nav.today"))):formatShortDate(parseDateIso(next.date)))+'</small></span><strong>'+escapeHtml(getCalendarItemTitle(next))+'</strong>'+icon('arrow')+'</button>':'')+
- (kiosk?'<div class="wall-today">':'')+'<div class="home-layout"><div class="day-view">'+renderDayCard(calendarCursorDate)+'</div><aside class="home-aside">'+aulaUI.todayCard()+mealCard+(kiosk?renderKioskProgress(tasks,completed,today):'')+("<section class=\"panel next-panel\"><p class=\"eyebrow\">"+t("app.next_event_n_ste_aftale")+"</p>")+(next?eventButton(next):'<div class="ux-quiet-empty">'+icon('sun')+("<p>"+t("app.the_calendar_is_quiet")+"</p></div>"))+'</section>'+
- (kiosk?(later.filter(item=>item.id!==next?.id).length?("<section class=\"panel upcoming-panel\"><h3>"+t("app.the_coming_days")+"</h3>")+later.filter(item=>item.id!==next?.id).slice(0,2).map(eventButton).join('')+'</section>':'')+renderShortcuts():'')+'</aside></div>'+(kiosk?rewardsUI.goals()+'</div>':'')
-}
-function renderKioskProgress(tasks,completed,today){return '<section class="kiosk-progress"><button data-go-route="tasks"><span>'+icon('tasks')+(" "+t("app.today_s_tasks")+"</span><strong>")+completed+' / '+tasks.length+(" "+t("app.completed_klaret")+"</strong></button>")+rewardsUI.summary(true)+'</section>'}
-function renderWallToday({now,today,tasks,completed,shopping,mealCard,next,later,eventButton}){
- const events=getRenderableCalendarItems().filter(item=>item.type!=='Opgave'&&eventOverlapsDate(item,today)&&doesItemMatchPersonFilter(item))
- const groups=events.length?'<section class="wall-section wall-agenda"><h3>'+t('app.activities')+'</h3><div class="wall-events">'+events.map(item=>renderCalendarItemCard(item,today)).join('')+'</div></section>':''
- const upcoming=later.filter(item=>item.id!==next?.id).slice(0,2)
- return '<div class="wall-today wall-composed"><section class="wall-welcome"><div><h2>'+escapeHtml(t('wall.today_heading',{day:dateFormatter({weekday:'long'}).format(now)}))+'</h2><p>'+escapeHtml(t('wall.today_counts',{events:events.length,tasks:tasks.length-completed,items:shopping.length}))+'</p></div>'+icon('sun')+'</section><div class="wall-today-grid"><div class="wall-column">'+(groups||'<section class="wall-section wall-quiet">'+icon('sun')+'<p>'+t('app.no_plans')+'</p></section>')+(next?'<section class="wall-section wall-next"><h3>'+t('app.next_event_n_ste_aftale')+'</h3>'+eventButton(next)+'</section>':'')+(upcoming.length?'<section class="wall-section"><h3>'+t('app.the_coming_days')+'</h3>'+upcoming.map(eventButton).join('')+'</section>':'')+'</div><div class="wall-column">'+mealCard+(tasks.length?'<section class="wall-section wall-tasks"><header><h3>'+t('app.today_s_tasks')+'</h3><button data-go-route="tasks">'+completed+' / '+tasks.length+' '+t('app.completed_klaret')+' '+icon('arrow')+'</button></header><div class="wall-task-list">'+tasks.map(renderCompactTask).join('')+'</div></section>':'')+renderShortcuts()+'</div></div>'+rewardsUI.goals()+'</div>'
+ return ('<section class="ux-welcome"><div><p class="eyebrow">'+escapeHtml(formatDayHeaderDate(now))+'</p><h3>'+greeting+(" <span>"+t("app.here_is_your_day")+"</span></h3><p>")+ (daily.length?(t("app.there_are")+" ")+daily.filter(item=>item.type!=='Opgave').length+(" "+t("app.events_and")+" ")+(tasks.length-completed)+(" "+t("app.open_tasks_today")):(t("app.a_day_with_room_for_new_plans")))+'</p></div><span class="ux-welcome-sun">'+icon('sun')+'</span></section><div class="ux-day-stats"><button data-go-route="calendar">'+icon('calendar')+'<span><strong>'+daily.filter(item=>item.type!=='Opgave').length+("</strong> "+t("app.events_today")+"</span>")+icon('arrow')+'</button><button data-go-route="tasks">'+icon('tasks')+'<span><strong>'+completed+' / '+tasks.length+("</strong> "+t("app.tasks_completed")+"</span>")+icon('arrow')+'</button><button data-go-route="shopping">'+icon('shopping')+'<span><strong>'+shopping.length+("</strong> "+t("app.items_on_the_list")+"</span>")+icon('arrow')+'</button></div>')+
+ (next?'<button class="ux-next-inline" data-upcoming="'+escapeHtml(next.id)+'"><span>'+icon('calendar')+("<small>"+t("app.next_event")+" ")+escapeHtml(next.date===today?(next.time||(t("nav.today"))):formatShortDate(parseDateIso(next.date)))+'</small></span><strong>'+escapeHtml(getCalendarItemTitle(next))+'</strong>'+icon('arrow')+'</button>':'')+
+ '<div class="home-layout"><div class="day-view">'+renderDayCard(calendarCursorDate)+'</div><aside class="home-aside">'+aulaUI.todayCard()+mealCard+("<section class=\"panel next-panel\"><p class=\"eyebrow\">"+t("app.next_event_n_ste_aftale")+"</p>")+(next?eventButton(next):'<div class="ux-quiet-empty">'+icon('sun')+("<p>"+t("app.the_calendar_is_quiet")+"</p></div>"))+'</section>'+
+ (kiosk?renderShortcuts():'')+'</aside></div>'+(kiosk?rewardsUI.goals():'')
 }
 function renderFamilyHome(){
  const people=householdPeople.filter(isActiveHouseholdPerson)
@@ -2866,7 +2860,7 @@ function renderFamilyHome(){
 }
 function renderShortcuts() {
   const config=settingsForDevice().shortcuts,links=[['Homey',config.homey],['Sonos',config.sonos],[config.label||(t("app.shortcut")),config.custom]]
-  return '<div class="kiosk-shortcuts">'+links.filter(([,url])=>url).map(([name,url])=>{
+  return '<div class="device-shortcuts">'+links.filter(([,url])=>url).map(([name,url])=>{
     try{return '<a href="'+escapeHtml(safeShortcut(url,{sonos:name==='Sonos'}))+'" target="_blank" rel="noopener noreferrer">'+escapeHtml(name)+' ↗</a>'}catch{return ''}
   }).join('')+'</div>'
 }
@@ -3212,7 +3206,7 @@ function bindPlanningSurface(){
 
 
 function taskDates(){const today=toDateIso(new Date());return taskRange==='month'?monthDates(today):taskRange==='week'?weekDates(today):[today]}
-function renderFoodTabs(){const tabs=("<nav class=\"food-tabs\" aria-label=\""+t("app.meals_and_shopping")+"\">")+[['meals','Madplan'],...(mode()==='kiosk'?[]:[['recipes',(t("app.recipes"))]]),['shopping','Indkøb']].map(([id,label])=>'<button data-food-tab="'+id+'" aria-pressed="'+(productRoute===id)+'">'+label+'</button>').join('')+'</nav>';return mode()==='kiosk'?'<div class="wall-food-heading"><h2>'+t('app.meals_and_shopping')+'</h2>'+tabs+'</div>':tabs}
+function renderFoodTabs(){const tabs=("<nav class=\"food-tabs\" aria-label=\""+t("app.meals_and_shopping")+"\">")+[['meals','Madplan'],...(mode()==='kiosk'?[]:[['recipes',(t("app.recipes"))]]),['shopping','Indkøb']].map(([id,label])=>'<button data-food-tab="'+id+'" aria-pressed="'+(productRoute===id)+'">'+label+'</button>').join('')+'</nav>';return tabs}
 function openCreateSheet(){
  if(mode()==='kiosk')return
  createRoot.innerHTML=("<div id=\"create-sheet\" class=\"modal-backdrop\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"create-sheet-title\"><section class=\"create-sheet\"><header><h2 id=\"create-sheet-title\">"+t("app.what_would_you_like_to_add")+"</h2><button type=\"button\" data-create-close aria-label=\""+t("common.close")+"\">×</button></header>")+[['Aktivitet',t('types.activity'),'calendar'],['Opgave',t('types.task'),'tasks'],['meal',(t("app.meal")),'meals'],['shopping',(t("app.shopping_item")),'shopping'],['Fødselsdag',t('app.birthday'),'sun'],['Mærkedag',typeLabel('Mærkedag'),'sun']].map(([kind,label,i])=>'<button type="button" data-create-kind="'+kind+'">'+icon(i)+'<span>'+label+'</span>'+icon('plus')+'</button>').join('')+'</section></div>'

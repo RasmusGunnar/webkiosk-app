@@ -3,7 +3,7 @@ import {createClient} from '@supabase/supabase-js'
 import {randomUUID,randomBytes} from 'node:crypto'
 import sharp from 'sharp'
 import {localEnvironment} from '../../scripts/aula-local.mjs'
-export const fixtureDate='2026-11-11'
+export const fixtureDate=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Copenhagen'}).format(new Date())
 export const must=async query=>{const r=await query;if(r.error)throw Error(r.error.message);return r.data}
 export async function wallAvatarFixture(){
  const env=localEnvironment(),options={auth:{persistSession:false,autoRefreshToken:false}},admin=createClient(env.SUPABASE_URL,env.SUPABASE_SERVICE_ROLE_KEY,options),client=createClient(env.SUPABASE_URL,env.VITE_SUPABASE_ANON_KEY,options),wall=createClient(env.SUPABASE_URL,env.VITE_SUPABASE_ANON_KEY,options),stranger=createClient(env.SUPABASE_URL,env.VITE_SUPABASE_ANON_KEY,options)

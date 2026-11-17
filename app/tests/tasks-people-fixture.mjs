@@ -6,6 +6,7 @@ import {createServer,build,preview} from 'vite'
 import {execFileSync} from 'node:child_process'
 import {randomUUID as cryptoUUID} from 'node:crypto'
 import {mkdirSync,writeFileSync} from 'node:fs'
+import {resolve,dirname} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import sharp from 'sharp'
 import {db,query,actor,today,ids} from './tasks-people-db.mjs'
@@ -25,8 +26,8 @@ const env={VITE_SUPABASE_URL:api,VITE_SUPABASE_PUBLISHABLE_KEY:'sb_publishable_l
 const viteConfig={root:fileURLToPath(new URL('../',import.meta.url)),define:Object.fromEntries(Object.entries(env).map(([k,v])=>['import.meta.env.'+k,JSON.stringify(v)])),server:{host:'127.0.0.1',port:5196,strictPort:true}}
 if(process.env.PERFORMANCE_BASELINE==='1'){
  const repo=fileURLToPath(new URL('../../',import.meta.url)),sources=new Map(),ref=process.env.PERFORMANCE_BASELINE_REF||'9a72c63667dc1169637311f22e8df069511a0bd7'
- for(const path of execFileSync('git',['diff','--name-only','--diff-filter=M',ref,'--','app/src'],{cwd:repo,encoding:'utf8'}).trim().split('\n').filter(Boolean))sources.set((repo+path).replaceAll('\\','/'),execFileSync('git',['show',ref+':'+path],{cwd:repo,encoding:'utf8'}))
- viteConfig.plugins=[{name:'read-only-main-baseline',enforce:'pre',load:id=>sources.get(id.split('?')[0].replaceAll('\\','/'))}]
+ for(const path of execFileSync('git',['diff','--name-only','--diff-filter=MD',ref,'--','app/src'],{cwd:repo,encoding:'utf8'}).trim().split('\n').filter(Boolean))sources.set((repo+path).replaceAll('\\','/'),execFileSync('git',['show',ref+':'+path],{cwd:repo,encoding:'utf8'}))
+ viteConfig.plugins=[{name:'read-only-main-baseline',enforce:'pre',resolveId:(id,importer)=>{if(!id.startsWith('.')||!importer)return;const path=resolve(dirname(importer),id).replaceAll('\\','/');if(sources.has(path))return path},load:id=>sources.get(id.split('?')[0].replaceAll('\\','/'))}]
 }
 let server
 if(process.env.PERFORMANCE_BUILD==='1'){

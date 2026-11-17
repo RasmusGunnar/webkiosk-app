@@ -63,7 +63,7 @@ try{
  // QR scanning uses a captured image and the same parser as the camera input.
  await wallPage.locator('#wall-scan').setInputFiles({name:'local-pairing.png',mimeType:'image/png',buffer:Buffer.from(qr.split(',')[1],'base64')})
  await expect(wallPage.locator('#wall-name-form')).toBeVisible();await shot('13-pairing-success',wallPage);await wallPage.locator('#wall-name').fill('Køkken');await shot('14-device-naming',wallPage)
- await wallPage.locator('#wall-name-form button').click();await expect(wallPage.locator('body')).toHaveAttribute('data-mode','kiosk');await expect(wallPage.locator('.product-nav')).toBeVisible()
+ await wallPage.locator('#wall-name-form button').click();await expect(wallPage.locator('body')).toHaveAttribute('data-device','wall');await expect(wallPage.locator('.product-nav')).toBeVisible()
  const device=await must(client.from('household_devices').select('id,auth_user_id,name').eq('household_id',hid).single());wallId=device.id;wallUser=device.auth_user_id;users.push(wallUser)
  expect(device.name).toBe('Køkken');await shot('18-kiosk-landscape-1024',wallPage)
  for(const [width,height,name] of [[1280,800,'25-tablet-wall'],[1920,1080,'kiosk-landscape-1920']]){
@@ -72,7 +72,7 @@ try{
  await wallPage.setViewportSize({width:820,height:1180});await expect(wallPage.locator('.day-view .day-card')).toHaveCount(1);await shot('19-kiosk-portrait',wallPage)
  expect(await wallPage.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true)
  expect(await wallPage.locator('.product-nav [data-product-route=family]').count()).toBe(0)
- await wallPage.reload();await expect(wallPage.locator('body')).toHaveAttribute('data-mode','kiosk');await expect(wallPage.locator('[data-device-choice]')).toHaveCount(0)
+ await wallPage.reload();await expect(wallPage.locator('body')).toHaveAttribute('data-device','wall');await expect(wallPage.locator('[data-device-choice]')).toHaveCount(0)
  pass('QR camera-image flow pairs a real anonymous user, names device, restores wall mode after reload')
  for(const route of ['today','tasks','meals']){await routeTo(wallPage,route);await shot('21-kiosk-'+route,wallPage)}
  await wallPage.locator('#settings-button').click();await expect(wallPage.locator('.native-panel')).toContainText('Administration foregår på en voksens telefon');await shot('22-wall-locked-administration',wallPage);await wallPage.locator('[data-native-close]').click()

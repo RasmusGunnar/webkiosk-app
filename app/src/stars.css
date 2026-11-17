@@ -11,7 +11,6 @@
 .reward-secondary{margin:8px 0 18px;border-bottom:1px solid #e4e8dd}.reward-secondary>summary{cursor:pointer;min-height:44px;padding:12px 0;color:#677360;font-size:13px}.reward-secondary[open]>summary{margin-bottom:8px}.reward-dashboard>.star-panel{max-width:none}.reward-dashboard>.reward-week-count{margin:8px 0 14px}
 .reward-dashboard:has(>.star-panel){padding:0;border:0;background:transparent}.reward-dashboard .star-progress{height:10px;margin:0}.reward-dashboard .star-progress::-webkit-progress-value{background:var(--goal-color,#b68a3c)}
 .star-day-link{display:inline-block;margin-left:6px;min-height:44px;padding:8px;border:0;background:transparent;color:#48634e;text-decoration:underline;cursor:pointer;font:inherit}.star-day-link:focus-visible{outline:3px solid #365f97;outline-offset:2px}
-.star-goals-wall .star-panel{padding:16px 20px}.star-goals-wall .star-person strong{font-size:21px}.star-goals-wall .star-balance{font-size:25px;margin-top:10px}.star-goals-wall .star-goal-heading{margin-top:10px}.star-goals-wall .star-goal-message{margin-bottom:0}.star-goals-wall .star-actions:empty{display:none}
 .star-panel>header,.star-admin-heading,.star-admin-entry,.star-admin-entry>div{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .star-panel .eyebrow{margin:0 0 5px;font-size:11px;color:#77643d}.star-balance{font-size:29px;line-height:1.2;font-variant-numeric:tabular-nums}
 .star-history-button{background:transparent;border:0;text-decoration:underline;color:#635b47;font-size:12px;min-height:44px}

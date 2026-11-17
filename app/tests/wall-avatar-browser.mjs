@@ -1,18 +1,18 @@
 import {chromium,expect} from '@playwright/test'
 import {readFileSync,writeFileSync,mkdirSync} from 'node:fs'
 import {join} from 'node:path'
-import {wallAvatarFixture} from './fixtures/wall-avatar.js'
+import {wallAvatarFixture,fixtureDate} from './fixtures/wall-avatar.js'
 import {reviewRoot} from '../scripts/aula-local.mjs'
 import {routeTo} from './browser-actions.mjs'
 const f=await wallAvatarFixture(),out=join(reviewRoot,'screenshots'),shots=[],checks=[],errors=[];mkdirSync(out,{recursive:true})
 const browser=await chromium.launch({channel:'chrome',headless:true}),contexts=[]
-const date=new Date('2026-11-11T08:30:00+01:00')
+const date=new Date(fixtureDate+'T08:30:00+01:00')
 const open=async(surface,width,height)=>{
  const context=await browser.newContext({viewport:{width,height},locale:'da-DK',timezoneId:'Europe/Copenhagen',serviceWorkers:'block'});contexts.push(context)
  await context.addInitScript(session=>localStorage.setItem('sb-127-auth-token',JSON.stringify(session)),{...(surface==='wall'?f.wallSession:f.session),expires_at:Math.floor(date.getTime()/1000)+3600})
  await context.route('**/*',route=>{const url=new URL(route.request().url());if(!['localhost','127.0.0.1'].includes(url.hostname))return route.abort();if(url.pathname==='/fixture-photo-missing.png')return route.fulfill({status:404,body:'synthetic missing photo'});return route.continue()})
  const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));page.setDefaultTimeout(15000);await page.clock.setFixedTime(date);await page.goto('http://127.0.0.1:5198/');await routeTo(page,'today');await page.waitForLoadState('networkidle')
- await expect(page.locator('body')).toHaveAttribute('data-mode',surface==='wall'?'kiosk':surface)
+ await expect(page.locator('body')).toHaveAttribute(surface==='wall'?'data-device':'data-mode',surface)
  return page
 }
 const card=(page,row)=>page.locator('[data-calendar-item="'+row.id+'"],[data-upcoming="'+row.id+'"]').filter({visible:true}).first()

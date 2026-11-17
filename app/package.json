@@ -47,7 +47,6 @@
     "@playwright/test": "1.63.0",
     "@types/node": "24.19.2",
     "@types/qrcode": "1.5.6",
-    "sharp": "0.35.5",
     "typescript": "7.0.2",
     "vite": "^8.0.12"
   },
@@ -67,7 +66,8 @@
     "i18next": "26.4.2",
     "jsqr": "1.4.0",
     "qrcode": "1.5.4",
-    "tough-cookie": "6.1.0"
+    "tough-cookie": "6.1.0",
+    "sharp": "0.35.5"
   },
   "overrides": {
     "xcode": {

@@ -1418,5 +1418,10 @@
   "aula.automatic_active": "Aktiv",
   "aula.automatic_inactive": "Ikke aktiv",
   "sync.could_not_sync": "Kunne ikke synkronisere",
-  "device_mode.wake_help": "Holder skærmen tændt, mens Familiekalender er åben på denne enhed."
+  "device_mode.wake_help": "Holder skærmen tændt, mens Familiekalender er åben på denne enhed.",
+  "polish.view_recipe": "Se opskrift",
+  "polish.meal_empty": "Ikke planlagt endnu",
+  "polish.family_connections": "Abonnement og enheder",
+  "polish.family_settings": "Indstillinger",
+  "polish.no_goal": "Intet mål"
 }

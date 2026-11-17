@@ -120,7 +120,7 @@ try{
  for(const pid of [ida,carl,jakob])await expect(panel(pid)).toBeInViewport()
  await shoot('10-wall-goals','Wall · tre read-only mål · 1920 × 1080')
  await actor(null);await query('delete from public.reward_goals where person_id=$1',[jakob]);await page.reload();await routeTo(page,'today')
- await expect(panel(jakob)).toContainText('Intet mål valgt endnu');await expect(panel(jakob).locator('button')).toHaveCount(0)
+ await expect(panel(jakob)).toContainText('Intet mål');await expect(panel(jakob).locator('button')).toHaveCount(0)
  await page.setViewportSize({width:1280,height:800});await shoot('wall-no-goal','Wall · intet mål valgt · 1280 × 800')
  pass('Wall 1920 / 1280: same model, avatar, colour and progress; no actions or admin')
  expect(errors).toEqual([]);expect(unknown).toEqual([])

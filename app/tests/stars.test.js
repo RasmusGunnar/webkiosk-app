@@ -58,5 +58,5 @@ test('All child cards expose only own goal actions; wall has no actions even wit
  c.mode='kiosk';c.role='owner';c.state.catalog=[];c.state.goals=[]
  const wall=starGoals({c,adult:true})
  assert.doesNotMatch(wall,/<button|data-star-choose|data-star-history|data-reward-catalog|data-reward-select|data-star-link/)
- assert.match(wall,/Intet mål valgt endnu/);assert.doesNotMatch(wall,/oprette|Vælg belønning/)
+ assert.match(wall,/Intet mål/);assert.doesNotMatch(wall,/oprette|Vælg belønning/)
 })

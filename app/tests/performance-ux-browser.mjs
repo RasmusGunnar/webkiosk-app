@@ -26,14 +26,14 @@ await context.route(api+'/rest/**',async route=>{
 })
 await context.route('**/api/aula-status',route=>route.fulfill({json:{connection:null,mappings:[],findings:[],automatic:{active:true}}}))
 await context.addInitScript(()=>{
- window.perfUX={images:[],cls:[],shell:null,pills:null,started:performance.now()}
- new PerformanceObserver(list=>{for(const e of list.getEntries())if(!e.hadRecentInput)window.perfUX.cls.push(e.value)}).observe({type:'layout-shift',buffered:true})
+ window.perfUX={images:[],cls:[],clsSources:[],shell:null,pills:null,started:performance.now()}
+ new PerformanceObserver(list=>{for(const e of list.getEntries())if(!e.hadRecentInput){window.perfUX.cls.push(e.value);window.perfUX.clsSources.push({time:e.startTime,value:e.value,nodes:e.sources.map(s=>({class:s.node?.className,previous:s.previousRect,current:s.currentRect}))})}}).observe({type:'layout-shift',buffered:true})
  const tick=()=>{const s=window.perfUX;if(!s.shell&&document.querySelector('.product-nav'))s.shell=performance.now();if(!s.pills&&document.querySelector('#person-chipbar [data-person-filter]:nth-child(2)'))s.pills=performance.now();if(!s.images.length){const imgs=[...document.querySelectorAll('#person-chipbar img')];if(imgs.length&&imgs.every(i=>i.complete&&i.naturalWidth))s.images.push(performance.now())}requestAnimationFrame(tick)};requestAnimationFrame(tick)
 })
 const results=[]
 const metrics=()=>page.evaluate(()=>({observed:window.perfUX,timings:performance.getEntriesByType('measure').filter(e=>e.name.startsWith('fk:')).map(e=>({name:e.name,duration:e.duration,startTime:e.startTime,detail:e.detail}))}))
 try{
- for(const width of [375,390,430,1440,1920]){
+ for(const width of (process.env.PERFORMANCE_WIDTHS?process.env.PERFORMANCE_WIDTHS.split(',').map(Number):[375,390,430,1440,1920])){
   const cdp=await context.newCDPSession(page);await cdp.send('Storage.clearDataForOrigin',{origin:root,storageTypes:'indexeddb,local_storage,cache_storage,service_workers'});await cdp.detach()
   if(width===1920)await context.addInitScript(({api,uid,hid})=>localStorage.setItem('familiekalender.device.v1:'+api,JSON.stringify({kiosk:{userId:uid,householdId:hid}})),{api,uid:ids.adult,hid})
   await page.setViewportSize({width,height:width<700?844:1080});signs=0;images=0;slow=true
@@ -92,6 +92,7 @@ try{
    expect(warm.observed.images[0]-appStart).toBeLessThan(500)
    if(built){expect(warm.observed.shell).toBeLessThan(200);expect(warm.observed.pills).toBeLessThan(300);expect(warm.observed.images[0]).toBeLessThan(500)}
    expect(warm.observed.cls.reduce((a,b)=>a+b,0)).toBeLessThan(0.01)
+   expect(action.settled.observed.cls.reduce((a,b)=>a+b,0)).toBeLessThan(0.01)
    const routes=action.ready.timings.filter(t=>t.name==='fk:route_content_ready');expect(routes.length).toBeGreaterThan(2);expect(routes.every(t=>t.duration<150)).toBe(true)
   }
  }

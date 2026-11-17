@@ -1,0 +1,161 @@
+/* Shared finish over the existing warm palette. Navigation, person colours and
+   measured calendar geometry remain owned by their existing components. */
+:root {
+ --radius-sm:8px;--radius-md:14px;--radius-lg:20px;
+ --space-xs:4px;--space-sm:8px;--space-md:12px;--space-lg:20px;--space-xl:28px;
+ --surface-page:#f6f7f2;--surface-card:#fffefa;--surface-subtle:#eff2e9;
+ --surface-highlight:var(--ux-peach,#f8e5d1);--border-subtle:var(--ux-line,#dde3d9);
+ --text-primary:#253c32;--text-secondary:#657568;
+ --type-meta:12px;--type-label:13px;--type-body:15px;--type-card:17px;--type-section:20px;
+ --shadow-card:0 3px 14px #253c3205;
+ --avatar-xs:26px;--avatar-sm:36px;--avatar-md:44px;--avatar-lg:64px;
+}
+body{background:var(--surface-page);color:var(--text-primary)}
+.eyebrow{color:var(--text-secondary);letter-spacing:.09em;font-weight:650}
+:is(.calendar-heading,.product-page-heading) h2{letter-spacing:-.025em}
+:is(.panel,.day-card,.meal-day,.library-card,.aula-today,.ux-family-person,.star-panel,.star-reward-card,.reward-task-card){border-color:var(--border-subtle);border-radius:var(--radius-md);box-shadow:none}
+:is(.calendar-modal,.settings-modal,.recipe-modal,.reward-modal,.aula-dialog,.native-panel){background:var(--surface-card);border-radius:var(--radius-lg);color:var(--text-primary)}
+:is(.modal-header,.aula-dialog>header,.native-panel>header) h2{font-size:22px;line-height:1.25;letter-spacing:-.02em}
+:is(.calendar-modal,.settings-modal,.recipe-modal,.reward-modal,.aula-dialog,.native-panel) :is(input:not([type=checkbox]):not([type=radio]),select,textarea){border-radius:var(--radius-sm);border-color:var(--border-subtle);background:#fff;min-height:44px;font-size:15px;color:var(--text-primary)}
+:is(.calendar-modal,.settings-modal,.recipe-modal,.reward-modal,.aula-dialog,.native-panel) label{font-size:var(--type-label);line-height:1.5}
+:is(.calendar-modal,.settings-modal,.recipe-modal,.reward-modal,.aula-dialog,.native-panel) :is(input,select,textarea):focus-visible{outline:2px solid var(--ux-green);outline-offset:2px}
+:is(.modal-actions,.recipe-form-actions,.star-actions,.recipe-actions,.aula-actions) button{min-height:40px;border-radius:var(--radius-sm);font-size:var(--type-label);font-weight:600}
+:is(.primary-button,.star-primary,.recipe-primary,.aula-primary,button.primary,.modal-actions button[type=submit]){background:var(--ux-green);border-color:var(--ux-green);color:white}
+:is(.secondary-button,.recipe-secondary,.aula-secondary){background:transparent;border-color:var(--border-subtle);color:var(--ux-green)}
+:is(.text-button,.ux-link,.star-history-button){color:var(--ux-green);font-weight:600}
+:is(.calendar-source-badge,.calendar-repeat-meta,.aula-source-label){font-size:11px;color:var(--text-secondary);background:transparent;border-color:var(--border-subtle);font-weight:400}
+:is(.star-state,.task-status,.reward-status){font-size:var(--type-meta);border-radius:var(--radius-sm);font-weight:500}
+:is(.day-card-header,.calendar-day-section) h3{color:var(--text-secondary);letter-spacing:.035em;font-weight:600}
+.calendar-item{border-radius:var(--radius-sm);border-color:var(--border-subtle);box-shadow:none}
+.reward-task-card{background:var(--surface-card);border:1px solid var(--border-subtle);padding:var(--space-md);margin-bottom:var(--space-sm)}
+.reward-task-card :is(.reward-task-title,strong){color:var(--text-primary)}
+.reward-task-card :is(small,.reward-meta){color:var(--text-secondary);font-weight:400}
+.reward-task-person{border-top-color:var(--border-subtle)}
+.task-date-group>h3{margin:var(--space-lg) 0 var(--space-md);font-size:var(--type-label);color:var(--text-secondary)}
+.reward-secondary,.star-admin-history,.star-member-links{border:0;border-top:1px solid var(--border-subtle);border-radius:0;background:transparent;padding:var(--space-md) 0}
+.star-admin-entry{background:transparent;border:0;border-top:1px solid var(--border-subtle);border-radius:0;margin-top:var(--space-lg)}
+.star-admin-heading{align-items:center}
+.star-panel{background:var(--surface-card);border-top-width:3px}
+.star-panel .star-balance{color:var(--ux-green)}
+.star-progress{height:7px;background:var(--surface-subtle)}
+.star-progress::-webkit-progress-bar{background:var(--surface-subtle)}
+.star-progress::-webkit-progress-value{background:var(--goal-color,var(--ux-green))}
+.star-goals-grid{align-items:start;gap:var(--space-md)}
+/* Compact summaries need only their content; retain the stable full person hero. */
+.star-panel-compact{min-height:0;padding:14px;gap:var(--space-sm);border-radius:var(--radius-md)}
+.star-panel-compact .star-person small,.star-panel-compact .star-goal-heading .eyebrow{display:none}
+.star-panel-compact .star-goal-heading h4{font-size:var(--type-body);line-height:1.3}
+.star-panel-compact .star-no-goal{padding:0;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.star-panel-compact .star-empty{margin:0;font-size:var(--type-label)}
+.star-panel-compact .star-goal-message{margin:0;font-size:var(--type-meta)}
+.star-family-goals>article{border:0;border-bottom:1px solid var(--border-subtle);border-radius:0;background:transparent}
+.star-reward-card{background:var(--surface-card);padding:var(--space-lg)}
+.star-goals{margin-top:var(--space-lg)}
+.aula-today{background:var(--surface-card);padding:var(--space-lg);border-radius:var(--radius-md)}
+.aula-today h3{font-size:var(--type-card);line-height:1.35}
+.aula-today .aula-attention-heading h3{font-size:11px;letter-spacing:.06em;font-weight:500;color:var(--text-secondary)}
+.aula-today .aula-attention-heading p{font-size:18px;font-weight:600;line-height:1.4}
+.aula-today .eyebrow{font-size:11px;letter-spacing:.06em;font-weight:500}
+.aula-finding{border-color:var(--border-subtle);border-radius:var(--radius-md);box-shadow:none;background:var(--surface-card)}
+.aula-finding h3{font-size:var(--type-card)}
+.aula-finding>small,.aula-source{color:var(--text-secondary);font-size:var(--type-meta)}
+.ux-day-stats{gap:var(--space-md)}
+.ux-day-stats>button{background:transparent;border:0;border-bottom:1px solid var(--border-subtle);border-radius:0;padding:12px 4px}
+.home-aside{gap:var(--space-lg)}
+.home-aside>.panel{background:transparent;border:0;border-top:1px solid var(--border-subtle);border-radius:0;padding:var(--space-lg) 0}
+.upcoming-event{box-shadow:none;background:transparent;border-radius:0}
+.today-meal{padding:var(--space-lg);background:var(--surface-highlight);border:1px solid #eadbc9;border-radius:var(--radius-md);color:var(--text-primary);min-width:0}
+.today-meal>header{display:flex;align-items:center;gap:var(--space-sm);margin-bottom:var(--space-md);color:#795c3c}
+.today-meal>header svg{width:18px;height:18px}
+.today-meal>header h2{margin:0;font-size:var(--type-label);font-weight:600;letter-spacing:.02em}
+.today-meal-row{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-lg);align-items:center}
+.today-meal-row+.today-meal-row{margin-top:var(--space-lg);padding-top:var(--space-lg);border-top:1px solid #795c3c20}
+.today-meal-row.has-image{grid-template-columns:minmax(84px,32%) minmax(0,1fr);min-height:108px}
+.today-meal-photo{position:relative;aspect-ratio:4/3;margin:0;background:#e9dcc7;border-radius:var(--radius-sm);overflow:hidden;display:grid;place-items:center}
+.today-meal-photo>svg{width:28px;height:28px;color:#947b58}
+.today-meal-photo.is-ready>svg{visibility:hidden}
+.today-meal-photo img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.today-meal-copy{min-width:0}
+.today-meal h3{font-family:Georgia,serif;font-size:clamp(23px,2vw,30px);font-weight:400;line-height:1.18;letter-spacing:-.025em;margin:0;text-wrap:balance;overflow-wrap:anywhere}
+.today-meal-meta{font-size:var(--type-meta);color:#795c3c;margin:var(--space-sm) 0 0;line-height:1.5}
+.today-meal-link,.today-meal-plan{display:inline-flex;align-items:center;gap:var(--space-sm);border:0;border-radius:var(--radius-sm);background:transparent;color:var(--ux-green);padding:8px 0;min-height:40px;font-size:var(--type-label);font-weight:600;text-align:left}
+.today-meal-link{margin-top:var(--space-xs)}
+.today-meal-plan{margin-top:var(--space-sm);border-top:1px solid #795c3c20;border-radius:0;width:100%;justify-content:space-between;padding-top:var(--space-md);font-weight:400}
+.today-meal-empty{font-size:var(--type-card);margin:0;line-height:1.6;color:#795c3c}
+.meal-day,.library-card{background:var(--surface-card)}
+.meal-remove-assignment{font-size:var(--type-meta);font-weight:400;color:var(--text-secondary)}
+.recipe-library-preview{background:transparent;border:0;border-top:1px solid var(--border-subtle);border-radius:0;padding-top:var(--space-xl)}
+.ux-family-intro{border-radius:var(--radius-lg);padding:var(--space-xl);margin-bottom:var(--space-lg)}
+.ux-family-person{padding:var(--space-lg);background:var(--surface-card)}
+.ux-family-person button{font-size:var(--type-label);color:var(--ux-green);min-height:40px}
+.family-person-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 12px}
+body[data-mode=desktop] .ux-family-person{display:grid;grid-template-columns:64px minmax(0,1fr);column-gap:16px;text-align:left;align-content:start}
+body[data-mode=desktop] .ux-family-person>.person-bubble{grid-column:1;grid-row:1/3;margin:0}
+body[data-mode=desktop] .ux-family-person>h4{grid-column:2;grid-row:1;align-self:end;margin:0 0 4px}
+body[data-mode=desktop] .ux-family-person>p{grid-column:2;grid-row:2;margin:0}
+body[data-mode=desktop] .family-person-actions{grid-column:1/-1;justify-content:flex-start;margin-top:12px}
+.ux-family-tools{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-xl);margin-top:var(--space-xl)}
+.ux-family-tools>.aula-family-card{grid-column:1/-1}
+.family-tool-group{min-width:0}
+.family-tool-group>h3{font-size:var(--type-section);margin:0 0 var(--space-md);font-weight:600;letter-spacing:-.02em}
+.family-tool-group>button{display:flex;align-items:center;gap:var(--space-md);width:100%;padding:16px 0;border:0;border-bottom:1px solid var(--border-subtle);background:transparent;text-align:left;color:var(--text-primary)}
+.family-tool-group>button>svg{width:21px;height:21px;color:var(--text-secondary);flex:none}
+.family-tool-group>button>svg:last-child{margin-left:auto;width:16px}
+.family-tool-group>button span{display:grid;gap:var(--space-xs)}
+.family-tool-group>button strong{font-size:var(--type-body);font-weight:600}
+.family-tool-group>button small{font-size:var(--type-meta);color:var(--text-secondary)}
+body[data-mode=mobile] .mobile-today>.aula-today{margin-top:var(--space-lg)}
+body[data-mode=mobile] .today-meal{margin-top:var(--space-lg);padding:16px}
+body[data-mode=mobile] .today-meal h3{font-size:23px}
+body[data-mode=mobile] .today-meal-row.has-image{grid-template-columns:84px minmax(0,1fr);gap:var(--space-md);min-height:88px}
+body[data-mode=mobile] .today-meal-photo{aspect-ratio:1}
+body[data-mode=mobile] .today-meal-link{min-height:44px;padding:6px 0}
+body[data-mode=mobile] .today-meal.is-planned>.today-meal-plan{display:none}
+body[data-mode=mobile] .ux-family-tools{grid-template-columns:1fr}
+body[data-mode=mobile] .ux-family-tools>.aula-family-card{grid-column:auto}
+body[data-mode=mobile] .star-goals-grid{grid-template-columns:1fr}
+body[data-mode=mobile] .star-panel-compact .star-person strong{font-size:16px}
+body[data-mode=mobile] :is(.modal-actions,.recipe-form-actions,.star-actions,.recipe-actions,.aula-actions) button{min-height:44px}
+body[data-mode=desktop] .home-layout{grid-template-columns:minmax(0,1.7fr) minmax(320px,1fr);gap:var(--space-lg)}
+/* The wall spends its height on the day. Motivation is a small secondary strip. */
+body[data-mode=kiosk] .kiosk-heading>div:first-child{display:grid;grid-template-columns:auto 1fr;column-gap:24px;align-items:end}
+body[data-mode=kiosk] .kiosk-heading .eyebrow{grid-column:1/-1;margin:0 0 4px;font-size:11px}
+body[data-mode=kiosk] #device-clock{font-size:52px;line-height:1;font-weight:500}
+body[data-mode=kiosk] #device-date{font-size:20px;line-height:1.3;margin:0 0 4px}
+body[data-mode=kiosk] .kiosk-label{font-size:14px;color:var(--text-secondary)}
+body[data-mode=kiosk] .wall-today{height:100%;min-height:0;display:flex;flex-direction:column;gap:16px}
+body[data-mode=kiosk] .wall-today>.home-layout{flex:1;min-height:0;height:auto;align-items:stretch}
+body[data-mode=kiosk] .wall-today .home-aside{overflow:auto;min-height:0;scrollbar-width:thin}
+body[data-mode=kiosk] .wall-today .day-view{min-height:0;overflow:auto;scrollbar-width:thin}
+body[data-mode=kiosk] .wall-today .day-card{min-height:100%;height:auto}
+body[data-mode=kiosk] .today-meal{padding:24px}
+body[data-mode=kiosk] .today-meal>header h2{font-size:16px}
+body[data-mode=kiosk] .today-meal h3{font-size:clamp(26px,2.2vw,38px)}
+body[data-mode=kiosk] .today-meal-row.has-image{grid-template-columns:minmax(120px,34%) minmax(0,1fr)}
+body[data-mode=kiosk] .today-meal-meta,body[data-mode=kiosk] .today-meal-link{font-size:16px}
+body[data-mode=kiosk] .wall-today .compact-task{min-height:60px;padding:10px 2px}
+body[data-mode=kiosk] .wall-today .compact-task strong{font-size:20px;white-space:normal}
+body[data-mode=kiosk] .wall-today .compact-task small{font-size:14px}
+body[data-mode=kiosk] .kiosk-progress{padding:20px;background:var(--surface-subtle);border-radius:var(--radius-md)}
+body[data-mode=kiosk] .reward-people-kiosk{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 16px}
+body[data-mode=kiosk] .reward-person-summary{border:0;border-radius:0;background:transparent;padding:12px 0;box-shadow:none}
+body[data-mode=kiosk] .reward-person-summary strong{font-size:18px}
+body[data-mode=kiosk] .reward-person-summary small{font-size:14px;font-weight:400}
+body[data-mode=kiosk] .star-goals-wall{flex:none;margin:0}
+body[data-mode=kiosk] .star-goals-wall>h3{font-size:13px;color:var(--text-secondary);margin:0 0 6px;font-weight:500}
+body[data-mode=kiosk] .star-goals-grid{grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;align-items:stretch}
+body[data-mode=kiosk] .star-panel-compact{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto auto;gap:5px 10px;padding:12px 16px;border-top-width:2px;min-height:82px}
+body[data-mode=kiosk] .star-panel-compact>header{grid-column:1;grid-row:1;margin:0}
+body[data-mode=kiosk] .star-panel-compact .star-person{gap:8px}
+body[data-mode=kiosk] .star-panel-compact .star-person strong{font-size:17px}
+body[data-mode=kiosk] .star-panel-compact .star-person .person-avatar{width:var(--avatar-sm);height:var(--avatar-sm);flex-basis:var(--avatar-sm)}
+body[data-mode=kiosk] .star-panel-compact .star-balance{grid-row:1;grid-column:2;font-size:18px;align-self:center}
+body[data-mode=kiosk] .star-panel-compact .star-goal-heading{grid-column:1;grid-row:2;margin:0;gap:6px}
+body[data-mode=kiosk] .star-panel-compact .star-symbol{font-size:18px}
+body[data-mode=kiosk] .star-panel-compact .star-goal-heading h4{font-size:16px}
+body[data-mode=kiosk] .star-panel-compact .star-progress{grid-column:2;grid-row:2;width:90px;align-self:center}
+body[data-mode=kiosk] .star-panel-compact :is(.star-progress-label,.star-goal-message,.star-actions){display:none}
+body[data-mode=kiosk] .star-panel-compact .star-no-goal{grid-column:1/-1;grid-row:2}
+body[data-mode=kiosk] .star-panel-compact .star-empty{font-size:15px;color:var(--text-secondary)}
+@media(max-height:700px){body[data-mode=kiosk] #device-clock{font-size:38px}body[data-mode=kiosk] #device-date{font-size:16px}body[data-mode=kiosk] .star-goals-grid{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}body[data-mode=kiosk] .star-panel-compact{padding:8px 12px;min-height:68px}}
+@media(prefers-reduced-motion:reduce){.today-meal *,.star-goals-wall *{animation:none;transition:none}}

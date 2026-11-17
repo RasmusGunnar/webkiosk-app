@@ -27,6 +27,7 @@ await context.addInitScript(()=>{
  window.aulaLayout=[]
  new PerformanceObserver(list=>{for(const e of list.getEntries())if(!e.hadRecentInput)window.aulaLayout.push({value:e.value,nodes:e.sources.map(s=>s.node?.className||s.node?.id)})}).observe({type:'layout-shift',buffered:true})
 })
+await page.clock.setFixedTime(new Date(today+'T09:00:00+01:00'))
 const shots=[],checks=[],measurements=[]
 const snap=async(name,label)=>{await page.screenshot({path:fileURLToPath(new URL(phase+'-'+name+'.png',out))});shots.push({name:phase+'-'+name,label})}
 async function load(width,count){
@@ -41,8 +42,8 @@ try{
   if(!before){
    await expect(card).toHaveCount(count?1:0)
    if(count){await expect(card.locator('li')).toHaveCount(Math.min(count,2));await expect(card.locator('[data-aula="review"]')).toHaveText('Gennemgå '+count);await expect(page.locator('.home-aside>.aula-today')).toHaveCount(1);expect((await card.boundingBox()).x).toBeGreaterThan(day.x+day.width)}
-   await expect(page.locator('.home-aside .ux-dinner')).toContainText('Pasta med tomatsauce')
-   await expect(page.locator('.home-aside .next-panel')).toContainText('Svømning')
+   await expect(page.locator('.home-aside .today-meal')).toContainText('Pasta med tomatsauce')
+   await expect(page.locator('.home-aside .next-panel')).toContainText('Fodboldtræning')
    expect(day.y-summary.y-summary.height).toBeLessThan(30)
   }
   if(count===19||count===0)await snap('desktop-'+count,'Desktop · '+count+' handlingskrævende fund, mad og næste aftale')
@@ -52,8 +53,8 @@ try{
  for(const width of [375,390,430,768,1024]){
   await load(width,19)
   const card=page.locator('.aula-today'),c=await card.boundingBox(),day=await page.locator(width<700?'.mobile-agenda-day':'.home-layout>.day-view').boundingBox()
-  if(!before){expect(c.y+c.height).toBeLessThanOrEqual(day.y);expect(c.height).toBeLessThan(280);await expect(card.locator('li')).toHaveCount(2)}
-  await snap('compact-'+width,width+' px · kompakt Aula før dagens aktiviteter')
+  if(!before){if(width<700)expect(c.y).toBeGreaterThanOrEqual(day.y+day.height);expect(c.height).toBeLessThan(280);await expect(card.locator('li')).toHaveCount(2)}
+  await snap('compact-'+width,width+' px · kompakt Aula efter dagens indhold')
   await card.locator('[data-aula="review"]').click();await expect(page.locator('.aula-dialog')).toBeVisible()
   await expect(page.locator('.aula-dialog [data-aula="accept"]')).toHaveCount(19)
   await expect(page.locator('.aula-dialog [data-aula="mark-reviewed"]')).toHaveCount(30)

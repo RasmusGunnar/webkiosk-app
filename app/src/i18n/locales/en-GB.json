@@ -1418,5 +1418,10 @@
   "aula.automatic_active": "Active",
   "aula.automatic_inactive": "Inactive",
   "sync.could_not_sync": "Could not sync",
-  "device_mode.wake_help": "Keeps the screen on while Familiekalender is open on this device."
+  "device_mode.wake_help": "Keeps the screen on while Familiekalender is open on this device.",
+  "polish.view_recipe": "View recipe",
+  "polish.meal_empty": "Not planned yet",
+  "polish.family_connections": "Subscription and devices",
+  "polish.family_settings": "Settings",
+  "polish.no_goal": "No goal"
 }

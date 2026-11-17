@@ -5,7 +5,7 @@ import {randomBytes} from 'node:crypto'
 import {makeHandlers} from '../server/aula/service.ts'
 import {seal} from '../server/aula/security.ts'
 import {source,finding,ida,carl} from './aula-activity.fixtures.js'
-test('Scanner preserves one multi-person activity and matches only exact activity assignments',async()=>{
+test('Scanner preserves one multi-person activity and matches only exact activity assignments',async context=>{context.mock.timers.enable({apis:['Date'],now:new Date('2026-11-09T12:00:00Z')});
  const keys=['AULA_SESSION_ENCRYPTION_KEY','AULA_HMAC_KEY'],previous=keys.map(k=>process.env[k]);keys.forEach(k=>process.env[k]=randomBytes(32).toString('base64'))
  try{
   const hid='00000000-0000-4000-8000-000000000001',uid='00000000-0000-4000-8000-000000000002'

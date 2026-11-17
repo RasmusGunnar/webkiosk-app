@@ -70,14 +70,17 @@ export class RewardMotion {
  }
  showTransientDelta(event){
   const key='notice:'+event.key,existing=this.effects.get(key);if(existing?.node)existing.node.remove()
-  const node=document.createElement('span');node.className='reward-delta'+(event.milestone?' is-milestone':'');node.textContent=event.text;node.dataset.motionKind=event.milestone?'milestone':event.kind||'task';this.root.append(node)
+  const node=document.createElement('span');node.className='reward-delta'+(event.milestone?' is-milestone':'');node.textContent=event.text;node.dataset.motionKind=event.milestone?'milestone':event.kind||'task'
+  // Measure off-paint at a stable intrinsic width. The notice must never flash
+  // at the document's static position before its first animation frame.
+  Object.assign(node.style,{visibility:'hidden',left:'0px',top:'0px',width:'max-content'});this.root.append(node)
   const duration=event.duration|| (event.shine?1000:800)
   this.effects.set(key,{...event,kind:'notice',feedbackKind:event.kind||'task',node,start:performance.now(),duration});this.announce(event.announcement||event.text);this.schedule()
  }
  schedule(){if(!this.frame)this.frame=requestAnimationFrame(now=>{this.frame=null;this.tick(now);if(this.effects.size)this.schedule()})}
  present(){if(this.effects.size)this.schedule()}
  tick(now){
-  let fallback=0;const offsets=new Map()
+  const offsets=new Map()
   for(const [key,effect] of this.effects){
    const elapsed=now-effect.start,t=effect.duration?Math.min(1,elapsed/effect.duration):1
    if(effect.kind==='number')for(const el of effect.elements())effect.paint(el,effect.from+(effect.to-effect.from)*ease(t))
@@ -85,9 +88,10 @@ export class RewardMotion {
     const anchor=this.anchor(effect),rect=anchor?.getBoundingClientRect(),node=effect.node
     node.hidden=!anchor
     const maxTop=Math.max(12,innerHeight-150-node.offsetHeight)
-    node.style.left=Math.max(12,Math.min(innerWidth-node.offsetWidth-12,rect?.left??16))+'px'
     const offset=offsets.get(anchor)||0;offsets.set(anchor,offset+node.offsetHeight+6)
-    node.style.top=Math.max(12,Math.min(maxTop,rect?rect.bottom+5+offset:80+fallback++*52))+'px'
+    // A short-lived confirmation stays at the action position while optimistic
+    // status rows are replaced. Following their changing height caused a jump.
+    if(anchor&&!effect.placed){node.style.left=Math.max(12,Math.min(innerWidth-node.offsetWidth-12,rect.left))+'px';node.style.top=Math.max(12,Math.min(maxTop,rect.bottom+5+offset))+'px';node.style.visibility='visible';effect.placed=true}
     const reduce=reducedMotion();node.style.opacity=reduce?'1':String(Math.min(1,elapsed/120,(effect.duration-elapsed)/160));node.style.transform=reduce?'none':`translateY(${(1-Math.min(1,elapsed/180))*5}px)`
     const cls=effect.milestone?'reward-motion-milestone':effect.shine?'reward-motion-shine':'reward-motion-check'
     if(effect.anchor!==anchor){effect.anchor?.classList.remove(cls);effect.anchor=anchor}

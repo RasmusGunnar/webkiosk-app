@@ -4,6 +4,7 @@ import {actionableAulaFindings,aulaPreviews} from '../src/lib/aula-attention.js'
 import {AulaUI} from '../src/lib/aula-ui.js'
 import {setLocale} from '../src/i18n/index.js'
 import {finding,ida} from './aula-activity.fixtures.js'
+test.beforeEach(t=>t.mock.timers.enable({apis:['Date'],now:new Date('2026-11-11T12:00:00Z')}))
 function inbox(findings){const ui=Object.create(AulaUI.prototype);ui.getContext=()=>({householdId:'fixture',role:'owner',people:[{id:ida,name:'Ida',color:'#b98486'}]});ui.ensure=()=>{};ui.state={connection:{status:'connected'},findings};return ui}
 test('Attention excludes reviewed, stale, suppressed and informational findings; UPDATED remains reviewable',()=>{
  const rows=[finding({id:'new'}),finding({id:'updated',review_state:'UPDATED'}),finding({id:'match',proposed_action:'MATCH_EXISTING'}),
@@ -21,7 +22,7 @@ test('Previews prefer nearest upcoming date then deadline/reminder, without muta
  const rows=[finding({id:'past',date:'2026-11-10'}),finding({id:'unknown',date:null}),finding({id:'later',date:'2026-11-14'}),finding({id:'attend',type:'CALENDAR_EVENT',date:'2026-11-12'}),finding({id:'deadline',type:'DEADLINE',date:'2026-11-12'})]
  const original=JSON.stringify(rows)
  assert.deepEqual(aulaPreviews(rows,'2026-11-11').map(f=>f.id),['deadline','attend']);assert.equal(JSON.stringify(rows),original)
- assert.equal(actionableAulaFindings(rows).length,5)
+ assert.equal(actionableAulaFindings(rows).length,4)
 })
 test('Preview shows only identity, escaped title and known date, with one review action',()=>{
  const html=inbox([finding({title:'<script>private</script>',date:null,reason:'PRIVATE REASON',summary:'PRIVATE SUMMARY'})]).todayCard()

@@ -1,4 +1,5 @@
 import test from 'node:test'
+test.beforeEach(t=>t.mock.timers.enable({apis:['Date'],now:new Date('2026-11-11T12:00:00Z')}))
 import assert from 'node:assert/strict'
 import {AulaUI} from '../src/lib/aula-ui.js'
 import {personStack} from '../src/lib/person-avatars.js'

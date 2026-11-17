@@ -2,6 +2,7 @@ import {t,dateFormatter} from '../i18n/index.js'
 import {icon as productIcon} from './product-ui.js'
 import {personAvatar,personPicker,personStack} from './person-avatars.js'
 import {aulaInformation,actionableAulaFindings,aulaPreviews} from './aula-attention.js'
+import {copenhagenDate,currentAulaFindings} from './aula-expiry.js'
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))
 const aulaPaths={check:'m5 12 4 4L19 6',book:'M12 5v15 M3 4h5q4 0 4 3 0-3 4-3h5v15h-5q-4 0-4 2 0-2-4-2H3Z',bag:'M8 6V4h8v2 M5 7h14l1 14H4Z M8 11v2 M16 11v2 M8 17h8',trip:'M6 18v3 M18 18v3 M5 7h14v11H5Z M5 13h14 M8 16h.01 M16 16h.01 M8 4h8',document:'M5 3h10l4 4v14H5Z M14 3v5h5 M8 12h8 M8 16h6',info:'M12 8h.01 M12 11v6 M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18'}
 // Same SVG presentation as the existing product icons, with Aula-specific motifs.
@@ -21,7 +22,7 @@ export async function readEvents(response,onEvent,signal){
 export class AulaUI {
  constructor({client,getContext,onRender,onAccepted=onRender}){
   this.client=client;this.getContext=getContext;this.onRender=onRender;this.onAccepted=onAccepted;this.state={connection:null,mappings:[],findings:[]};this.context='';this.pending=false;this.loaded=false;this.errorCode='';this.view='';this.generation=0
-  this.reviewDrafts=new Map()
+  this.reviewDrafts=new Map();this.inboxDate=copenhagenDate()
   this.root=document.createElement('div');this.root.id='aula-dialog-root';document.body.append(this.root)
   document.addEventListener('click',e=>{const b=e.target.closest('[data-aula]');if(b&&!b.disabled&&this.allowed){e.preventDefault();void this.action(b.dataset.aula,b)}})
   this.root.addEventListener('dismiss-dialog',()=>this.close())
@@ -40,10 +41,13 @@ export class AulaUI {
  get allowed(){const c=this.getContext();return Boolean(c.householdId&&!c.wall&&['owner','admin','adult'].includes(c.role))}
  syncContext(){const context=this.allowed?this.getContext().householdId:'';if(context===this.context)return;clearInterval(this.refreshTimer);this.close();this.reviewDrafts.clear();this.context=context;this.generation++;this.state={connection:null,mappings:[],findings:[]};this.loaded=false;this.pending=false;this.errorCode='';if(context)this.refreshTimer=setInterval(()=>{if(document.visibilityState==='visible')void this.refresh(true)},60000)}
  async request(endpoint,payload={},signal){const {data}=await this.client.auth.getSession();if(!data.session)throw Object.assign(new Error(),{code:'AULA_UNAUTHORIZED'});const base=import.meta.env.VITE_AULA_API_BASE_URL||'';const response=await fetch(`${base}/api/aula-${endpoint}`,{method:'POST',headers:{authorization:`Bearer ${data.session.access_token}`,'content-type':'application/json'},body:JSON.stringify({household_id:this.context,...payload}),signal,cache:'no-store',credentials:'omit'});if(endpoint==='connect')return response;const result=await response.json().catch(()=>({}));if(!response.ok)throw Object.assign(new Error(),{code:result.code});return result}
- async refresh(quiet=false){this.syncContext();if(!this.context||this.pending)return;this.pending=true;const generation=this.generation,before=JSON.stringify(this.state),wasLoaded=this.loaded;try{const state=await this.request('status',{},AbortSignal.timeout(8000));if(generation===this.generation){this.state=state;if(!quiet)this.errorCode=''}}catch(e){if(generation===this.generation&&!quiet)this.errorCode=e.code||'AULA_TEMPORARY_ERROR'}finally{if(generation===this.generation){this.pending=false;this.loaded=true;if(!quiet||!wasLoaded||before!==JSON.stringify(this.state))this.onRender()}}}
+ // Reuse the visible-page refresh tick; expiry works before any network request,
+ // including offline, a pending request, or an unchanged cached status response.
+ expireView(){const today=copenhagenDate(),previous=this.inboxDate;this.inboxDate=today;if(previous&&previous!==today&&currentAulaFindings(this.state.findings,previous).length!==currentAulaFindings(this.state.findings,today).length){this.onRender();if(this.view==='review')this.review()}}
+ async refresh(quiet=false){this.syncContext();this.expireView();if(!this.context||this.pending)return;this.pending=true;const generation=this.generation,before=JSON.stringify(this.state),wasLoaded=this.loaded;try{const state=await this.request('status',{},AbortSignal.timeout(8000));if(generation===this.generation){this.state=state;if(!quiet)this.errorCode=''}}catch(e){if(generation===this.generation&&!quiet)this.errorCode=e.code||'AULA_TEMPORARY_ERROR'}finally{if(generation===this.generation){this.pending=false;this.loaded=true;if(!quiet||!wasLoaded||before!==JSON.stringify(this.state))this.onRender()}}}
  ensure(){this.syncContext();if(!this.loaded&&!this.pending&&this.context)queueMicrotask(()=>this.refresh())}
  get status(){return this.state.connection?.status||'disconnected'}
- get newFindings(){return(this.state.findings||[]).filter(f=>f.status==='new')}
+ get newFindings(){return currentAulaFindings(this.state.findings)}
  get actionableFindings(){return actionableAulaFindings(this.state.findings)}
  partialMarkup(){return this.state.connection?.scan_counts?.partial?'<p class="hint" role="status">'+esc(t('aula.partial_scan'))+'</p>':''}
  automaticMarkup(){return `<dt>${esc(t('aula.automatic_scan'))}</dt><dd>${esc(t(this.state.automatic?.active&&this.status==='connected'?'aula.automatic_active':'aula.automatic_inactive'))}</dd>`}
@@ -52,7 +56,7 @@ export class AulaUI {
  todayCard(){
   this.ensure();if(!this.allowed||!this.state.connection||this.status==='disconnected')return ''
   const rows=this.actionableFindings;if(!rows.length)return ''
-  const now=new Date(),today=[now.getFullYear(),String(now.getMonth()+1).padStart(2,'0'),String(now.getDate()).padStart(2,'0')].join('-')
+  const today=copenhagenDate()
   return `<section class="aula-today" aria-labelledby="aula-today-title"><header class="aula-attention-heading"><h3 id="aula-today-title">${esc(t('aula.title'))}</h3><p>${esc(t('aula.attention_count',{count:rows.length}))}</p></header><ul class="aula-preview">${aulaPreviews(rows,today).map(f=>`<li>${this.findingAvatars(f)}<span class="aula-preview-copy"><strong>${esc(f.title)}</strong>${f.date?`<time datetime="${esc(f.date)}">${esc(this.date(f.date))}</time>`:''}</span></li>`).join('')}</ul>${button('review',t('aula.attention_review',{count:rows.length}),'aula-text')}</section>`
  }
 
@@ -117,7 +121,7 @@ export class AulaUI {
   return `<article class="aula-finding" data-aula-finding="${esc(f.id)}" data-confidence="${esc(f.confidence)}"><div class="aula-finding-meta"><span data-aula-avatars>${this.findingAvatars({...f,person_ids:ids,person_id:null})}</span><span class="aula-type">${icon(typeIcons[f.type])} ${esc(t(typeKeys[f.type]))}</span><span class="aula-confidence">${esc(t(confidenceKeys[f.confidence]))}</span></div>${f.review_state==='UPDATED'?'<p class="aula-match" role="status">'+esc(t('aula.updated_since_review'))+'</p>':''}${heading}${date}${time}${fields}<p>${esc(f.summary)}</p><details><summary>${esc(t('aula.why'))}</summary><p>${esc(f.reason)}</p></details><small class="aula-source">${esc(t(f.source_kind==='meebook'?'aula.source_meebook':'aula.title'))}</small>${info?'':'<p class="hint">'+esc(t('aula.activity_destination'))+'</p>'}${picker}${matched?`<p class="aula-match">${icon('check')} ${esc(t('aula.exists'))}</p>`:''}<div class="aula-card-actions">${accepted?`<p role="status">${icon('check')} ${esc(t(f.status==='ignored'?'aula.ignored':info?'aula.info_reviewed':'aula.accepted'))}</p>`:button(info?'mark-reviewed':'accept',t(info?'aula.mark_reviewed':matched?'aula.confirm_match':'aula.add_activity'),'aula-primary',`data-finding="${esc(f.id)}" ${!info&&!this.validReview({...f,person_ids:ids,person_id:null})?'disabled':''}`)+button('ignore',t('aula.ignore'),'aula-text',`data-finding="${esc(f.id)}"`)} </div>${editable?`<p class="hint" data-aula-date-hint ${f.date?'hidden':''}>${esc(t('aula.needs_date'))}</p>`:''}</article>`
  }
 
- review(){this.view='review';const rows=this.state.findings||[];this.shell(t('aula.review'),`<p>${esc(t('aula.review_description'))}</p>${this.errorMarkup()}${this.partialMarkup()}${rows.filter(f=>f.status==='new').length?['HIGH','MEDIUM','LOW'].map(level=>{const group=rows.filter(f=>f.status==='new'&&f.confidence===level);return group.length?`<section class="aula-review-group"><h3>${esc(t(confidenceKeys[level]))}<span>${group.length}</span></h3>${group.map(f=>this.findingCard(f)).join('')}</section>`:''}).join(''):`<div class="aula-empty">${icon('check')}<h3>${esc(t('aula.all_reviewed'))}</h3><p>${esc(t('aula.all_reviewed_description'))}</p></div>`}${rows.some(f=>f.status==='accepted')?`<details class="aula-accepted"><summary>${esc(t('aula.recent_accepted'))}</summary>${rows.filter(f=>f.status==='accepted').slice(0,8).map(f=>this.findingCard(f)).join('')}</details>`:''}`,button('scan',t('aula.scan'),'aula-secondary'))}
+ review(){this.view='review';const rows=this.state.findings||[],current=this.newFindings;this.shell(t('aula.review'),`<p>${esc(t('aula.review_description'))}</p>${this.errorMarkup()}${this.partialMarkup()}${current.length?['HIGH','MEDIUM','LOW'].map(level=>{const group=current.filter(f=>f.confidence===level);return group.length?`<section class="aula-review-group"><h3>${esc(t(confidenceKeys[level]))}<span>${group.length}</span></h3>${group.map(f=>this.findingCard(f)).join('')}</section>`:''}).join(''):`<div class="aula-empty">${icon('check')}<h3>${esc(t('aula.all_reviewed'))}</h3><p>${esc(t('aula.all_reviewed_description'))}</p></div>`}${rows.some(f=>f.status==='accepted')?`<details class="aula-accepted"><summary>${esc(t('aula.recent_accepted'))}</summary>${rows.filter(f=>f.status==='accepted').slice(0,8).map(f=>this.findingCard(f)).join('')}</details>`:''}`,button('scan',t('aula.scan'),'aula-secondary'))}
  async action(action,b){try{
   if(action==='edit-finding'){const input=b.closest('[data-aula-finding]').querySelector('[data-aula-edit="'+b.dataset.field+'"]');input.closest('label').hidden=false;input.focus();return}
   if(action==='close'){this.close();return}

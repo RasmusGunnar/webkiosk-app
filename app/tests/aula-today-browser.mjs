@@ -15,7 +15,7 @@ await query("insert into public.calendar_items(id,household_id,created_by,title,
 let state,delay=0,statusReads=0,writes=0,failStatus=false,releasePhoto,photosReady=false
 const makeState=count=>({connection:{status:'connected'},mappings:[],findings:[
  ...Array.from({length:count},(_,i)=>finding({id:'action-'+i,person_id:personIds[i%2+1],person_ids:[personIds[i%2+1]],date:today,title:i===0?'Forbered porteføljesamtale':i===1?'Matematikkens dag':'Skoleaktivitet '+(i+1),review_state:i%2?'UPDATED':'NEW',confidence:i%2?'MEDIUM':'HIGH'})),
- ...Array.from({length:30},(_,i)=>finding({id:'info-'+i,proposed_action:'NO_ACTION',type:'GENERAL_INFO',confidence:'LOW'})),
+ ...Array.from({length:30},(_,i)=>finding({id:'info-'+i,date:today,proposed_action:'NO_ACTION',type:'GENERAL_INFO',confidence:'LOW'})),
  ...['accepted','ignored','stale','suppressed'].map(status=>finding({id:status,status}))
 ]})
 await context.route('**/api/aula-status',async route=>{statusReads++;if(delay)await new Promise(r=>setTimeout(r,delay));await route.fulfill(failStatus?{status:503,json:{code:'AULA_TEMPORARY_ERROR'}}:{json:state})})

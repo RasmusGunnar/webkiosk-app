@@ -1423,5 +1423,7 @@
   "polish.meal_empty": "Ikke planlagt endnu",
   "polish.family_connections": "Abonnement og enheder",
   "polish.family_settings": "Indstillinger",
-  "polish.no_goal": "Intet mål"
+  "polish.no_goal": "Intet mål",
+  "wall.today_heading": "Her er jeres {{day}}",
+  "wall.today_counts": "{{events}} aftaler · {{tasks}} åbne opgaver · {{items}} varer"
 }

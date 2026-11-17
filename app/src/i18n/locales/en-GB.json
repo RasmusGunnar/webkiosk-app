@@ -1423,5 +1423,7 @@
   "polish.meal_empty": "Not planned yet",
   "polish.family_connections": "Subscription and devices",
   "polish.family_settings": "Settings",
-  "polish.no_goal": "No goal"
+  "polish.no_goal": "No goal",
+  "wall.today_heading": "Here is your {{day}}",
+  "wall.today_counts": "{{events}} events · {{tasks}} open tasks · {{items}} shopping items"
 }

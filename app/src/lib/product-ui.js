@@ -12,6 +12,7 @@ export function renderNavigation(route,kiosk,mobile=false){
  return ("<nav class=\"product-nav\" aria-label=\""+t("product.main_navigation")+"\">")+entries.map(id=>'<button type="button" data-product-route="'+id+'" aria-current="'+(id===active?'page':'false')+'">'+icon(id==='food'?'meals':id)+'<span>'+(id==='food'?(t("nav.meals")):routeLabels[id])+'</span></button>').join('')+'</nav>'
 }
 export function renderMeals(rows,cursor,kiosk=false,compact=false,recipes=[]){
+ if(kiosk)return renderWallMeals(rows,cursor,recipes)
  const today=dateIso(new Date()),days=weekDates(dateIso(cursor))
  return '<div class="meal-view">'+(compact?'':("<div class=\"ux-view-intro\"><div><p class=\"eyebrow\">"+t("product.an_easier_everyday_life")+"</p><h3>"+t("plan_editor.what_shall_we_eat")+"</h3><p>"+t("product.plan_together_take_the_ingredients_shopping")+"</p></div></div>"))+(compact?'<div class="meal-calendar-heading"><p class="meal-week-label">'+escape(calendarHeading(days[0],'week').replace((t("calendar_dates.this_week_week")),(t("app.week"))))+("</p><div class=\"meal-week-nav\"><button data-meal-week=\"-1\" aria-label=\""+t("product.previous_meal_plan_week")+"\">←</button><button data-meal-week=\"0\">"+t("app.this_week")+"</button><button data-meal-week=\"1\" aria-label=\""+t("product.next_meal_plan_week")+"\">→</button></div></div>"):("<div class=\"meal-week-nav\"><button data-meal-week=\"-1\" aria-label=\""+t("product.previous_meal_plan_week")+"\">←</button><div><strong>")+escape(calendarHeading(days[0],'week'))+("</strong><button data-meal-week=\"0\" class=\"text-button\">"+t("app.this_week")+"</button></div><button data-meal-week=\"1\" aria-label=\""+t("product.next_meal_plan_week")+"\">→</button></div>"))+'<div class="meal-week">'+days.map(date=>{
  const meals=mealsOn(rows,date),day=parseDate(date)
@@ -26,6 +27,19 @@ export function renderShopping(rows,draft={},compact=false,kiosk=false){
 }
 
 function renderKioskShopping(rows){
- const items=shoppingItems(rows).filter(row=>!row.done)
- return '<div class="kiosk-shopping"><p class="shopping-count">'+t('shopping.count',{count:items.length})+(" "+t("product.on_the_family_s_list")+"</p><div class=\"shopping-groups\">")+(items.length?SHOPPING_CATEGORIES.map(category=>{const group=items.filter(row=>(SHOPPING_CATEGORIES.includes(row.location)?row.location:'Andet')===category);return group.length?'<section class="shopping-group"><h4>'+escape(categoryLabel(category))+'</h4><ul>'+group.map(row=>'<li class="shopping-row"><span class="shopping-name"><strong>'+escape(row.title)+'</strong>'+(row.note?'<small>'+escape(row.note)+'</small>':'')+'</span></li>').join('')+'</ul></section>':''}).join(''):("<p class=\"empty-state\">"+t("product.the_list_is_empty_listen_er_tom_")+"</p>"))+'</div></div>'
+ const all=shoppingItems(rows),items=all.filter(row=>!row.done),done=all.filter(row=>row.done)
+ // Wall shopping remains read-only. The status mark is not a fake checkbox.
+ const item=row=>'<li class="shopping-row '+(row.done?'is-bought':'')+'"><span class="wall-shopping-status" aria-hidden="true">'+(row.done?'✓':'○')+'</span><span class="shopping-name"><strong>'+escape(row.title)+'</strong>'+(row.note?'<small>'+escape(row.note)+'</small>':'')+'</span></li>'
+ return '<div class="kiosk-shopping"><p class="shopping-count">'+t('shopping.count',{count:items.length})+' '+t('product.on_the_family_s_list')+'</p><div class="shopping-groups">'+(items.length?SHOPPING_CATEGORIES.map(category=>{const group=items.filter(row=>(SHOPPING_CATEGORIES.includes(row.location)?row.location:'Andet')===category);return group.length?'<section class="shopping-group"><h4>'+escape(categoryLabel(category))+'<span>'+group.length+'</span></h4><ul>'+group.map(item).join('')+'</ul></section>':''}).join(''):'<p class="empty-state">'+t('product.the_list_is_empty_listen_er_tom_')+'</p>')+'</div>'+(done.length?'<details class="shopping-completed"><summary>'+done.length+' '+t('product.purchased_items')+'</summary><ul>'+done.map(item).join('')+'</ul></details>':'')+'</div>'
+}
+
+function renderWallMeals(rows,cursor,recipes){
+ const today=dateIso(new Date()),days=weekDates(dateIso(cursor)),planned=days.some(date=>mealsOn(rows,date).length)
+ return '<div class="meal-view wall-meal-view'+(!planned?' is-empty':'')+'"><div class="meal-calendar-heading"><p class="meal-week-label">'+escape(calendarHeading(days[0],'week'))+'</p><div class="meal-week-nav"><button data-meal-week="-1" aria-label="'+t('product.previous_meal_plan_week')+'">←</button><button data-meal-week="0">'+t('app.this_week')+'</button><button data-meal-week="1" aria-label="'+t('product.next_meal_plan_week')+'">→</button></div></div><div class="meal-week">'+days.map(date=>{
+  const meals=mealsOn(rows,date),day=parseDate(date)
+  return '<section class="meal-day '+(date===today?'is-today':'')+' '+(meals.length?'is-planned':'is-empty')+'" data-meal-date="'+date+'"><header><span>'+escape(dateFormatter({weekday:'long'}).format(day))+'</span><strong>'+escape(dateFormatter({day:'numeric',month:'short'}).format(day))+'</strong>'+(date===today?'<small>'+t('nav.today')+'</small>':'')+'</header><div class="meal-day-content">'+(meals.length?meals.map(meal=>{
+   const recipe=recipes.find(r=>r.id===(meal.recipe_id||meal.data?.recipe_id))
+   return '<article class="meal-card"><button data-plan-edit="'+meal.id+'" class="'+(recipe?.image_path?'has-image':'')+'">'+(recipe?.image_path?'<figure class="wall-meal-photo">'+icon('meals')+'<img data-meal-image="'+recipe.id+'" width="640" height="480" alt="" decoding="async" hidden></figure>':'')+'<span class="wall-meal-title"><strong>'+escape(recipe?.title||meal.title)+'</strong><small>'+escape(meal.time||t('app.dinner'))+(recipe?' · '+t('polish.view_recipe'):'')+'</small></span></button></article>'
+  }).join(''):'<p class="meal-empty">'+t('product.not_planned')+'</p>')+'</div></section>'
+ }).join('')+'</div></div>'
 }

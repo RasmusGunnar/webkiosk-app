@@ -3066,6 +3066,7 @@ async function handleAppUrl(url){
  if(String(url).startsWith('familiekalender://wall/pair')){try{const code=pairingValue(url);await chooseDeviceMode('wall');wallNaming=true;await wallService.pair(code,platform.os);nativeFamily.naming(app)}catch(e){wallNaming=false;message=e.message;render()}return}
  const link=parseAppLink(url,{base:publicUrl,localOrigin:location.origin})
  if(!link)return
+ if(link.kind==='aula-connected'){if(aulaUI.allowed)await aulaUI.browserReturn(link);else location.hash='aula-connected&flow='+link.id+'&proof='+link.proof;return}
  if(link.kind==='invite'){
   pendingInvite=link.token;sessionStorage.setItem('familiekalender.pending-invite',pendingInvite)
   render({preserveDialogs:true});return

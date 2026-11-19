@@ -11,10 +11,18 @@
     },
     "api/aula-scan.ts": {
       "maxDuration": 300,
-      "regions": ["fra1"]
+      "regions": [
+        "fra1"
+      ]
     },
     "api/aula-handoff.ts": {
       "maxDuration": 90
+    },
+    "api/aula-browser.ts": {
+      "maxDuration": 90,
+      "regions": [
+        "fra1"
+      ]
     }
   },
   "rewrites": [

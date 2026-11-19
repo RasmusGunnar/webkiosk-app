@@ -24,8 +24,9 @@ export function localDateTime(value:unknown):{date:string|null;time:string|null}
  return {date:parts.slice(0,10),time:parts.slice(11,16)};
 }
 export function sensitive(row:RecordData):boolean{return row.sensitive===true||row.isSensitive===true||row.sensitivity==='SENSITIVE'||row.isSensitiveThread===true;}
-export async function refreshSession(http:AulaHttpClient,refresh:string):Promise<AulaTokens>{
- const r=await http.request(oauthUrls.token(DEFAULT_OAUTH_CONFIG),{method:'POST',body:new URLSearchParams({grant_type:'refresh_token',client_id:DEFAULT_OAUTH_CONFIG.clientId,refresh_token:refresh})});
+export async function refreshSession(http:AulaHttpClient,refresh:string,clientId=DEFAULT_OAUTH_CONFIG.clientId):Promise<AulaTokens>{
+ if(clientId!==DEFAULT_OAUTH_CONFIG.clientId&&(!process.env.AULA_OAUTH_CLIENT_ID||clientId!==process.env.AULA_OAUTH_CLIENT_ID))throw new AulaError('AULA_NOT_CONFIGURED',503);
+ const r=await http.request(oauthUrls.token(DEFAULT_OAUTH_CONFIG),{method:'POST',body:new URLSearchParams({grant_type:'refresh_token',client_id:clientId,refresh_token:refresh})});
  let data:RecordData={};try{data=JSON.parse(r.body);}catch{}
  if(data.error==='invalid_grant'||data.error==='invalid_token')throw new AulaError('AULA_REAUTH_REQUIRED',409);
  if(r.status!==200)throw new AulaError('AULA_TEMPORARY_ERROR',502);

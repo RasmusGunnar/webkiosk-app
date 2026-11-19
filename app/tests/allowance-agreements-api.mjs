@@ -12,7 +12,7 @@ const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Copenhagen',year:'
 const act=(c,hid,action,payload,id=randomUUID())=>c.rpc('reward_action',{p_request_id:id,p_household_id:hid,p_action:action,p_payload:payload})
 const state=(c,hid)=>must(c.rpc('get_reward_state',{p_household_id:hid}))
 const payload=s=>({person_id:s.person_id,item_id:s.task_id,due_date:s.due_date,occurrence_date:s.occurrence_date})
-const sql=input=>execFileSync('docker',['exec','-i','supabase_db_familiekalender','psql','-X','-U','postgres','-d','postgres','-v','ON_ERROR_STOP=1','-At'],{input,encoding:'utf8',windowsHide:true,stdio:['pipe','pipe','pipe']})
+const sql=input=>execFileSync('docker',['exec','-i',local.DB_CONTAINER,'psql','-X','-U','postgres','-d','postgres','-v','ON_ERROR_STOP=1','-At'],{input,encoding:'utf8',windowsHide:true,stdio:['pipe','pipe','pipe']})
 let owner,child,other,hid,people
 try{
  owner=await client();hid=await must(owner.rpc('create_household',{p_name:'Batch 4 aftaletest'}));households.push(hid);child=await client('child',hid);other=await client()
@@ -62,7 +62,8 @@ try{
  const bonus=await must(owner.from('calendar_items').insert({household_id:hid,created_by:users[0],title:'Vask cyklen',date:today,type:'Opgave',person_ids:[p.id],data:{rewardMode:'stars',starValue:7}}).select().single())
  await must(act(child,hid,'complete',{person_id:p.id,item_id:bonus.id,due_date:today,occurrence_date:today}))
  s=await state(owner,hid);check('Bonus stars separate from contract',s.balances.find(b=>b.person_id===p.id).balance===7&&s.monthly.find(m=>m.person_id===p.id).eligible_total===frozen.eligible_total)
- const ordinary=await must(owner.from('calendar_items').insert({household_id:hid,created_by:users[0],title:'Husk jakke',date:today,type:'Opgave',person_ids:[p.id],done:true}).select().single())
+ const ordinary=await must(owner.from('calendar_items').insert({household_id:hid,created_by:users[0],title:'Husk jakke',date:today,type:'Opgave',person_ids:[p.id],data:{rewardMode:'none'}}).select().single())
+ await must(act(child,hid,'complete',{person_id:p.id,item_id:ordinary.id,due_date:today,occurrence_date:today}));
  s=await state(owner,hid);check('Ordinary task affects neither balance nor contract',s.balances.find(b=>b.person_id===p.id).balance===7&&s.monthly.find(m=>m.person_id===p.id).completed_total===0)
  // Transaction-local clock: rollover tests never change the running database clock or persist fixtures.
  const ownerId=users[0],clock=(day)=>"create or replace function private.reward_today() returns date language sql stable set search_path='' as $$select '"+day+"'::date$$;"
@@ -105,7 +106,7 @@ try{
  await must(act(owner,hid,'config',{person_id:legacy.id,reward_enabled:true,allowance_enabled:true,monthly_allowance_minor:12000,star_rewards_enabled:true,default_requires_approval:false}))
  const oldTask=await must(owner.from('calendar_items').insert({household_id:hid,created_by:users[0],title:'Gammel fast pligt',date:today,type:'Opgave',person_ids:[legacy.id],data:{rewardMode:'allowance',repeatWeekly:true}}).select().single())
  const oldHistory=await must(admin.from('allowance_monthly_snapshots').insert({household_id:hid,person_id:legacy.id,year:2026,month:8,eligible_total:20,completed_total:19,excused_total:0,completion_percent:95,allowance_minor:12000,earned_minor:11400,payout_status:'paid'}).select().single())
- const migration=readFileSync('supabase/migrations/20261007083208_allowance_agreements.sql','utf8'),begin=migration.indexOf('do $$ declare cfg public.reward_person_config;'),end=migration.indexOf('end $$;',begin)+7
+ const migration=readFileSync(new URL('../../supabase/migrations/20261007083208_allowance_agreements.sql',import.meta.url),'utf8'),begin=migration.indexOf('do $$ declare cfg public.reward_person_config;'),end=migration.indexOf('end $$;',begin)+7
  const upgrade=migration.slice(begin,end).replace('where allowance_enabled loop',"where allowance_enabled and person_id='"+legacy.id+"' loop")
  sql('begin;'+claimsSQL+upgrade+"\ndo $$ begin if not exists(select 1 from public.allowance_agreements where person_id='"+legacy.id+"' and needs_review and amount_minor=12000 and legacy_task_ids=array['"+oldTask.id+"'::uuid]) then raise exception 'Legacy draft mapping';end if; if not exists(select 1 from public.allowance_contracts where person_id='"+legacy.id+"' and allowance_minor=12000) then raise exception 'Legacy contract missing';end if;end $$;update public.calendar_items set title='Efterfølgende redigering' where id='"+oldTask.id+"';set constraints all immediate;do $$ begin if not exists(select 1 from public.task_reward_occurrences where person_id='"+legacy.id+"' and title='Gammel fast pligt' and allowance_contract_id is not null) then raise exception 'Legacy snapshot changed';end if;if not exists(select 1 from public.allowance_monthly_snapshots where id='"+oldHistory.id+"' and payout_status='paid' and earned_minor=11400) then raise exception 'Legacy history lost';end if;end $$;rollback;")
  check('Legacy mapping retains amount, task identity, paid history and frozen expectations after edits',true)

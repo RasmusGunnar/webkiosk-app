@@ -790,7 +790,7 @@
   "public_pages.before_public_launch": "Før offentlig lancering",
   "public_pages.purchases_are_not_open_yet_final_terms_provider_details_and_support_contact_must_be_established_before_app_store_launch": "Køb er endnu ikke åbnet. Endelige brugsvilkår, udbyderoplysninger og supportkontakt skal fastlægges før lancering i appbutikkerne.",
   "public_pages.privacy_in_familiekalender": "Privatliv i Familiekalender",
-  "public_pages.version_1_0_updated_9_october_2026": "Version 1.0 · opdateret 9. oktober 2026",
+  "public_pages.version_1_0_updated_9_october_2026": "Version 1.0 ? Opdateret 19. november 2026",
   "public_pages.help_with_familiekalender": "Hjælp til Familiekalender",
   "public_pages.sign_in_and_password": "Login og adgangskode",
   "public_pages.choose_forgot_password_on_the_sign_in_screen_use_the_email_from_your_family_invitation_check_spam_if_confirmation_is_missing": "Vælg Glemt adgangskode på login-skærmen. Brug samme email som i din familieinvitation. Kontrollér spam, hvis bekræftelsen mangler.",
@@ -1425,5 +1425,17 @@
   "polish.family_settings": "Indstillinger",
   "polish.no_goal": "Intet mål",
   "wall.today_heading": "Her er jeres {{day}}",
-  "wall.today_counts": "{{events}} aftaler · {{tasks}} åbne opgaver · {{items}} varer"
+  "wall.today_counts": "{{events}} aftaler · {{tasks}} åbne opgaver · {{items}} varer",
+  "aula.browser_start": "Fortsæt til Aula og MitID",
+  "aula.browser_description": "Du logger ind hos Aula og MitID i systembrowseren og vender derefter tilbage til Familiekalender.",
+  "aula.browser_unavailable": "Forbindelse for nye Aula-brugere er endnu ikke åben. Din eksisterende forbindelse og resten af Familiekalender virker fortsat.",
+  "release_privacy.aula_title": "Aula og MeeBook",
+  "release_privacy.aula_body": "Aula er valgfri. Du forbinder selv din konto og knytter de fundne børn til familieprofiler. Familiekalender læser relevante kalenderoplysninger, ikke-følsomme beskeder, opslag og ugeplaner fra Aula/MeeBook. Tråde markeret som følsomme springes over. Afgrænsede tekstuddrag analyseres med OpenAI for at foreslå familieaktiviteter. Forslag oprettes til dit review og bliver aldrig automatisk til aktiviteter. Sessionen opbevares krypteret på serveren, så hentning kan ske automatisk. MitID-adgangskoder gemmes ikke. Du kan afbryde forbindelsen og slette sessionen i Familie; allerede godkendte aktiviteter bevares. Familiekalender skriver ikke til Aula. Ved sletning af den tilknyttede konto fjernes dens Aula-session og familien skal forbinde igen med en anden voksens konto.",
+  "release_terms.title": "Abonnementsvilkår",
+  "release_terms.renewal_title": "Periode og fornyelse",
+  "release_terms.renewal": "Abonnementet gælder én familie på dens enheder. Butikken viser den lokaliserede pris og den valgte måneds- eller årsperiode før købet. Abonnementet fornyes automatisk, medmindre du opsiger det i Apple App Store eller Google Play efter butikkens regler. Opsigelse bevarer adgang frem til den bekræftede udløbsdato.",
+  "release_terms.trial_title": "Prøveperiode og gendannelse",
+  "release_terms.trial": "En eventuel prøveperiode og din berettigelse fremgår af butikkens tilbud. Efter prøveperioden begynder betaling, medmindre du opsiger rettidigt. Gendan køb fra abonnementssiden med den samme Familiekalender-konto og butikskonto. Appen opretter ikke sin egen lokale prøveadgang.",
+  "release_terms.deletion_title": "Kontosletning og abonnement",
+  "release_terms.deletion": "Sletning af din konto eller familie opsiger ikke automatisk et abonnement hos Apple eller Google. Administrér eller opsig abonnementet i den butik, hvor du købte det, og følg butikkens proces ved spørgsmål om betaling eller refundering."
 }

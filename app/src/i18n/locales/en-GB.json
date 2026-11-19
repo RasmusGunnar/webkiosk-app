@@ -790,7 +790,7 @@
   "public_pages.before_public_launch": "Before public launch",
   "public_pages.purchases_are_not_open_yet_final_terms_provider_details_and_support_contact_must_be_established_before_app_store_launch": "Purchases are not open yet. Final terms, provider details and support contact must be established before app store launch.",
   "public_pages.privacy_in_familiekalender": "Privacy in Familiekalender",
-  "public_pages.version_1_0_updated_9_october_2026": "Version 1.0 · updated 9 October 2026",
+  "public_pages.version_1_0_updated_9_october_2026": "Version 1.0 ? Updated 19 November 2026",
   "public_pages.help_with_familiekalender": "Help with Familiekalender",
   "public_pages.sign_in_and_password": "Sign-in and password",
   "public_pages.choose_forgot_password_on_the_sign_in_screen_use_the_email_from_your_family_invitation_check_spam_if_confirmation_is_missing": "Choose Forgot password on the sign-in screen. Use the email from your family invitation. Check spam if confirmation is missing.",
@@ -1425,5 +1425,17 @@
   "polish.family_settings": "Settings",
   "polish.no_goal": "No goal",
   "wall.today_heading": "Here is your {{day}}",
-  "wall.today_counts": "{{events}} events · {{tasks}} open tasks · {{items}} shopping items"
+  "wall.today_counts": "{{events}} events · {{tasks}} open tasks · {{items}} shopping items",
+  "aula.browser_start": "Continue to Aula and MitID",
+  "aula.browser_description": "Sign in with Aula and MitID in the system browser, then return to Familiekalender.",
+  "aula.browser_unavailable": "Connection for new Aula users is not available yet. Your existing connection and the rest of Familiekalender remain available.",
+  "release_privacy.aula_title": "Aula and MeeBook",
+  "release_privacy.aula_body": "Aula is optional. You connect your own account and map the discovered children to family profiles. Familiekalender reads relevant calendar information, non-sensitive messages, posts and week plans from Aula/MeeBook. Threads marked sensitive are skipped. Bounded text excerpts are analysed using OpenAI to suggest family activities. Suggestions remain for your review and never create activities automatically. The session is encrypted on the server for automatic retrieval. MitID passwords are not stored. You can disconnect and remove the session under Family; previously accepted activities remain. Familiekalender does not write to Aula. Deleting the connecting account removes its Aula session; another adult must reconnect with their own account.",
+  "release_terms.title": "Subscription terms",
+  "release_terms.renewal_title": "Period and renewal",
+  "release_terms.renewal": "One subscription covers one family on its devices. The store shows the localised price and selected monthly or annual period before purchase. The subscription renews automatically unless cancelled in the Apple App Store or Google Play under the store rules. Cancellation retains access until the confirmed expiry date.",
+  "release_terms.trial_title": "Trial and restore",
+  "release_terms.trial": "Any trial period and your eligibility are shown in the store offering. Payment starts after the trial unless you cancel in time. Restore purchases from the subscription page using the same Familiekalender account and store account. The app does not create a local trial entitlement.",
+  "release_terms.deletion_title": "Account deletion and subscriptions",
+  "release_terms.deletion": "Deleting your account or family does not automatically cancel an Apple or Google subscription. Manage or cancel it in the store where you purchased it, and use the store process for billing or refund questions."
 }

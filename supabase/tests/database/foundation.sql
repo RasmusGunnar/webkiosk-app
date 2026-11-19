@@ -92,14 +92,14 @@ update public.calendar_feeds set is_active=true where id='ffffffff-ffff-4fff-8ff
 select public.begin_calendar_feed_import('ffffffff-ffff-4fff-8fff-ffffffffffff','11111111-1111-4111-8111-111111111111')->>'import_token' as import_token \gset
 select pg_temp.expect_error($q$select public.begin_calendar_feed_import('ffffffff-ffff-4fff-8fff-ffffffffffff','11111111-1111-4111-8111-111111111111')$q$,'Concurrent import lease is exclusive');
 select public.apply_calendar_feed_import('ffffffff-ffff-4fff-8fff-ffffffffffff','11111111-1111-4111-8111-111111111111',:'import_token',
- '[{"externalKey":"event-1","payload":{"title":"First","date":"2026-09-28","time":"10:00","data":{"uid":"uid-1","occurrenceDate":"2026-09-28","durationMin":30}}}]','2026-09-01','2026-10-01') as result \gset
+ '[{"externalKey":"[\"aula\",\"ffffffff-ffff-4fff-8fff-ffffffffffff\",\"uid-1\",\"single\"]","payload":{"title":"First","date":"2026-09-28","time":"10:00","data":{"uid":"uid-1","occurrenceDate":"2026-09-28","durationMin":30,"recurrenceId":null}}}]','2026-09-01','2026-10-01') as result \gset
 select pg_temp.assert_true((:'result'::jsonb->>'insertedCount')::int=1,'Atomic import insert count');
-select pg_temp.assert_true((select person='Renamed child' and person_ids[1]='cccccccc-cccc-4ccc-8ccc-cccccccccccc' from public.calendar_items where external_id='event-1'),'Importer resolves stable person ID to current name');
+select pg_temp.assert_true((select person='Renamed child' and person_ids[1]='cccccccc-cccc-4ccc-8ccc-cccccccccccc' from public.calendar_items where external_id='["aula","ffffffff-ffff-4fff-8fff-ffffffffffff","uid-1","single"]'),'Importer resolves stable person ID to current name');
 select pg_temp.assert_true((select last_sync_status='success' and last_sync_at is not null from public.calendar_feeds where id='ffffffff-ffff-4fff-8fff-ffffffffffff'),'Success status persisted');
-update public.calendar_items set detached_from_feed=true where external_id='event-1';
+update public.calendar_items set detached_from_feed=true where external_id='["aula","ffffffff-ffff-4fff-8fff-ffffffffffff","uid-1","single"]';
 select public.begin_calendar_feed_import('ffffffff-ffff-4fff-8fff-ffffffffffff','11111111-1111-4111-8111-111111111111')->>'import_token' as import_token \gset
 select public.apply_calendar_feed_import('ffffffff-ffff-4fff-8fff-ffffffffffff','11111111-1111-4111-8111-111111111111',:'import_token','[]','2026-09-01','2026-10-01');
-select pg_temp.assert_true((select count(*) from public.calendar_items where external_id='event-1')=1,'Cleanup preserves detached edits');
+select pg_temp.assert_true((select count(*) from public.calendar_items where external_id='["aula","ffffffff-ffff-4fff-8fff-ffffffffffff","uid-1","single"]')=1,'Cleanup preserves detached edits');
 select public.begin_calendar_feed_import('ffffffff-ffff-4fff-8fff-ffffffffffff','11111111-1111-4111-8111-111111111111')->>'import_token' as import_token \gset
 select public.fail_calendar_feed_import('ffffffff-ffff-4fff-8fff-ffffffffffff',:'import_token','FETCH_FAILED');
 select pg_temp.assert_true((select last_sync_status='error' and last_sync_message='FETCH_FAILED' and import_token is null from public.calendar_feeds where id='ffffffff-ffff-4fff-8fff-ffffffffffff'),'Failure status persisted without private URL');
@@ -108,9 +108,9 @@ select pg_temp.assert_true((select last_sync_status='error' and last_sync_messag
 select public.begin_calendar_feed_import('ffffffff-ffff-4fff-8fff-ffffffffffff','11111111-1111-4111-8111-111111111111')->>'import_token' as import_token \gset
 select pg_temp.expect_error(format($q$select public.apply_calendar_feed_import('ffffffff-ffff-4fff-8fff-ffffffffffff','11111111-1111-4111-8111-111111111111',%L,null,'2026-09-01','2026-10-01')$q$,:'import_token'),'Null batch rejected before cleanup');
 select pg_temp.expect_error(format($q$select public.apply_calendar_feed_import('ffffffff-ffff-4fff-8fff-ffffffffffff','11111111-1111-4111-8111-111111111111',%L,
- '[{"externalKey":"rollback-1","payload":{"title":"Should roll back","date":"2026-09-28","data":{}}},{"externalKey":"bad","payload":{}}]',
+ '[{"externalKey":"[\"aula\",\"ffffffff-ffff-4fff-8fff-ffffffffffff\",\"rollback-1\",\"single\"]","payload":{"title":"Should roll back","date":"2026-09-28","data":{"uid":"rollback-1","recurrenceId":null,"occurrenceDate":"2026-09-28"}}},{"externalKey":"bad","payload":{}}]',
  '2026-09-01','2026-10-01')$q$,:'import_token'),'Malformed later row rolls back whole import');
-select pg_temp.assert_true((select count(*) from public.calendar_items where external_id='rollback-1')=0,'Earlier insert rolled back on import error');
+select pg_temp.assert_true((select count(*) from public.calendar_items where external_id='["aula","ffffffff-ffff-4fff-8fff-ffffffffffff","rollback-1","single"]')=0,'Earlier insert rolled back on import error');
 select pg_temp.assert_true((select import_token=:'import_token'::uuid from public.calendar_feeds where id='ffffffff-ffff-4fff-8fff-ffffffffffff'),'Failed batch retains lease for safe failure status');
 select public.fail_calendar_feed_import('ffffffff-ffff-4fff-8fff-ffffffffffff',:'import_token','IMPORT_FAILED');
 
@@ -124,21 +124,21 @@ insert into public.calendar_items(household_id,title,date,created_by,source,exte
  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','Stale','2026-09-28','11111111-1111-4111-8111-111111111111','aula','stale','ffffffff-ffff-4fff-8fff-ffffffffffff',false),
  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','Out of range','2020-01-01','11111111-1111-4111-8111-111111111111','aula','historic','ffffffff-ffff-4fff-8fff-ffffffffffff',false),
  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','Other feed','2026-09-28','11111111-1111-4111-8111-111111111111','aula','other-feed','88888888-8888-4888-8888-888888888888',false),
- ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','Before','2026-09-28','11111111-1111-4111-8111-111111111111','aula','update-me','ffffffff-ffff-4fff-8fff-ffffffffffff',true);
+ ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','Before','2026-09-28','11111111-1111-4111-8111-111111111111','aula','["aula","ffffffff-ffff-4fff-8fff-ffffffffffff","update-me","single"]','ffffffff-ffff-4fff-8fff-ffffffffffff',false);
 select public.begin_calendar_feed_import('ffffffff-ffff-4fff-8fff-ffffffffffff','11111111-1111-4111-8111-111111111111')->>'import_token' as import_token \gset
 select public.apply_calendar_feed_import('ffffffff-ffff-4fff-8fff-ffffffffffff','11111111-1111-4111-8111-111111111111',:'import_token',
- '[{"externalKey":"update-me","payload":{"title":"After","date":"2026-09-28","data":{}}},{"externalKey":"event-1-renamed","payload":{"title":"Remote change","date":"2026-09-28","data":{"uid":"uid-1","occurrenceDate":"2026-09-28"}}}]',
+ '[{"externalKey":"[\"aula\",\"ffffffff-ffff-4fff-8fff-ffffffffffff\",\"update-me\",\"single\"]","payload":{"title":"After","date":"2026-09-28","data":{"uid":"update-me","recurrenceId":null,"occurrenceDate":"2026-09-28"}}},{"externalKey":"[\"aula\",\"ffffffff-ffff-4fff-8fff-ffffffffffff\",\"uid-1\",\"single\"]","payload":{"title":"Remote change","date":"2026-09-28","data":{"uid":"uid-1","occurrenceDate":"2026-09-28","recurrenceId":null}}}]',
  '2026-09-01','2026-10-01') as result \gset
-select pg_temp.assert_true((:'result'::jsonb->>'updatedCount')::int=1 and (:'result'::jsonb->>'deletedCount')::int=1 and (:'result'::jsonb->>'skippedCount')::int=1,'Scoped update/cleanup counts and detached key changes');
-select pg_temp.assert_true((select title='After' and done and data->>'done'='true' from public.calendar_items where external_id='update-me'),'Upsert retains task completion state');
-select pg_temp.assert_true((select count(*) from public.calendar_items where external_id in ('historic','other-feed','event-1'))=3,'Cleanup preserves out-of-window, other-feed and detached records');
+select pg_temp.assert_true((:'result'::jsonb->>'updatedCount')::int=1 and (:'result'::jsonb->>'deletedCount')::int=0 and (:'result'::jsonb->>'sourceRemovedCount')::int=0 and (:'result'::jsonb->>'skippedCount')::int=1,'Canonical upsert preserves detached and legacy identities without destructive cleanup');
+select pg_temp.assert_true((select title='After' and not done and data->>'done'='false' from public.calendar_items where external_id='["aula","ffffffff-ffff-4fff-8fff-ffffffffffff","update-me","single"]'),'Upsert retains activity state; per-person task completion is tested separately');
+select pg_temp.assert_true((select count(*) from public.calendar_items where external_id in ('historic','other-feed','["aula","ffffffff-ffff-4fff-8fff-ffffffffffff","uid-1","single"]'))=3,'Cleanup preserves out-of-window, other-feed and detached records');
 
 
 -- Safe release smoke mode upserts normally but never deletes existing rows.
 select public.begin_calendar_feed_import('ffffffff-ffff-4fff-8fff-ffffffffffff','11111111-1111-4111-8111-111111111111')->>'import_token' as import_token \gset
 select public.apply_calendar_feed_import('ffffffff-ffff-4fff-8fff-ffffffffffff','11111111-1111-4111-8111-111111111111',:'import_token',
  '[]','2026-09-01','2026-10-01',false) as result \gset
-select pg_temp.assert_true((:'result'::jsonb->>'deletedCount')::int=0 and (select count(*) from public.calendar_items where external_id='update-me')=1,'Preserve-existing import never deletes rows');
+select pg_temp.assert_true((:'result'::jsonb->>'deletedCount')::int=0 and (select count(*) from public.calendar_items where external_id='["aula","ffffffff-ffff-4fff-8fff-ffffffffffff","update-me","single"]')=1,'Preserve-existing import never deletes rows');
 
 reset role;
 set local role anon;

@@ -21,8 +21,8 @@ const inViewport=async locator=>expect(await locator.evaluate(el=>{const r=el.ge
 // Real wheel input proves users can scroll, unlike setting scrollTop on an overflow:hidden element.
 const scrollBottom=async(selector,button)=>{
  const modal=page.locator(selector)
- await expect.poll(async()=>{await modal.hover({position:{x:60,y:100}});await page.mouse.wheel(0,20000);return button.evaluate(el=>{const r=el.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight})}).toBe(true)
- await inViewport(button);await fits()
+ await expect.poll(async()=>{await modal.hover({position:{x:60,y:100}});await page.mouse.wheel(0,20000);return button.evaluate(el=>{const r=el.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight&&r.left>=0&&r.right<=innerWidth})}).toBe(true)
+ try{await inViewport(button)}catch(e){console.log('MODAL_GEOMETRY',await button.evaluate(el=>{const r=el.getBoundingClientRect();return {rect:r.toJSON(),width:innerWidth,height:innerHeight,scrollWidth:document.documentElement.scrollWidth}}));await page.screenshot({path:out+'/failed-modal.png'});throw e}await fits()
 }
 const closeRecipe=()=>page.locator('[data-recipe-close]').click()
 const today=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Copenhagen'}).format(new Date()),weekday=new Date(today+'T12:00:00Z').getUTCDay()||7
@@ -103,7 +103,7 @@ try{
  await expect(page.locator('[data-calendar-item^="yearly|'+anniversary.id+'|"]')).toHaveCount(1)
  pass('ANNUAL_EDIT_RELOAD_NO_DATA_LOSS_OR_DUPLICATES')
  await expect(page.locator('[data-calendar-item="'+imported.id+'"]')).toContainText('18:30');pass('TIMEZONE_DISPLAY_1830')
- const task=id=>page.locator('[data-reward-task="'+id+'"]')
+ const task=id=>page.locator('[data-task-detail="'+id+'"]')
  await expect(task(daily.task_id)).toBeVisible();await expect(task(selected.task_id)).toBeVisible()
  await task(daily.task_id).hover();await shot('07-calendar-daily-duty','7. Kalender · daglig fast pligt')
  if(workday){await expect(task(workday.task_id)).toBeVisible();await task(workday.task_id).hover();await shot('08-calendar-weekday-duty','8. Kalender · hverdagspligt')}
@@ -111,11 +111,11 @@ try{
  expect((await records()).filter(r=>r.type==='Opgave')).toHaveLength(0)
  expect((await state()).monthly).toEqual(rewardBefore.monthly);expect((await state()).snapshots).toEqual(rewardBefore.snapshots)
  pass('ALLOWANCE_CALENDAR_DERIVED_DAILY_WEEKDAYS_SELECTED_NO_COPIES')
- await task(daily.task_id).locator('[data-reward-action=complete]').click()
+ await task(daily.task_id).click();await page.locator('.reward-modal [data-reward-action=complete]').click();await page.locator('[data-reward-close]').click()
  await expect.poll(async()=>(await state()).occurrences.find(o=>o.id===daily.id).status).toBe('completed')
  const completed=page.locator('[data-completed-date="'+today+'"]');if(await completed.count())await completed.locator('summary').click()
- await expect(task(daily.task_id)).toContainText('Udført');await task(daily.task_id).hover();await shot('09-calendar-completed-duty','9. Kalender · udført pligt')
- await task(selected.task_id).locator('[data-reward-action=excuse]').click();await page.locator('#reward-reason').fill('Ferie');await page.locator('#reward-reason-form button[type=submit]').click()
+ await expect(task(daily.task_id)).toHaveClass(/is-done/);await task(daily.task_id).hover();await shot('09-calendar-completed-duty','9. Kalender · udført pligt')
+ await task(selected.task_id).click();await page.locator('.reward-modal [data-reward-action=excuse]').click();await page.locator('#reward-reason').fill('Ferie');await page.locator('#reward-reason-form button[type=submit]').click()
  await expect.poll(async()=>(await state()).occurrences.find(o=>o.id===selected.id).status).toBe('excused')
  if(await page.locator('[data-reward-close]').count())await page.locator('[data-reward-close]').click()
  await expect(task(selected.task_id)).toContainText('Fritaget');pass('ALLOWANCE_CALENDAR_COMPLETE_EXCUSE')
@@ -125,7 +125,8 @@ try{
  await page.locator('[data-person-filter="'+julie.id+'"]').click()
  const compact=id=>page.locator('[data-task-detail="'+id+'"]')
  await expect(compact(selected.task_id)).toContainText('Fritaget');await expect(compact(daily.task_id)).toHaveClass(/is-done/)
- await compact(selected.task_id).click();await expect(page.locator('.reward-modal')).toContainText('Fritaget');await page.locator('[data-reward-close]').click()
+ if(!await compact(selected.task_id).isVisible())await page.locator('[data-day-detail="'+today+'"]').click()
+ await page.locator('[data-task-detail="'+selected.task_id+'"]:visible').click();await expect(page.locator('.reward-modal')).toContainText('Fritaget');await page.locator('[data-reward-close]').click()
  await shot('14-calendar-week-duties','14. Ugekalender · faste pligter og status');pass('ALLOWANCE_WEEK_VIEW_STATUS_DETAIL')
  await routeTo(page,'meals');await page.locator('[data-plan-edit="'+meal.id+'"]').click();await page.locator('[data-remove-meal]').scrollIntoViewIfNeeded();await shot('11-meal-remove-action','11. Madplan · Fjern fra madplan')
  page.once('dialog',d=>d.accept());await page.locator('[data-remove-meal]').click();await expect(page.locator('.recipe-modal')).toHaveCount(0)

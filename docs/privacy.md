@@ -1,47 +1,39 @@
-# Privatliv i Familiekalender
+﻿# Privatliv i Familiekalender — releasegrundlag
 
-Opdateret 29. september 2026. Samme tekst som appens offentlige /privacy-side.
+Opdateret 19. november 2026. Den tosprogede produkttekst er i `app/src/lib/public-pages.js` og `app/src/i18n/locales/`. Offentlig URL: https://familiekalender-alpha.vercel.app/privacy.
 
-## Dine oplysninger
+Dette dokument beskriver implementeringen. Dataansvarlig, kontakt, behandlingsgrundlag, leverandøraftaler og konkrete backup-/logperioder mangler ejerens beslutning før offentlig lancering.
 
-Familiekalender gemmer din email, dit konto-id og dine medlemskaber af familier. Adgangskoder behandles af Supabase Auth. Familien deler kalenderaftaler, noter, steder, opgaver, færdigmarkeringer, gentagelser, belønningshistorik, madplaner, ingredienslister og indkøb med de logins, der er medlemmer.
+## Konto, familie og indhold
 
-## Børn og familieprofiler
+Supabase Auth behandler email, login og recovery. Familiekalender gemmer medlemskaber, roller, invitationer, familieprofiler, kalender, gentagelser, opgaver med personstatus, voksenbeslutninger, lommepengeberegninger, stjerner, mål og indløsninger. Familien deler opskrifter, billeder, ratings, madplan og indkøb. Børneprofiler er ikke automatisk brugerkonti. Lommepenge og stjerner flytter ikke penge.
 
-Personer i kalenderen er familieprofiler, ikke automatisk brugerkonti. Navn, farve, valgfrit fødselsår, avatar og opgaveindstillinger kan gemmes. Den voksne, der opretter eller inviterer til familien, skal have ret til at dele oplysningerne. Andre medlemmer kan læse og redigere fælles kalender- og persondata.
+Avatarer og opskriftsbilleder ligger privat i Supabase Storage og vises med tidsbegrænsede links. Ældre eksterne billedlinks kan kontakte oprindelig vært. Private kalenderfeed-URL'er bruges server-side og udelades fra familieeksporten.
 
-## Opgaver og belønninger
+## Aula og AI
 
-Belønninger omfatter månedlige lommepengeberegninger og udbetalingsmarkeringer, bonusstjerner med et historisk regnskab, familiens belønningskatalog, mål, indløsningsønsker, voksengodkendelser og begrundelser for fritagelse. Familien kan læse oplysningerne. Voksne styrer godkendelser og indstillinger. Appen flytter ikke penge. Historikken bevares ved arkivering af en person og indgår i familiens eksport og sletning.
+Aula er valgfrit. Eksisterende forbindelser bruger en krypteret refresh-session på serveren; MitID-password gemmes ikke. Børn tilknyttes familiens profiler. Scanneren læser kalender, ikke-følsomme beskeder/opslag og understøttet MeeBook-indhold. Følsomme tråde springes over. Afgrænsede relevante tekstuddrag sendes til OpenAI til analyse. Brugeren gennemser fund, før de bliver aktiviteter; ingen automatisk accept.
 
-## Billeder og kalenderfeeds
+Fund og beslutningshukommelse gemmes for at bevare brugerens valg og undgå genopståede forslag. Afbrydelse fjerner forbindelsens session; allerede accepterede familieaktiviteter bevares. Sletning af den voksenkonto, som ejer sessionen, tilbagekalder den tilhørende forbindelse. Andre ejeres familieindhold og børnetilknytninger bevares.
 
-Avatarer ligger i en privat Supabase Storage-bucket og vises med tidsbegrænsede links. Ældre avatarer kan være eksterne billedlinks. Google-, Aula- og andre ICS-links gemmes på backend og hentes af en Supabase Edge Function. Linkene kan give adgang til private kalendere; de vises kun for ejer/administrator og udelades fra JSON-eksporten.
+Browser-onboarding er implementeret, men deaktiveret indtil provider-godkendt OAuth-klient/callback findes. PKCE-verifier og midlertidig session er krypterede, state/completion proof gemmes som hash. Transaktioner udløber efter højst 10 minutter; fysisk oprydning sker ved næste serverkald. Dette er ikke en garanti om fysisk sletning præcis ved TTL.
 
-## Enheden og offline
+Fotoscan sender kun brugerens valgte billeder til OpenAI, når brugeren vælger analyse. Resultatet gennemgås før lagring.
 
-Denne enhed gemmer login-session, kalender, personer, belønninger, madplan, indkøb og ventende ændringer lokalt, så appen kan bruges offline. Del derfor kun enheden med personer, som må se familien. Log ud rydder appens lokale familiedata og ventende ændringer. Udseende og vægskærmsindstillinger, herunder en saltet PIN-hash, bevares til næste login. Systemets egne sikkerhedskopier kan have en anden levetid.
+## Enheder, betaling og leverandører
 
-## Native enheder og push
+Enheden gemmer login, familiecache og ventende ændringer for offlinefunktion. Logout rydder familiedata og køer; enhedsindstillinger bevares. Eksportfiler i native cache ryddes ved logout/sletning og næste start/eksport efter 24 timer. Selv gemte eller delte kopier skal brugeren slette.
 
-Android/iOS registrerer et tilfældigt installations-id, konto, valgt familie, platform, appversion og senest aktive tidspunkt. Hvis push er konfigureret og du selv giver tilladelse, registreres også et APNs/FCM-token. Der er endnu ingen påmindelsesmotor. Der indsamles ikke annonce-id, præcis position, kontakter, mikrofondata eller bevægelsesdata.
+Native registrerer installations-id, platform og senest aktiv. Push er deaktiveret i releasekonfigurationen, og ingen påmindelsesmotor tilbydes. Wall pairing bruger en særskilt begrænset anonym identitet, udløbende hashed pairingkoder og tilbagekaldelig adgang.
 
-## Drift og leverandører
+RevenueCat-foundation kan behandle bruger-id, butik, produkt og abonnementstilstand, når butikkerne konfigureres. Apple/Google behandler betaling; appen gemmer ikke betalingskort. Køb er endnu ikke åbnet, og subscription enforcement er OFF.
 
-Supabase behandler konto, database, filer og serverfunktioner; backendprojektet ligger i EU West (Irland). Vercel er den planlagte vært for webappen. Apple/Google behandler eventuelle pushregistreringer. Auth-email kræver en SMTP-leverandør, som endnu skal fastlægges. Infrastruktur kan behandle IP-adresser og driftslogs. Appen indeholder ingen annoncer eller analyse-/tracking-SDK.
+Supabase behandler Auth, database, filer og Edge Functions i EU West. Vercel er aktuel web/API-vært; Aula-scanneren kører i Frankfurt. OpenAI behandler de ovennævnte analyseinput. Ekstern Auth-email kræver en dedikeret SMTP-leverandør og valideret afsender, som endnu mangler. Infrastruktur kan behandle IP-adresser og driftsmetadata. Ingen reklamer, tracking eller analytics-SDK er tilføjet.
 
-## Opbevaring, eksport og sletning
+## Eksport, sletning og retention
 
-Data opbevares, mens familien bruger tjenesten, indtil medlemmer sletter dem eller familien slettes. Der er ingen automatisk sletning af inaktive familier. Under Konto kan du eksportere den valgte families data som JSON og slette din konto. Familiedata bevares for øvrige ejere; dine forfatterreferencer anonymiseres. Er du eneste ejer, skal hver familie slettes særskilt som del af flowet. Børneprofiler i en bevaret familie bliver ikke slettet med dit login.
+Konto → Eksportér henter den valgte families data. Format 2 omfatter aktuelle kalenderfelter og voksenautoriserede Aula-fund/tilknytninger. Provider-id'er, private feed-URL'er, tokens og krypterede sessions udelades.
 
-## Oprydning og kopier
+Konto → Slet min konto og https://familiekalender-alpha.vercel.app/delete-account starter samme bekræftede sletteflow. Andre ejeres familie bevares; eneste ejer skal eksplicit vælge sletning af sine familier. Sletning rydder tilhørende data og billeder samt adgang/sessioner efter modellens relationer. Leverandørbackup, driftslogs og offlinekopier på andre enheder kan have anden levetid.
 
-Ved familiesletning fjernes kalender, madplan, indkøb, personer, feeds, medlemskaber, belønninger og avatarfiler. Konto, profil, loginmedlemskaber, invitationer og enhedsregistreringer fjernes. Hvis netværksoprydning fejler, gemmes en intern sletteopgave, som færdiggøres ved næste forsøg. Andre enheders offlinekopier kan først ryddes, når de forbinder igen eller logger ud. Leverandørers backups og sikkerhedslogs udløber efter deres aftalte retention; den præcise produktionsperiode skal fastlægges før offentlig lancering.
-
-## Gemte eksporter
-
-På native enheder ligger en midlertidig JSON-fil i appens private cache, mens du deler den. Appen rydder den ved logout eller kontosletning, og ved næste start/eksport når filen er over 24 timer gammel. Kopier, du selv gemmer eller deler, skal du selv slette.
-
-## Kontakt og ansvarlig
-
-TODO FØR OFFENTLIG LANCERING: angiv dataansvarlig, supportemail, SMTP-leverandør, behandlingsgrundlag og de aftalte retentionperioder. Henvendelser om indsigt, rettelse eller sletning skal kunne sendes til den offentliggjorte kontakt.
+Aktive familiedata bevares indtil relevant sletning; arkivering er ikke sletning. Ingen automatisk inaktivitetsudløb er implementeret. Konkrete leverandør-/backup-/logperioder samt juridisk grundlag skal fastlægges og offentliggøres før offentlig 1.0. Kontakt må ikke udledes af udviklerens Git-identitet.

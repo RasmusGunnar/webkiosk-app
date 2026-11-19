@@ -7,9 +7,9 @@ Draft for the actual release; no store listing has been submitted.
 - Google short description (under 80 characters): **Del kalender og opgaver i familien – på mobilen og vægskærmen.**
 - Category: Productivity / Produktivitet.
 - Apple keywords (under 100 characters): `familie,kalender,opgaver,ugeplan,huskeliste,fødselsdag,vægskærm`
-- Support: `https://FINAL_DOMAIN/support` — requires final public URL and a working contact.
-- Privacy: `https://FINAL_DOMAIN/privacy`
-- Account deletion: `https://FINAL_DOMAIN/delete-account`
+- Support: `https://familiekalender-alpha.vercel.app/support` — URL live; a working support contact is still required.
+- Privacy: `https://familiekalender-alpha.vercel.app/privacy`
+- Account deletion: `https://familiekalender-alpha.vercel.app/delete-account`
 - Copyright: **TODO: confirm legal rights holder and year 2026**. Bundle ID is not evidence of the legal entity.
 - Age: family coordination operated by adults, with optional child profiles; not advertised as a Kids Category app. Complete Apple age-rating and Google content/target-audience questionnaires from actual intended users. Do not choose a numerical age rating or exclude children merely to avoid a policy.
 

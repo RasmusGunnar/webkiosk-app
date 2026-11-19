@@ -1,3 +1,5 @@
+> Historical checkpoint. Current release status, production evidence and remaining gates: [RELEASE-1.0-CURRENT.md](RELEASE-1.0-CURRENT.md). Earlier deployment/configuration statuses below are not current.
+
 # Product Batch 5.0 — lokal implementation og konfiguration
 
 Dato: 9. oktober 2026. Branch: `feature/native-subscription-wall`.

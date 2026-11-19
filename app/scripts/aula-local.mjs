@@ -8,11 +8,12 @@ export const reviewRoot=fileURLToPath(new URL('../../supabase/.temp/aula-integra
 export const stackRoot=fileURLToPath(new URL('../../supabase/.temp/aula-integration-10/local-stack/',import.meta.url))
 export const npxCli=join(dirname(process.execPath),'node_modules/npm/bin/npx-cli.js')
 export function localEnvironment(){
- const config=readFileSync(new URL('../../supabase/.temp/aula-integration-10/local-stack/supabase/config.toml',import.meta.url),'utf8')
- if(!config.includes('project_id = "familiekalender-aula-10"')||!config.includes('port = 49321'))throw Error('Isolated Aula stack is not configured')
- const stdout=execFileSync(process.execPath,[npxCli,'--yes','supabase@2.115.0','status','--workdir',stackRoot,'-o','json'],{cwd:appRoot,encoding:'utf8',stdio:['ignore','pipe','pipe']})
+ const release=process.env.FK_TEST_STACK==='release',selectedRoot=release?fileURLToPath(new URL('../../supabase/.temp/release-1.0/local-stack/',import.meta.url)):stackRoot
+ const config=readFileSync(join(selectedRoot,'supabase/config.toml'),'utf8')
+ if(!config.includes('project_id = "familiekalender-'+(release?'release':'aula')+'-10"')||!config.includes('port = '+(release?45321:49321)))throw Error('Isolated Aula stack is not configured')
+ const stdout=execFileSync(process.execPath,[npxCli,'--yes','supabase@2.118.0','status','--workdir',selectedRoot,'-o','json'],{cwd:appRoot,encoding:'utf8',stdio:['ignore','pipe','pipe']})
  const local=JSON.parse(stdout)
- if(local.API_URL!=='http://127.0.0.1:49321')throw Error('Refusing non-local Supabase')
+ if(local.API_URL!=='http://127.0.0.1:'+(release?45321:49321))throw Error('Refusing non-local Supabase')
  if(process.platform!=='win32')throw Error('Use a reviewed local secret store on this platform')
  const protectedValues=execFileSync('powershell.exe',['-NoProfile','-File',fileURLToPath(new URL('./aula-local-secrets.ps1',import.meta.url)),'-StateDirectory',reviewRoot.replace(/[\\/]$/,'')],{encoding:'utf8',stdio:['ignore','pipe','pipe']})
  const values=JSON.parse(protectedValues)

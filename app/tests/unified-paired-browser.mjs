@@ -72,7 +72,7 @@ for(const [kind,session]of sessions){
    if(width===390&&route==='today')await pages.wall.screenshot({path:new URL('paired-wall-mobile-today.png',out).pathname.replace(/^\//,''),animations:'disabled'})
   }
  }
- await pages.wall.setViewportSize({width:1920,height:1080});await routeTo(pages.wall,'today');await pages.wall.locator('.star-goals').scrollIntoViewIfNeeded();await expect(pages.wall.locator('.star-panel-compact').first()).toBeInViewport()
+ await pages.wall.setViewportSize({width:1920,height:1080});await routeTo(pages.wall,'today');await expect(async()=>{await pages.wall.locator('.star-goals').scrollIntoViewIfNeeded();await expect(pages.wall.locator('.star-panel-compact').first()).toBeInViewport()}).toPass({timeout:10000})
  await pages.wall.screenshot({path:new URL('paired-wall-today-scrolled.png',out).pathname.replace(/^\//,''),animations:'disabled'})
  checks.push('Paired wall responsive across all eight sizes; clock/date and scrollable rewards remain reachable')
  expect(await snapshot()).toBe(before);expect(errors).toEqual([])

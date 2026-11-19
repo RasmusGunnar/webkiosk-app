@@ -36,4 +36,7 @@ assert.match(readFileSync('android/capacitor.settings.gradle','utf8'),/revenueca
 assert.match(readFileSync('ios/App/CapApp-SPM/Package.swift','utf8'),/RevenuecatPurchasesCapacitor/)
 assert.match(projectText,/com.apple.InAppPurchase/)
 pass('RevenueCat native dependency, billing-compatible Android launchMode and iOS In-App Purchase capability')
+assert.match(readFileSync('android/capacitor.settings.gradle','utf8'),/capacitor-browser/)
+assert.match(readFileSync('ios/App/CapApp-SPM/Package.swift','utf8'),/CapacitorBrowser/)
+pass('System browser plugin is registered on both platforms for provider-approved Aula login')
 console.log('NATIVE STRUCTURAL PASS '+checks.length+'/'+checks.length+'; physical device build/runtime NOT tested')

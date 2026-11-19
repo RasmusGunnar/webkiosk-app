@@ -27,7 +27,7 @@ let cinema,cafe,board
 try{
  await actor(null);await query('update public.household_people set reward_enabled=false where id=$1',[personIds[4]])
  await action('link_person',{person_id:ida,user_id:ids.child})
- await page.goto(root);await routeTo(page,'today');await expect(page.locator('.star-goals')).toHaveCount(0);await routeTo(page,'tasks')
+ await page.goto(root);await routeTo(page,'tasks');await expect(page.locator('.star-goals')).toHaveCount(1);await routeTo(page,'tasks')
  await expect(page.locator('.star-goals [data-star-person]')).toHaveCount(3)
  await expect(panel(ida).locator('[data-reward-catalog=new]')).toHaveText('Opret første belønning')
  await shoot('empty-catalog-adult','Tomt katalog · voksen kan oprette første belønning')
@@ -114,12 +114,12 @@ try{
 
  await switchUser(ids.adult);await page.setViewportSize({width:1920,height:1080})
  await page.evaluate(({uid,hid,api})=>localStorage.setItem('familiekalender.device.v1:'+api,JSON.stringify({kiosk:{userId:uid,householdId:hid}})),{uid:ids.adult,hid,api})
- await page.reload();await expect(page.locator('body')).toHaveAttribute('data-device','wall');await routeTo(page,'today')
- await expect(page.locator('.star-goals-wall [data-star-person]')).toHaveCount(3)
- await expect(page.locator('.star-goals-wall button,.star-goals-wall a,.star-goals-wall input')).toHaveCount(0)
- for(const pid of [ida,carl,jakob])await expect(panel(pid)).toBeInViewport()
+ await page.reload();await expect(page.locator('body')).toHaveAttribute('data-device','wall');await routeTo(page,'tasks')
+ await expect(page.locator('.star-goals [data-star-person]')).toHaveCount(3)
+ await expect(page.locator('.star-goals button,.star-goals a,.star-goals input')).toHaveCount(0)
+ for(const pid of [ida,carl,jakob]){await panel(pid).scrollIntoViewIfNeeded();await expect(panel(pid)).toBeInViewport()}
  await shoot('10-wall-goals','Wall · tre read-only mål · 1920 × 1080')
- await actor(null);await query('delete from public.reward_goals where person_id=$1',[jakob]);await page.reload();await routeTo(page,'today')
+ await actor(null);await query('delete from public.reward_goals where person_id=$1',[jakob]);await page.reload();await routeTo(page,'tasks')
  await expect(panel(jakob)).toContainText('Intet mål');await expect(panel(jakob).locator('button')).toHaveCount(0)
  await page.setViewportSize({width:1280,height:800});await shoot('wall-no-goal','Wall · intet mål valgt · 1280 × 800')
  pass('Wall 1920 / 1280: same model, avatar, colour and progress; no actions or admin')

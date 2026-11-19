@@ -7,7 +7,7 @@ import {localSupabase} from '../../scripts/local-supabase.mjs'
 const local=localSupabase(),options={auth:{persistSession:false,autoRefreshToken:false}},admin=createClient(local.API_URL,local.SERVICE_ROLE_KEY,options),users=[],households=[],checks=[],events=[]
 const must=async q=>{const r=await q;if(r.error)throw Error(r.error.message);return r.data}
 const check=(name,value)=>{assert.ok(value,name);checks.push(name);console.log('PASS '+checks.length+': '+name)}
-const sql=input=>execFileSync('docker',['exec','-i','supabase_db_familiekalender','psql','-X','-U','postgres','-d','postgres','-v','ON_ERROR_STOP=1','-At'],{input,encoding:'utf8',windowsHide:true,stdio:['pipe','pipe','pipe']}).trim()
+const sql=input=>execFileSync('docker',['exec','-i',local.DB_CONTAINER,'psql','-X','-U','postgres','-d','postgres','-v','ON_ERROR_STOP=1','-At'],{input,encoding:'utf8',windowsHide:true,stdio:['pipe','pipe','pipe']}).trim()
 const make=async(role,hid,anonymous=false)=>{
  const c=createClient(local.API_URL,local.ANON_KEY,options);let user
  if(anonymous){user=(await must(c.auth.signInAnonymously())).user}else{const email='native50-'+randomUUID()+'@example.test',password=randomUUID()+'Aa!1';user=(await must(admin.auth.admin.createUser({email,password,email_confirm:true}))).user;await must(c.auth.signInWithPassword({email,password}))}
@@ -86,8 +86,8 @@ try{
  check('Wall cannot read raw calendar/feed/member data',(await must(wall.c.from('calendar_items').select('id'))).length===0&&(await must(wall.c.from('calendar_feeds').select('feed_url'))).length===0&&(await must(wall.c.from('household_members').select('*'))).length===0)
  check('Wall cannot manage billing',await denied(wall.c.rpc('create_subscription_claim',{p_household_id:hid})))
  check('Wall cannot mutate arbitrary calendar rows',await denied(wall.c.from('calendar_items').update({title:'Forbidden'}).eq('id',item.id).select()))
- await call(wall,'complete_task_as_device',{p_request_id:randomUUID(),p_item_id:item.id,p_due_date:today,p_done:true});snapshot=await call(wall,'wall_snapshot')
- check('Ordinary recurring task completion is limited to one occurrence',snapshot.items.some(i=>i.data.overrideBaseId===item.id&&i.done)&&snapshot.items.find(i=>i.id===item.id).done===false)
+ await call(wall,'complete_task_as_device',{p_request_id:randomUUID(),p_item_id:item.id,p_due_date:today,p_person_id:person.id,p_done:true});snapshot=await call(wall,'wall_snapshot')
+ check('Ordinary recurring task completion is limited to one occurrence',snapshot.rewards.occurrences.some(i=>i.task_id===item.id&&i.person_id===person.id&&i.due_date===today&&i.status==='completed')&&snapshot.items.find(i=>i.id===item.id).done===false)
  const bonus=await must(owner.c.from('calendar_items').insert({household_id:hid,created_by:owner.id,title:'Bonus local',type:'Opgave',date:today,person_ids:[person.id],data:{rewardMode:'stars',starValue:3}}).select().single())
  const args={p_request_id:randomUUID(),p_item_id:bonus.id,p_due_date:today,p_person_id:person.id};await call(wall,'complete_task_as_device',args);await call(wall,'complete_task_as_device',args)
  snapshot=await call(wall,'wall_snapshot');check('Limited reward completion reuses ledger idempotency',Number(snapshot.rewards.balances.find(b=>b.person_id===person.id)?.balance)===3)

@@ -1,4 +1,5 @@
 import {prepareReview} from './quality-pipeline.ts';
+import {nativeCors} from '../native-cors.ts';
 import {createClient} from '@supabase/supabase-js';
 import {setTimeout as delay} from 'node:timers/promises';
 import type {IncomingMessage,ServerResponse} from 'node:http';
@@ -49,6 +50,7 @@ async function items(hid:string){const {data,error}=await adminClient().from('ca
 export function makeHandlers(deps:Dependencies={}){
  const call=deps.rpc??rpc,auth=deps.authorize??authorize;
  const simple=(fn:(p:RecordData,hid:string,uid:string)=>Promise<unknown>)=>async(req:Request,res:ServerResponse)=>{
+  if(nativeCors(req,res))return;
   try{if(req.method!=='POST')throw new AulaError('METHOD_NOT_ALLOWED',405);const p=await body(req),hid=uuid(p.household_id),uid=await auth(req,hid);json(res,200,await fn(p,hid,uid));}catch(e){const error=safeError(e);json(res,error.status,{code:error.code});}
  };
  const status=simple(async(_p,h,u)=>({...await call('status',h,u),automatic:await call('schedule_status',h,u)}));
@@ -62,6 +64,7 @@ export function makeHandlers(deps:Dependencies={}){
  const identity=simple((p,h,u)=>call('identity_choose',h,u,{flow_id:uuid(p.flow_id),index:Number.isInteger(p.index)?p.index:0}));
  const disconnect=simple((_p,h,u)=>call('disconnect',h,u));
  const connect=async(req:Request,res:ServerResponse)=>{
+  if(nativeCors(req,res))return;
   let hid='',uid='',flow='',complete=false,heartbeat:ReturnType<typeof setInterval>|undefined;const abort=new AbortController();
   const signal=AbortSignal.any([abort.signal,AbortSignal.timeout(deps.timeoutMs??270_000)]);
   const emit=(event:string,data:unknown)=>{if(!res.destroyed&&!res.writableEnded)res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);};
@@ -93,6 +96,7 @@ export function makeHandlers(deps:Dependencies={}){
   finally{complete=true;clearInterval(heartbeat);abort.abort();req.off('aborted',cancel);res.off('close',cancel);if(!res.writableEnded)res.end();}
  };
  const scan=async(req:Request,res:ServerResponse)=>{
+  if(nativeCors(req,res))return;
   let hid='',uid:string|null=null,lease='',traceHash='',stage='start';const started=Date.now();const log=(name:string,counts:Record<string,number>={},code?:string)=>{if(!traceHash)return;try{(deps.log??(event=>console.info(JSON.stringify(event))))({stage:'aula.scan.'+name,counts,duration_ms:Date.now()-started,household_hash:traceHash,...(code?{code}:{})});}catch{}};const abort=new AbortController();const signal=AbortSignal.any([abort.signal,AbortSignal.timeout(deps.timeoutMs??240_000)]);
   const cancel=()=>abort.abort();res.once('close',cancel);
   try{
@@ -105,10 +109,10 @@ export function makeHandlers(deps:Dependencies={}){
    const claim=await call(p.scheduled_slot?'schedule_claim':'scan_claim',hid,uid,p.scheduled_slot?{slot:p.scheduled_slot}:{});
    if(claim.skip){log('scheduled.skipped',{skipped:1});json(res,200,{status:'SKIPPED',reason:claim.skip});return;}
    lease=claim.lease;
-   const saved=unseal<{refresh_token:string}>(hid,claim.encrypted_session as Envelope);if(typeof saved.refresh_token!=='string')throw new AulaError('AULA_SESSION_INVALID',409);
-   const http=new AulaHttpClient({signal}),tokens=await(deps.refresh??refreshSession)(http,saved.refresh_token);
+   const saved=unseal<{refresh_token:string;oauth_client_id?:string}>(hid,claim.encrypted_session as Envelope);if(typeof saved.refresh_token!=='string')throw new AulaError('AULA_SESSION_INVALID',409);
+   const http=new AulaHttpClient({signal}),tokens=await(deps.refresh??refreshSession)(http,saved.refresh_token,saved.oauth_client_id);
    // Persist rotation BEFORE any subsequent reads or AI call can fail.
-   await call('scan_save_session',hid,uid,{lease,encrypted_session:seal(hid,{refresh_token:tokens.refresh_token})});
+   await call('scan_save_session',hid,uid,{lease,encrypted_session:seal(hid,{refresh_token:tokens.refresh_token,...(saved.oauth_client_id?{oauth_client_id:saved.oauth_client_id}:{})})});
    log('refresh.ok');stage='collect';
    if(p.diagnostic==='meebook-structure'){
     stage='diagnostic';await diagnoseMeeBook(new ReadProvider(tokens.access_token,http,log),log);

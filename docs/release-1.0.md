@@ -1,3 +1,5 @@
+> Historical checkpoint. Current release status, production evidence and remaining gates: [RELEASE-1.0-CURRENT.md](RELEASE-1.0-CURRENT.md). Earlier deployment/configuration statuses below are not current.
+
 # Familiekalender 1.0 — release candidate
 Status 2026-09-29: **BLOCKED for offentlig lancering og stores**. Implementeringen og backend er verificeret; offentlig hosting, SMTP, kontaktoplysninger og signerede enhedstests mangler.
 

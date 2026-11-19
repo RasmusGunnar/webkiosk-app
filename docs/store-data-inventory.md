@@ -1,5 +1,5 @@
 # Store data inventory · 1.0 RC
-Verified implementation: 2026-09-29. This is the questionnaire input, not a submitted declaration. Complete the final forms against the shipped build and actual supplier contracts.
+Verified implementation: 2026-11-19. This is questionnaire input, not a submitted declaration. Complete final forms against the shipped build and actual supplier contracts. The authoritative status is [RELEASE-1.0-CURRENT.md](RELEASE-1.0-CURRENT.md).
 
 | Actual data | Collected off device? / linked | Purpose | Processor / sharing | Retention |
 |---|---|---|---|---|
@@ -13,7 +13,10 @@ Verified implementation: 2026-09-29. This is the questionnaire input, not a subm
 | Private ICS/Aula/Google feed URLs | Yes / family/admin | Fetch calendar data chosen by administrator | Supabase Edge fetches the selected calendar provider | Until feed/family deletion. Never in export/cache/logs created by new release code |
 | Random installation ID, platform, version, selected family, last seen | Native only / account | Register device and scope future notifications | Supabase Database | Until logout/account/family deletion; offline logout may leave an expired row until later cleanup |
 | APNs/FCM token | Only after configured provider and contextual permission / account | Notification delivery foundation; NO reminder engine | Supabase plus Apple APNs or Google FCM when enabled | Removed on online logout/deletion, refreshed on registration; delivery eligibility expires after 24h without renewal |
-| IP, request metadata and operational logs | Infrastructure may process / may link to account or request | Security, rate limits, operation | Supabase, future Vercel, email/push providers | Supplier/account configuration; precise production periods must be documented before launch |
+| Aula encrypted refresh session, child mappings, findings and review decisions | Optional / adult account + household | Read-only school assistant; review before activities | Supabase, Vercel Frankfurt; bounded non-sensitive source excerpts to OpenAI | Disconnect removes session; accepted activities remain. Connector deletion revokes that session; family deletion removes dependent data. Supplier retention requires agreement |
+| Recipe scan photographs and bounded Aula excerpts | Optional / family-linked content | User-requested extraction and school-content analysis | OpenAI via authenticated server endpoints | No provider tokens in AI input; sensitive Aula threads skipped. Confirm provider retention contract before release |
+| Subscription account ID, product, store, transaction and entitlement status | When enabled / account + household | Purchase, restore and family entitlement | RevenueCat, Apple/Google, Supabase | Store/provider contractual retention; no payment cards. Foundation present; stores unconfigured; enforcement OFF |
+| IP, request metadata and operational logs | Infrastructure may process / may link to account or request | Security, rate limits, operation | Supabase, Vercel, email/push providers | Supplier/account configuration; precise production periods must be documented before launch |
 | IndexedDB, session storage, localStorage and native export cache | On device, no extra analytics upload | Offline editing, session persistence, local kiosk preferences | OS/browser storage; JSON export shared only at user's action | Family cache removed on logout; preferences remain. User-saved exports and other devices' offline copies cannot be remotely guaranteed erased |
 
 ## Apple App Privacy
@@ -34,7 +37,8 @@ Service-provider processing is not automatically Google's “shared” category:
 - Public controller identity, support contact, SMTP vendor and concrete backup/log retention are not yet supplied.
 - Verify final Firebase/APNs configuration if push is enabled; base build keeps `VITE_NATIVE_PUSH_ENABLED=false` and FCM auto-init off.
 - Use actual native devices and inspect permission prompts/network traffic before submission.
-- No ads, contacts, microphone, GPS, payments, health data, crash analytics or behavioral analytics are intentionally collected by this app.
+- No ads, device contacts, microphone, GPS, payment cards, crash analytics or behavioral analytics are intentionally collected. Subscription purchase history must be declared when enabled; allowance markers are user content, not processed payments. Aula can contain private user content: do not claim anonymous collection or collection of no messages.
+- Apple: assess Purchases → Purchase History and User Content → Emails or Text Messages/Other User Content for subscription/Aula processing. Google: assess Financial info → Purchase History and Messages/Other user-generated content. Declare actual bounded processing even when bodies are not permanently stored. No tracking; purposes are functionality and account/security management.
 
 Sources: [Apple App Privacy](https://developer.apple.com/app-store/app-privacy-details/), [Google Data safety](https://support.google.com/googleplay/android-developer/answer/10787469?hl=en), [Capacitor Filesystem privacy](https://capacitorjs.com/docs/apis/filesystem).
 

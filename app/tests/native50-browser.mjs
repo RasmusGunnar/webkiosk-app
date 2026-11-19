@@ -12,6 +12,7 @@ const must=async q=>{const r=await q;if(r.error)throw Error(r.error.message);ret
 const pass=name=>{checks.push(name);console.log('PASS '+name)}
 const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true})
 const context=await browser.newContext({locale:'da-DK',viewport:{width:390,height:844},serviceWorkers:'block'}),page=await context.newPage();page.setDefaultTimeout(15000)
+page.on('response',async r=>{if(new URL(r.url()).pathname.endsWith('/subscription-verify')&&r.status()>=400){const body=await r.json().catch(()=>({}));console.log('VERIFY_RESPONSE',r.status(),body.error)}})
 const track=p=>{p.on('pageerror',e=>errors.push(e.message));p.on('request',r=>{const u=new URL(r.url());if(u.hostname.endsWith('.supabase.co'))throw Error('Hosted request prohibited')})};track(page)
 // The fixed DEV-only warning is documented in the gallery; omit its overlay from product screenshots.
 const shot=async(name,p=page)=>{await p.evaluate(()=>scrollTo(0,0));await p.screenshot({path:out+'/'+name+'.png',style:'.native-review-banner{display:none}'});shots.push(name)}

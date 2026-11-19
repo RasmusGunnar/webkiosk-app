@@ -4,6 +4,7 @@ import {adminClient,authorize,body,type Request} from './service.ts';
 import {AulaError,key,safeError,seal,uuid} from './security.ts';
 import {ReadProvider,refreshSession,type RecordData} from './provider.ts';
 import {AulaHttpClient} from './vendor/http.ts';
+import {nativeCors} from '../native-cors.ts';
 
 type Call=(action:string,hid:string|null,uid:string|null,p:RecordData)=>Promise<RecordData>;
 const codes:Record<string,number>={AULA_HANDOFF_INVALID:409,AULA_RATE_LIMIT:429,AULA_BUSY:409,AULA_FORBIDDEN:403};
@@ -20,8 +21,8 @@ function json(res:ServerResponse,status:number,data:RecordData){res.statusCode=s
 
 // Refresh is mandatory, followed by an authenticated read. Only the rotated
 // refresh token leaves this function; neither access tokens nor profiles persist.
-export async function verifySession(refresh:string,signal:AbortSignal,http=new AulaHttpClient({signal})):Promise<string>{
- const tokens=await refreshSession(http,refresh);
+export async function verifySession(refresh:string,signal:AbortSignal,http=new AulaHttpClient({signal}),clientId?:string):Promise<string>{
+ const tokens=await refreshSession(http,refresh,clientId);
  try{const profiles=await new ReadProvider(tokens.access_token,http).read('profiles.getProfilesByLogin');
   if(!profiles||!Array.isArray(profiles.profiles))throw new AulaError('AULA_PROVIDER_FORMAT',502);
   return tokens.refresh_token;
@@ -30,6 +31,7 @@ export async function verifySession(refresh:string,signal:AbortSignal,http=new A
 export function makeHandoffHandlers(deps:{authorize?:typeof authorize;call?:Call;verify?:typeof verifySession}={}){
  const auth=deps.authorize??authorize,rpc=deps.call??call;
  const create=async(req:Request,res:ServerResponse)=>{
+  if(nativeCors(req,res))return;
   try{if(req.method!=='POST')throw new AulaError('METHOD_NOT_ALLOWED',405);
    const p=await body(req),hid=uuid(p.household_id),uid=await auth(req,hid);key('AULA_SESSION_ENCRYPTION_KEY');
    const secret=randomBytes(32).toString('base64url');

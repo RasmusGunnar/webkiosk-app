@@ -8,7 +8,7 @@ const expect=baseExpect.configure({timeout:20000}),local=localSupabase(),root='h
 const hid='918d0c9b-3404-4aa2-aaf0-998a93e661b8'
 const admin=createClient(local.API_URL,local.SERVICE_ROLE_KEY,{auth:{persistSession:false}}),user=createClient(local.API_URL,local.ANON_KEY,{auth:{persistSession:false}})
 const must=async q=>{const r=await q;if(r.error)throw Error(r.error.code||'LOCAL_API_ERROR');return r.data}
-const runSql=sql=>execFileSync('docker',['exec','-i','supabase_db_familiekalender','psql','-X','-U','postgres','-d','postgres','-tA','-v','ON_ERROR_STOP=1'],{input:sql,encoding:'utf8',windowsHide:true,stdio:['pipe','pipe','pipe']})
+const runSql=sql=>execFileSync('docker',['exec','-i',local.DB_CONTAINER,'psql','-X','-U','postgres','-d','postgres','-tA','-v','ON_ERROR_STOP=1'],{input:sql,encoding:'utf8',windowsHide:true,stdio:['pipe','pipe','pipe']})
 const owner=(await must(admin.from('household_members').select('user_id').eq('household_id',hid).eq('role','owner').single())).user_id
 const email=(await must(admin.auth.admin.getUserById(owner))).user.email
 const link=await must(admin.auth.admin.generateLink({type:'magiclink',email}))

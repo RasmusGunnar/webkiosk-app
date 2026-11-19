@@ -36,7 +36,7 @@ const actor=async(role)=>{await db.exec('reset role');if(role!=='postgres')await
 const server=async(action,p={},hid=ids.hid,uid=ids.adult)=>{await actor('service_role');return (await query('select public.aula_handoff_server($1,$2,$3,$4::jsonb) value',[action,hid,uid,JSON.stringify(p)])).rows[0].value};
 let next=0;const create=async()=>{const hash=String(++next).padStart(64,'0');const row=await server('create',{token_hash:hash});assert.ok(row.id);return {...row,hash}};
 const claim=h=>server('claim',{token_hash:h.hash},null,null);
-const reset=async()=>{await actor('postgres');await db.exec('truncate private.aula_handoffs;update private.aula_handoff_rate set attempts=0,window_start=now()')};
+const reset=async()=>{await actor('postgres');await db.exec('truncate private.aula_handoffs cascade;update private.aula_handoff_rate set attempts=0,window_start=now()')};
 const finish=c=>server('finish',{id:c.id,claim_id:c.claim_id,encrypted_session:{version:1,iv:'synthetic',ciphertext:'synthetic',authTag:'synthetic'}});
 try{
  for(const role of ['anon','authenticated']){await actor(role);await assert.rejects(()=>query('select public.create_aula_handoff($1,$2,$3)',[ids.hid,ids.adult,'a'.repeat(64)]));await assert.rejects(()=>query('select * from private.aula_handoffs'));}pass('Anonymous/authenticated cannot bypass server authorization or read hashes');
@@ -53,5 +53,27 @@ try{
  await reset();for(let i=0;i<30;i++)assert.equal((await server('claim',{token_hash:'f'.repeat(64)},null,null)).error,'AULA_HANDOFF_INVALID');assert.equal((await server('claim',{token_hash:'f'.repeat(64)},null,null)).error,'AULA_RATE_LIMIT');pass('Failed guesses retain shared rate counter');
  await reset();h=await create();const late=await claim(h);await actor('postgres');await query("update private.aula_handoffs set used_at=now()-interval '91 seconds' where id=$1",[h.id]);assert.equal((await finish(late)).error,'AULA_HANDOFF_INVALID');pass('Late verification cannot save');
  await reset();h=await create();const removed=await claim(h);await actor('postgres');await query("update public.household_members set role='child' where household_id=$1 and user_id=$2",[ids.hid,ids.adult]);assert.equal((await finish(removed)).error,'AULA_HANDOFF_INVALID');pass('Adult role rechecked at completion');
+
+ await actor('postgres');await query("update public.household_members set role='owner' where household_id=$1 and user_id=$2",[ids.hid,ids.adult]);await reset();
+ const browser=async(a,p={},hid=ids.hid,uid=ids.adult)=>{await actor('service_role');return (await query('select public.aula_browser_server($1,$2,$3,$4::jsonb) value',[a,hid,uid,JSON.stringify(p)])).rows[0].value};
+ for(const role of ['anon','authenticated']){await actor(role);await assert.rejects(()=>query('select public.aula_browser_server($1,$2,$3,$4)', ['start',ids.hid,ids.adult,'{}']));await assert.rejects(()=>query('select * from private.aula_browser_flows'));}pass('Browser OAuth is service-only and state/verifier cannot be read by clients');
+ const start=()=>browser('start',{state_hash:'b'.repeat(64),encrypted_flow:{version:1,ciphertext:'synthetic'},native:true});
+ for(const uid of [ids.wall,ids.child,ids.outsider])await assert.rejects(()=>browser('start',{state_hash:'b'.repeat(64),encrypted_flow:{version:1}},ids.hid,uid));pass('Browser OAuth denies wall, child and cross-household initiation');
+ let flow=await start();assert.ok(flow.id);const claimed=await browser('claim',{state_hash:'b'.repeat(64)},null,null);assert.ok(claimed.claim_id);assert.equal(claimed.native,true);
+ assert.equal((await browser('claim',{state_hash:'b'.repeat(64)},null,null)).error,'AULA_HANDOFF_INVALID');await actor('postgres');assert.equal((await query('select encrypted_flow from private.aula_browser_flows where id=$1',[flow.id])).rows[0].encrypted_flow,null);pass('OAuth state is consumed atomically once and encrypted verifier erased on claim');
+ assert.equal((await browser('finish',{id:claimed.id,claim_id:claimed.claim_id,encrypted_session:{version:1}},ids.other,ids.outsider)).error,'AULA_HANDOFF_INVALID');pass('Browser finish cannot switch household');
+ await browser('cancel',{id:flow.id});assert.equal((await browser('finish',{id:claimed.id,claim_id:claimed.claim_id,encrypted_session:{version:1}})).error,'AULA_HANDOFF_INVALID');pass('Browser cancellation fences callback without disconnecting the existing session');
+ await reset();flow=await start();await actor('postgres');await query("update private.aula_handoffs set expires_at=now()-interval '1 second' where id=$1",[flow.id]);assert.equal((await browser('claim',{state_hash:'b'.repeat(64)},null,null)).error,'AULA_HANDOFF_INVALID');pass('Browser OAuth expiry rejects late callbacks');
+ await reset();flow=await start();const preparedClaim=await browser('claim',{state_hash:'b'.repeat(64)},null,null);
+ const proof='d'.repeat(64);
+ await actor('postgres');const beforeSession=(await query('select encrypted_session from private.aula_credentials where household_id=$1',[ids.hid])).rows;
+ assert.equal((await browser('prepare',{id:flow.id,claim_id:preparedClaim.claim_id,completion_hash:proof,encrypted_session:{version:1,ciphertext:'prepared'}})).prepared,true);
+ assert.equal((await browser('status',{id:flow.id})).connected,false);
+ await actor('postgres');assert.deepEqual((await query('select encrypted_session from private.aula_credentials where household_id=$1',[ids.hid])).rows,beforeSession);pass('Callback alone cannot connect or replace existing credentials');
+ assert.equal((await browser('finish',{id:flow.id,completion_hash:'e'.repeat(64)})).error,'AULA_HANDOFF_INVALID');
+ assert.ok(!(JSON.stringify(await browser('status',{id:flow.id}))).includes(proof));pass('Polling does not expose completion proof and wrong proof fails');
+ assert.equal((await browser('finish',{id:flow.id,completion_hash:proof})).connected,true);
+ assert.equal((await browser('finish',{id:flow.id,completion_hash:proof})).error,'AULA_HANDOFF_INVALID');pass('Authenticated originating app completes once; replay rejected');
  console.log('AULA HANDOFF DB PASS:',checks.length);
+
 }finally{await db.close()}

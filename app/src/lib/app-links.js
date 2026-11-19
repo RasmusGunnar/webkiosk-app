@@ -16,6 +16,7 @@ export function parseAppLink(input,{base='',localOrigin=''}={}) {
  if(!native&&!origins.includes(url.origin))return null
  if(url.username||url.password)return null
  const path=native?'/'+url.hostname+url.pathname:url.pathname
+ if(native&&path==='/aula/connected'&&!url.search){const p=new URLSearchParams(url.hash.slice(1));if([...p.keys()].length===2&&/^[0-9a-f-]{36}$/i.test(p.get('flow')||'')&&/^[A-Za-z0-9_-]{43}$/.test(p.get('proof')||''))return {kind:'aula-connected',id:p.get('flow'),proof:p.get('proof')};return null}
  const hash=new URLSearchParams(url.hash.slice(1)),params=url.searchParams
  const get=key=>hash.get(key)||params.get(key)
  if(get('error')||get('error_code'))return {kind:'auth-error'}

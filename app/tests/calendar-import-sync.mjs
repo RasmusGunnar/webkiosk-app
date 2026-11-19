@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 import {localSupabase} from '../../scripts/local-supabase.mjs'
 const local=localSupabase(),admin=createClient(local.API_URL,local.SERVICE_ROLE_KEY,{auth:{persistSession:false}}),user=createClient(local.API_URL,local.ANON_KEY,{auth:{persistSession:false}})
 const must=async q=>{const r=await q;if(r.error)throw Error(r.error.message);return r.data}
-const sql=text=>execFileSync('docker',['exec','-i','supabase_db_familiekalender','psql','-X','-U','postgres','-d','postgres','-tA','-v','ON_ERROR_STOP=1'],{input:text,encoding:'utf8',windowsHide:true,stdio:['pipe','pipe','pipe']}).trim()
+const sql=text=>execFileSync('docker',['exec','-i',local.DB_CONTAINER,'psql','-X','-U','postgres','-d','postgres','-tA','-v','ON_ERROR_STOP=1'],{input:text,encoding:'utf8',windowsHide:true,stdio:['pipe','pipe','pipe']}).trim()
 const checks=[],pass=name=>{checks.push(name);console.log('PASS '+name)}
 let uid,hid,outsiderId
 try{

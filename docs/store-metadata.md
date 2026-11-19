@@ -43,3 +43,7 @@ Still needed from real native builds using fictional data:
 - No browser screenshot is represented here as proof of native behavior.
 
 Current sources checked 2026-09-29: [Google artwork](https://support.google.com/googleplay/android-developer/answer/9866151?hl=en-GB), [Apple screenshots](https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications/).
+
+## Prepared release artwork (2026-11-19)
+
+`store-assets/` contains verified 1024x500 Danish/English Google feature graphics (editable SVG plus PNG), and an opaque 512x512 store icon reused from the existing app logo. These are promotional illustrations, not screenshots. Real native iPhone/iPad/Android screenshots still require signed builds/devices.
